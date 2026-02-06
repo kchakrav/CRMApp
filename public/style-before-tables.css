@@ -1,0 +1,1160 @@
+/* ============================================
+   B2C Marketing Automation Platform
+   Adobe Spectrum Design System Inspired
+   Adobe Journey Optimizer / Campaign v8 Style
+   ============================================ */
+
+/* ============================================
+   1. DESIGN TOKENS (Adobe Spectrum Palette)
+   ============================================ */
+
+:root {
+  /* Adobe Spectrum Gray Palette */
+  --gray-50: #FFFFFF;
+  --gray-75: #FAFAFA;
+  --gray-100: #F5F5F5;
+  --gray-200: #EAEAEA;
+  --gray-300: #E1E1E1;
+  --gray-400: #CACACA;
+  --gray-500: #B3B3B3;
+  --gray-600: #8E8E8E;
+  --gray-700: #6E6E6E;
+  --gray-800: #4B4B4B;
+  --gray-900: #2C2C2C;
+  
+  /* Adobe Blue Palette */
+  --blue-400: #2680EB;
+  --blue-500: #1473E6;
+  --blue-600: #0D66D0;
+  --blue-700: #095ABA;
+  
+  /* Semantic Colors */
+  --spectrum-blue: #1473E6;
+  --spectrum-red: #D7373F;
+  --spectrum-orange: #E68619;
+  --spectrum-green: #268E6C;
+  --spectrum-purple: #9256D9;
+  
+  /* Background Colors */
+  --bg-base: #F5F5F5;
+  --bg-layer-1: #FFFFFF;
+  --bg-layer-2: #FAFAFA;
+  
+  /* Text Colors */
+  --text-primary: #2C2C2C;
+  --text-secondary: #6E6E6E;
+  --text-disabled: #B3B3B3;
+  
+  /* Border Colors */
+  --border-default: #E1E1E1;
+  --border-medium: #CACACA;
+  --border-dark: #8E8E8E;
+  
+  /* Focus & Selection */
+  --focus-color: #2680EB;
+  --selection-color: #E3F2FD;
+  
+  /* Shadows (Adobe-style subtle) */
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.06);
+  --shadow-md: 0 2px 4px rgba(0, 0, 0, 0.08);
+  --shadow-lg: 0 4px 8px rgba(0, 0, 0, 0.1);
+  --shadow-xl: 0 8px 16px rgba(0, 0, 0, 0.12);
+  
+  /* Spacing System (Adobe 4px grid) */
+  --spacing-50: 2px;
+  --spacing-75: 4px;
+  --spacing-100: 8px;
+  --spacing-200: 12px;
+  --spacing-300: 16px;
+  --spacing-400: 20px;
+  --spacing-500: 24px;
+  --spacing-600: 32px;
+  --spacing-700: 40px;
+  --spacing-800: 48px;
+  
+  /* Typography */
+  --font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-size-xs: 11px;
+  --font-size-sm: 12px;
+  --font-size-md: 14px;
+  --font-size-lg: 16px;
+  --font-size-xl: 18px;
+  --font-size-xxl: 24px;
+  --font-size-xxxl: 32px;
+  
+  /* Border Radius */
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 8px;
+  
+  /* Transitions */
+  --transition-fast: 130ms cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-normal: 200ms cubic-bezier(0.4, 0, 0.2, 1);
+  
+  /* Layout */
+  --sidebar-width: 240px;
+  --header-height: 56px;
+}
+
+/* ============================================
+   2. RESET & BASE STYLES
+   ============================================ */
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html, body {
+  height: 100%;
+  overflow: hidden;
+}
+
+body {
+  font-family: var(--font-family);
+  font-size: var(--font-size-md);
+  color: var(--text-primary);
+  background: var(--bg-base);
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* ============================================
+   3. LAYOUT STRUCTURE (Adobe-style)
+   ============================================ */
+
+.app-container {
+  display: flex;
+  height: 100vh;
+  overflow: hidden;
+}
+
+/* Left Sidebar Navigation */
+.sidebar {
+  width: var(--sidebar-width);
+  background: var(--gray-900);
+  display: flex;
+  flex-direction: column;
+  border-right: 1px solid var(--gray-800);
+  flex-shrink: 0;
+}
+
+.sidebar-header {
+  height: var(--header-height);
+  display: flex;
+  align-items: center;
+  padding: 0 var(--spacing-300);
+  border-bottom: 1px solid var(--gray-800);
+}
+
+.sidebar-logo {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-200);
+  color: var(--gray-50);
+  font-size: var(--font-size-lg);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.sidebar-logo-icon {
+  font-size: 24px;
+}
+
+.sidebar-nav {
+  flex: 1;
+  overflow-y: auto;
+  padding: var(--spacing-300) 0;
+}
+
+.nav-item {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-200);
+  padding: var(--spacing-200) var(--spacing-300);
+  color: var(--gray-400);
+  text-decoration: none;
+  transition: all var(--transition-fast);
+  cursor: pointer;
+  font-size: var(--font-size-md);
+  margin: 0 var(--spacing-200);
+  border-radius: var(--radius-sm);
+}
+
+.nav-item:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--gray-50);
+}
+
+.nav-item.active {
+  background: var(--blue-600);
+  color: var(--gray-50);
+  font-weight: 500;
+}
+
+.nav-item .icon {
+  font-size: 18px;
+  width: 20px;
+  text-align: center;
+}
+
+/* Main Content Area */
+.main-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* Top Header Bar */
+.header {
+  height: var(--header-height);
+  background: var(--bg-layer-1);
+  border-bottom: 1px solid var(--border-default);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 var(--spacing-500);
+  flex-shrink: 0;
+}
+
+.header-left {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-400);
+}
+
+.header-title {
+  font-size: var(--font-size-xl);
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-300);
+}
+
+/* Breadcrumbs (Adobe-style) */
+.breadcrumbs {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-100);
+  padding: var(--spacing-300) var(--spacing-500);
+  background: var(--bg-layer-2);
+  border-bottom: 1px solid var(--border-default);
+  font-size: var(--font-size-sm);
+}
+
+.breadcrumbs.hidden {
+  display: none;
+}
+
+.breadcrumb-item {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-100);
+}
+
+.breadcrumb-link {
+  color: var(--text-secondary);
+  text-decoration: none;
+  transition: color var(--transition-fast);
+}
+
+.breadcrumb-link:hover {
+  color: var(--blue-500);
+}
+
+.breadcrumb-separator {
+  color: var(--text-disabled);
+  font-size: 10px;
+}
+
+.breadcrumb-current {
+  color: var(--text-primary);
+  font-weight: 500;
+}
+
+/* Content Area */
+.content-wrapper {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+#content {
+  padding: var(--spacing-500);
+  max-width: 1800px;
+  margin: 0 auto;
+}
+
+/* ============================================
+   4. BUTTONS (Adobe Spectrum Style)
+   ============================================ */
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--spacing-100);
+  padding: var(--spacing-100) var(--spacing-300);
+  font-size: var(--font-size-md);
+  font-weight: 500;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  text-decoration: none;
+  white-space: nowrap;
+  line-height: 1.5;
+  min-height: 32px;
+}
+
+.btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* Primary Button (Neutral) */
+.btn-primary {
+  background: var(--gray-100);
+  color: var(--text-primary);
+  border-color: var(--border-medium);
+}
+
+.btn-primary:hover:not(:disabled) {
+  background: var(--gray-200);
+  border-color: var(--border-dark);
+}
+
+.btn-primary:active:not(:disabled) {
+  background: var(--gray-200);
+  border-color: var(--border-dark);
+}
+
+/* Secondary Button */
+.btn-secondary {
+  background: var(--gray-100);
+  color: var(--text-primary);
+  border-color: var(--border-medium);
+}
+
+.btn-secondary:hover:not(:disabled) {
+  background: var(--gray-200);
+  border-color: var(--border-dark);
+}
+
+/* Danger Button (Neutral) */
+.btn-danger {
+  background: var(--gray-100);
+  color: var(--text-primary);
+  border-color: var(--border-medium);
+}
+
+.btn-danger:hover:not(:disabled) {
+  background: var(--gray-200);
+  border-color: var(--border-dark);
+}
+
+/* Success Button (Neutral) */
+.btn-success {
+  background: var(--gray-100);
+  color: var(--text-primary);
+  border-color: var(--border-medium);
+}
+
+.btn-success:hover:not(:disabled) {
+  background: var(--gray-200);
+  border-color: var(--border-dark);
+}
+
+/* Warning Button (Neutral) */
+.btn-warning {
+  background: var(--gray-100);
+  color: var(--text-primary);
+  border-color: var(--border-medium);
+}
+
+.btn-warning:hover:not(:disabled) {
+  background: var(--gray-200);
+  border-color: var(--border-dark);
+}
+
+/* Info Button (Neutral) */
+.btn-info {
+  background: var(--gray-100);
+  color: var(--text-primary);
+  border-color: var(--border-medium);
+}
+
+.btn-info:hover:not(:disabled) {
+  background: var(--gray-200);
+  border-color: var(--border-dark);
+}
+
+/* Button Sizes */
+.btn-sm {
+  padding: 4px var(--spacing-200);
+  font-size: var(--font-size-sm);
+  min-height: 24px;
+}
+
+.btn-lg {
+  padding: var(--spacing-200) var(--spacing-500);
+  font-size: var(--font-size-lg);
+  min-height: 40px;
+}
+
+/* Action Buttons Group */
+.action-buttons {
+  display: flex;
+  gap: var(--spacing-100);
+  align-items: center;
+}
+
+/* ============================================
+   5. CARDS (Adobe-style clean panels)
+   ============================================ */
+
+.card {
+  background: var(--bg-layer-1);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  margin-bottom: var(--spacing-500);
+  box-shadow: var(--shadow-sm);
+}
+
+.card-header {
+  padding: var(--spacing-400) var(--spacing-500);
+  border-bottom: 1px solid var(--border-default);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.card-title {
+  font-size: var(--font-size-xl);
+  font-weight: 600;
+  color: var(--text-primary);
+  margin: 0;
+}
+
+.card-subtitle {
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
+  margin-top: var(--spacing-75);
+}
+
+.card-body {
+  padding: var(--spacing-500);
+}
+
+/* ============================================
+   6. TABLES (Adobe Spectrum Data Tables)
+   ============================================ */
+
+.table-container {
+  overflow-x: auto;
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  background: var(--bg-layer-1);
+  font-size: var(--font-size-sm);
+}
+
+thead {
+  background: var(--gray-75);
+  border-bottom: 2px solid var(--border-default);
+}
+
+thead th {
+  padding: var(--spacing-200) var(--spacing-300);
+  text-align: left;
+  font-weight: 600;
+  color: var(--text-secondary);
+  font-size: var(--font-size-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+tbody tr {
+  border-bottom: 1px solid var(--border-default);
+  transition: background var(--transition-fast);
+}
+
+tbody tr:hover {
+  background: var(--gray-75);
+}
+
+tbody tr:last-child {
+  border-bottom: none;
+}
+
+tbody td {
+  padding: var(--spacing-300);
+  color: var(--text-primary);
+  vertical-align: middle;
+}
+
+/* ============================================
+   7. BADGES (Adobe Status Indicators)
+   ============================================ */
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px var(--spacing-100);
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+  border-radius: var(--radius-sm);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  line-height: 1.2;
+}
+
+.badge-success {
+  background: #D4EDDA;
+  color: #155724;
+}
+
+.badge-danger {
+  background: #F8D7DA;
+  color: #721C24;
+}
+
+.badge-warning {
+  background: #FFF3CD;
+  color: #856404;
+}
+
+.badge-info {
+  background: #D1ECF1;
+  color: #0C5460;
+}
+
+.badge-primary {
+  background: #CCE5FF;
+  color: #004085;
+}
+
+.badge-secondary {
+  background: var(--gray-200);
+  color: var(--text-secondary);
+}
+
+.badge-default {
+  background: var(--gray-100);
+  color: var(--text-primary);
+}
+
+.badge-light {
+  background: var(--gray-100);
+  color: var(--text-secondary);
+}
+
+/* ============================================
+   8. FORMS (Adobe Spectrum Form Controls)
+   ============================================ */
+
+.form-container {
+  background: var(--bg-layer-1);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  padding: var(--spacing-600);
+  max-width: 800px;
+  margin: 0 auto;
+}
+
+.form-section {
+  margin-bottom: var(--spacing-600);
+  padding-bottom: var(--spacing-600);
+  border-bottom: 1px solid var(--border-default);
+}
+
+.form-section:last-of-type {
+  border-bottom: none;
+  margin-bottom: 0;
+  padding-bottom: 0;
+}
+
+.form-section-title {
+  font-size: var(--font-size-lg);
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: var(--spacing-400);
+}
+
+.form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: var(--spacing-400);
+}
+
+.form-grid-full {
+  grid-column: 1 / -1;
+}
+
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-100);
+}
+
+.form-label {
+  font-size: var(--font-size-sm);
+  font-weight: 500;
+  color: var(--text-primary);
+}
+
+.form-label-required::after {
+  content: ' *';
+  color: var(--spectrum-red);
+}
+
+.form-input,
+.form-select,
+.form-textarea {
+  padding: var(--spacing-100) var(--spacing-200);
+  font-size: var(--font-size-md);
+  border: 1px solid var(--border-medium);
+  border-radius: var(--radius-sm);
+  background: var(--bg-layer-1);
+  color: var(--text-primary);
+  transition: all var(--transition-fast);
+  font-family: var(--font-family);
+}
+
+.form-input:focus,
+.form-select:focus,
+.form-textarea:focus {
+  outline: none;
+  border-color: var(--focus-color);
+  box-shadow: 0 0 0 1px var(--focus-color);
+}
+
+.form-input::placeholder {
+  color: var(--text-disabled);
+}
+
+.form-help {
+  font-size: var(--font-size-xs);
+  color: var(--text-secondary);
+  margin-top: var(--spacing-75);
+}
+
+.form-actions {
+  display: flex;
+  gap: var(--spacing-200);
+  justify-content: flex-end;
+  margin-top: var(--spacing-600);
+  padding-top: var(--spacing-400);
+  border-top: 1px solid var(--border-default);
+}
+
+/* ============================================
+   9. FILTER PANELS (Adobe Side Panel Style)
+   ============================================ */
+
+.filter-panel {
+  background: var(--bg-layer-1);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  margin-bottom: var(--spacing-500);
+  box-shadow: var(--shadow-sm);
+}
+
+.filter-panel-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: var(--spacing-300) var(--spacing-400);
+  border-bottom: 1px solid var(--border-default);
+  background: var(--gray-75);
+}
+
+.filter-panel-header h4 {
+  margin: 0;
+  font-size: var(--font-size-md);
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.filter-panel-body {
+  padding: var(--spacing-400);
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: var(--spacing-300);
+}
+
+.filter-group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-100);
+}
+
+.filter-label {
+  font-size: var(--font-size-sm);
+  font-weight: 500;
+  color: var(--text-primary);
+}
+
+.filter-input,
+.filter-select {
+  padding: var(--spacing-100) var(--spacing-200);
+  border: 1px solid var(--border-medium);
+  border-radius: var(--radius-sm);
+  font-size: var(--font-size-sm);
+  transition: all var(--transition-fast);
+  background: var(--bg-layer-1);
+}
+
+.filter-input:focus,
+.filter-select:focus {
+  outline: none;
+  border-color: var(--focus-color);
+  box-shadow: 0 0 0 1px var(--focus-color);
+}
+
+.filter-panel-footer {
+  padding: var(--spacing-200) var(--spacing-400);
+  border-top: 1px solid var(--border-default);
+  background: var(--gray-75);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.filter-results {
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
+}
+
+.filter-results strong {
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+/* ============================================
+   10. FILTER TABS (for Workflows)
+   ============================================ */
+
+.filter-tabs {
+  display: flex;
+  gap: var(--spacing-100);
+  padding: var(--spacing-400);
+  background: var(--bg-layer-2);
+  border-bottom: 1px solid var(--border-default);
+  flex-wrap: wrap;
+}
+
+.filter-tab {
+  padding: var(--spacing-100) var(--spacing-300);
+  border: 1px solid var(--border-medium);
+  background: var(--bg-layer-1);
+  border-radius: var(--radius-sm);
+  font-size: var(--font-size-sm);
+  font-weight: 500;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  color: var(--text-primary);
+}
+
+.filter-tab:hover {
+  background: var(--gray-100);
+  border-color: var(--border-dark);
+}
+
+.filter-tab.active {
+  background: var(--blue-500);
+  color: var(--gray-50);
+  border-color: var(--blue-500);
+}
+
+/* ============================================
+   11. WORKFLOW TYPE CARDS
+   ============================================ */
+
+.workflow-type-card {
+  cursor: pointer;
+}
+
+.type-card {
+  padding: var(--spacing-500);
+  border: 2px solid var(--border-default);
+  border-radius: var(--radius-md);
+  background: var(--bg-layer-1);
+  transition: all var(--transition-fast);
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.type-card:hover {
+  border-color: var(--blue-400);
+  box-shadow: var(--shadow-md);
+}
+
+.type-card.active {
+  border-color: var(--blue-500);
+  background: var(--selection-color);
+  box-shadow: var(--shadow-md);
+}
+
+.type-icon {
+  font-size: 32px;
+  margin-bottom: var(--spacing-200);
+}
+
+.type-title {
+  font-size: var(--font-size-lg);
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: var(--spacing-100);
+}
+
+.type-description {
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
+  margin-bottom: var(--spacing-200);
+  line-height: 1.5;
+}
+
+.type-examples {
+  font-size: var(--font-size-xs);
+  color: var(--text-disabled);
+  font-style: italic;
+  margin-top: auto;
+  padding-top: var(--spacing-200);
+  border-top: 1px solid var(--border-default);
+}
+
+/* ============================================
+   12. LOADING & UTILITIES
+   ============================================ */
+
+.loading {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(255, 255, 255, 0.9);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+}
+
+.spinner {
+  border: 3px solid var(--gray-300);
+  border-top-color: var(--blue-500);
+  border-radius: 50%;
+  width: 48px;
+  height: 48px;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.hidden {
+  display: none !important;
+}
+
+/* Empty States */
+.empty-state {
+  text-align: center;
+  padding: var(--spacing-800) var(--spacing-400);
+}
+
+.empty-state h3 {
+  font-size: var(--font-size-xl);
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: var(--spacing-200);
+}
+
+.empty-state p {
+  font-size: var(--font-size-md);
+  color: var(--text-secondary);
+  margin-bottom: var(--spacing-400);
+}
+
+/* ============================================
+   13. TOAST NOTIFICATIONS (Adobe-style)
+   ============================================ */
+
+#toast-container {
+  position: fixed;
+  top: var(--spacing-500);
+  right: var(--spacing-500);
+  z-index: 10000;
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-200);
+}
+
+.toast {
+  background: var(--bg-layer-1);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  padding: var(--spacing-300) var(--spacing-400);
+  min-width: 300px;
+  box-shadow: var(--shadow-lg);
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-200);
+  animation: slideIn 0.3s ease-out;
+}
+
+@keyframes slideIn {
+  from {
+    transform: translateX(400px);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+.toast-success {
+  border-left: 4px solid var(--spectrum-green);
+}
+
+.toast-error {
+  border-left: 4px solid var(--spectrum-red);
+}
+
+.toast-info {
+  border-left: 4px solid var(--blue-500);
+}
+
+.toast-warning {
+  border-left: 4px solid var(--spectrum-orange);
+}
+
+/* ============================================
+   14. MODALS (Adobe Spectrum Dialogs)
+   ============================================ */
+
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9998;
+}
+
+.modal {
+  background: var(--bg-layer-1);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-xl);
+  max-width: 600px;
+  width: 90%;
+  max-height: 90vh;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.modal-header {
+  padding: var(--spacing-400) var(--spacing-500);
+  border-bottom: 1px solid var(--border-default);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.modal-title {
+  font-size: var(--font-size-xl);
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.modal-close {
+  cursor: pointer;
+  font-size: 20px;
+  color: var(--text-secondary);
+  transition: color var(--transition-fast);
+}
+
+.modal-close:hover {
+  color: var(--text-primary);
+}
+
+.modal-body {
+  padding: var(--spacing-500);
+  overflow-y: auto;
+  flex: 1;
+}
+
+.modal-footer {
+  padding: var(--spacing-400) var(--spacing-500);
+  border-top: 1px solid var(--border-default);
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--spacing-200);
+}
+
+/* ============================================
+   15. RESPONSIVE DESIGN
+   ============================================ */
+
+@media (max-width: 1024px) {
+  .sidebar {
+    width: 200px;
+  }
+  
+  .form-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 768px) {
+  .sidebar {
+    position: fixed;
+    left: -240px;
+    z-index: 9997;
+    transition: left var(--transition-normal);
+  }
+  
+  .sidebar.open {
+    left: 0;
+  }
+  
+  #content {
+    padding: var(--spacing-300);
+  }
+  
+  .filter-panel-body {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ============================================
+   16. PRINT STYLES
+   ============================================ */
+
+@media print {
+  .sidebar,
+  .header,
+  .breadcrumbs,
+  .btn,
+  .action-buttons {
+    display: none !important;
+  }
+  
+  .main-content {
+    margin: 0;
+  }
+}
+
+/* ============================================
+   END OF ADOBE SPECTRUM DESIGN SYSTEM
+   ============================================ */
+
+/* ============================================
+   COLLAPSIBLE NAVIGATION SECTIONS (Adobe-style)
+   ============================================ */
+
+.nav-section {
+  margin: var(--spacing-200) 0;
+}
+
+.nav-section-header {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-100);
+  padding: var(--spacing-100) var(--spacing-300);
+  color: var(--gray-500);
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  cursor: pointer;
+  transition: color var(--transition-fast);
+  user-select: none;
+}
+
+.nav-section-header:hover {
+  color: var(--gray-400);
+}
+
+.nav-section-icon {
+  font-size: 10px;
+  transition: transform var(--transition-fast);
+  width: 12px;
+  text-align: center;
+}
+
+.nav-section.collapsed .nav-section-icon {
+  transform: rotate(-90deg);
+}
+
+.nav-section-content {
+  max-height: 1000px;
+  overflow: hidden;
+  transition: max-height var(--transition-normal), opacity var(--transition-normal);
+  opacity: 1;
+}
+
+.nav-section.collapsed .nav-section-content {
+  max-height: 0;
+  opacity: 0;
+}
+
+.nav-section-content .nav-item {
+  margin-left: var(--spacing-200);
+}
+
+/* ============================================
+   EXPLORER CARDS
+   ============================================ */
+
+.explorer-card {
+  padding: var(--spacing-500);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  background: var(--bg-layer-1);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  text-align: center;
+}
+
+.explorer-card:hover {
+  border-color: var(--blue-500);
+  box-shadow: var(--shadow-md);
+  transform: translateY(-2px);
+}
+
+.explorer-icon {
+  font-size: 48px;
+  margin-bottom: var(--spacing-300);
+}
+
+.explorer-title {
+  font-size: var(--font-size-lg);
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: var(--spacing-100);
+}
+
+.explorer-desc {
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
+}

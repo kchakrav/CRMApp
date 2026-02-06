@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Campaign Orchestration - B2C Marketing Automation</title>
+  <link rel="stylesheet" href="orchestration.css">
+</head>
+<body>
+  <div class="orchestration-container">
+    <!-- Header -->
+    <div class="orchestration-header">
+      <div class="header-left">
+        <button class="btn-back" onclick="goBack()" title="Back to Workflows">
+          <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><path d="M12.5 15L7.5 10L12.5 5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </button>
+        <h1 id="campaign-name">Campaign Orchestration</h1>
+      </div>
+      <div class="header-right">
+        <button class="btn btn-secondary" onclick="previewOrchestration()">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+          Preview
+        </button>
+        <button class="btn btn-secondary" onclick="validateOrchestration()">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+          Validate
+        </button>
+        <button class="btn btn-primary" onclick="saveOrchestration()">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+          Save
+        </button>
+        <button class="btn btn-success" onclick="executeOrchestration()">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+          Execute
+        </button>
+      </div>
+    </div>
+
+    <!-- Main Content -->
+    <div class="orchestration-main">
+      <!-- Left Sidebar - Activity Palette -->
+      <div class="activity-palette">
+        <div class="palette-header">
+          <h3>
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:4px"><path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 002 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>
+            Activities
+          </h3>
+          <input type="text" class="palette-search" placeholder="Search activities..." id="activity-search">
+        </div>
+        <div id="activity-categories"></div>
+      </div>
+
+      <!-- Center - Canvas -->
+      <div class="canvas-wrapper">
+        <div class="canvas-toolbar">
+          <button class="toolbar-btn" onclick="startWorkflow()" title="Start workflow">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg> Start
+          </button>
+          <button class="toolbar-btn" onclick="stopWorkflow()" title="Stop workflow">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><rect x="4" y="4" width="16" height="16" rx="2"/></svg> Stop
+          </button>
+          <button class="toolbar-btn" onclick="restartWorkflow()" title="Restart workflow">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 105.42-9.42L1 10"/></svg> Restart
+          </button>
+          <span class="toolbar-divider">|</span>
+          <button class="toolbar-btn" onclick="zoomIn()" title="Zoom in">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/><line x1="11" y1="8" x2="11" y2="14"/><line x1="8" y1="11" x2="14" y2="11"/></svg>
+          </button>
+          <button class="toolbar-btn" onclick="zoomOut()" title="Zoom out">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/><line x1="8" y1="11" x2="14" y2="11"/></svg>
+          </button>
+          <button class="toolbar-btn" onclick="resetView()" title="Reset view">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><circle cx="12" cy="12" r="10"/></svg>
+          </button>
+          <button class="toolbar-btn" onclick="fitToView()" title="Fit to view">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H5a2 2 0 00-2 2v3m18 0V5a2 2 0 00-2-2h-3m0 18h3a2 2 0 002-2v-3M3 16v3a2 2 0 002 2h3"/></svg> Fit
+          </button>
+          <button class="toolbar-btn" onclick="autoLayout()" title="Auto layout">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg> Layout
+          </button>
+          <span class="toolbar-divider">|</span>
+          <button class="toolbar-btn" onclick="openActivityList()" title="View workflow activities">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg> Activities
+          </button>
+          <button class="toolbar-btn" onclick="deleteSelected()" title="Delete selected">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg>
+          </button>
+          <button class="toolbar-btn" onclick="duplicateSelected()" title="Duplicate selected">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
+          </button>
+          <span class="toolbar-divider">|</span>
+          <button class="toolbar-btn" onclick="undoAction()" title="Undo">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 105.42-9.42L1 10"/></svg>
+          </button>
+          <button class="toolbar-btn" onclick="redoAction()" title="Redo">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 11-5.42-9.42L23 10"/></svg>
+          </button>
+        </div>
+        
+        <div id="canvas" class="canvas">
+          <div id="canvas-content" class="canvas-content">
+            <svg id="connections-svg" class="connections-svg"></svg>
+            <!-- Nodes will be dynamically added here -->
+          </div>
+        </div>
+      </div>
+
+      <!-- Right Sidebar - AI Assistant & Properties -->
+      <div class="right-sidebar">
+        <!-- AI Assistant -->
+        <div class="ai-assistant-panel collapsed" id="ai-assistant-panel">
+          <div class="panel-header">
+            <span class="panel-icon">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a4 4 0 014 4v1h1a3 3 0 013 3v4a3 3 0 01-3 3h-1v1a4 4 0 01-8 0v-1H7a3 3 0 01-3-3v-4a3 3 0 013-3h1V6a4 4 0 014-4z"/><circle cx="9" cy="12" r="1"/><circle cx="15" cy="12" r="1"/></svg>
+            </span>
+            <h3>AI Assistant</h3>
+            <button class="panel-toggle" onclick="toggleAIAssistant()" aria-label="Toggle AI Assistant">
+              ▶
+            </button>
+          </div>
+          <div class="ai-assistant-body">
+          <div class="ai-suggestions">
+            <div class="ai-suggestion-item">
+              <div class="ai-suggestion-label">Quick Tip</div>
+              <div class="ai-suggestion-text">Start with an Entry node, add targeting, then channels</div>
+            </div>
+            <div class="ai-suggestion-item">
+              <div class="ai-suggestion-label">Best Practice</div>
+              <div class="ai-suggestion-text">Add Wait nodes between emails to avoid overwhelming customers</div>
+            </div>
+          </div>
+          <div class="ai-quick-actions">
+            <button class="btn btn-sm btn-secondary" onclick="suggestOrchestration()">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/></svg>
+              Suggest Flow
+            </button>
+            <button class="btn btn-sm btn-secondary" onclick="optimizeOrchestration()">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+              Optimize
+            </button>
+          </div>
+          <div class="ai-chat-container">
+            <div class="ai-chat-messages" id="orchestration-ai-chat"></div>
+            <div class="ai-chat-input-container">
+              <input type="text" class="ai-chat-input" id="orchestration-ai-input" placeholder="Ask about orchestration...">
+              <button class="btn btn-sm btn-primary" onclick="sendOrchestrationAIMessage()">Send</button>
+            </div>
+          </div>
+          </div>
+        </div>
+
+        <!-- Properties Panel -->
+        <div class="properties-panel" id="properties-panel">
+          <div class="panel-header">
+            <span class="panel-icon">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 01-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
+            </span>
+            <h3>Properties</h3>
+          </div>
+          <div class="properties-content" id="properties-content">
+            <p class="empty-state">Select a node to edit properties</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Loading Overlay -->
+  <div id="loading-overlay" class="loading-overlay hidden">
+    <div class="loading-spinner"></div>
+    <p>Processing...</p>
+  </div>
+
+  <!-- Toast Notifications -->
+  <div id="toast-container" class="toast-container"></div>
+  
+  <!-- Preview Modal -->
+  <div id="preview-modal" class="preview-modal hidden" onclick="closePreviewModal(event)">
+    <div class="preview-modal-content">
+      <div class="preview-modal-header">
+        <h3 id="preview-modal-title">Preview</h3>
+        <button class="preview-modal-close" onclick="closePreviewModal(event)">×</button>
+      </div>
+      <div id="preview-modal-body" class="preview-modal-body"></div>
+    </div>
+  </div>
+
+  <!-- Activity List Modal -->
+  <div id="activity-list-modal" class="preview-modal hidden" onclick="closeActivityList(event)">
+    <div class="preview-modal-content" onclick="event.stopPropagation()">
+      <div class="preview-modal-header">
+        <h3>Workflow Activities</h3>
+        <div class="preview-modal-actions">
+          <input type="text" class="activity-list-search" id="activity-list-search" placeholder="Search activities...">
+        </div>
+        <button class="preview-modal-close" onclick="closeActivityList(event)">×</button>
+      </div>
+      <div class="preview-modal-body">
+        <div id="activity-list" class="activity-list"></div>
+      </div>
+    </div>
+  </div>
+
+  <script src="orchestration.js"></script>
+</body>
+</html>

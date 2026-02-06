@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Campaign Report - Marketing Automation</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div style="min-height: 100vh; background: #F9FAFB; padding: 2rem;">
+    <!-- Header -->
+    <div class="card" style="margin-bottom: 1.5rem;">
+      <div class="card-header" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;">
+        <div style="display: flex; align-items: center; gap: 1rem;">
+          <button class="btn-back" onclick="goBack()" title="Back to Workflows">
+            <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><path d="M12.5 15L7.5 10L12.5 5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </button>
+          <div>
+            <h1 id="campaign-name" style="font-size: 1.75rem; font-weight: 700; margin: 0;">Campaign Report</h1>
+            <p id="campaign-subject" style="color: #6B7280; margin: 0.25rem 0 0 0;"></p>
+          </div>
+        </div>
+        <div style="display: flex; gap: 0.5rem;">
+          <button class="btn btn-secondary" onclick="exportReport()">📥 Export PDF</button>
+          <button class="btn btn-secondary" onclick="exportCSV()">📊 Export CSV</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Key Metrics Grid -->
+    <div id="metrics-grid" class="stats-grid" style="margin-bottom: 2rem;">
+      <!-- Metrics will be loaded here -->
+    </div>
+
+    <!-- Charts Row -->
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(400px, 1fr)); gap: 1.5rem; margin-bottom: 2rem;">
+      <!-- Engagement Timeline -->
+      <div class="card">
+        <div class="card-header">
+          <h3 class="card-title">📈 Engagement Timeline</h3>
+          <p style="font-size: 0.875rem; color: #6B7280; margin: 0.25rem 0 0 0;">Opens & Clicks over time</p>
+        </div>
+        <div class="card-body">
+          <canvas id="engagement-chart" style="max-height: 250px;"></canvas>
+        </div>
+      </div>
+
+      <!-- Device Breakdown -->
+      <div class="card">
+        <div class="card-header">
+          <h3 class="card-title">📱 Device Breakdown</h3>
+          <p style="font-size: 0.875rem; color: #6B7280; margin: 0.25rem 0 0 0;">Where emails were opened</p>
+        </div>
+        <div class="card-body">
+          <canvas id="device-chart" style="max-height: 250px;"></canvas>
+        </div>
+      </div>
+    </div>
+
+    <!-- Top Links & Geographic -->
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(400px, 1fr)); gap: 1.5rem; margin-bottom: 2rem;">
+      <!-- Top Links -->
+      <div class="card">
+        <div class="card-header">
+          <h3 class="card-title">🔗 Top Links Clicked</h3>
+        </div>
+        <div class="card-body">
+          <div id="top-links-container">
+            <!-- Links will be loaded here -->
+          </div>
+        </div>
+      </div>
+
+      <!-- Geographic Breakdown -->
+      <div class="card">
+        <div class="card-header">
+          <h3 class="card-title">🌍 Geographic Performance</h3>
+        </div>
+        <div class="card-body">
+          <div class="table-container">
+            <table id="geo-table">
+              <!-- Table will be loaded here -->
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Recipient Tabs -->
+    <div class="card">
+      <div class="card-header">
+        <h3 class="card-title">👥 Recipients</h3>
+      </div>
+      <div class="card-body">
+        <!-- Tab Navigation -->
+        <div class="tabs" style="margin-bottom: 1.5rem;">
+          <button class="tab-btn active" onclick="switchTab('engaged')">✅ Engaged</button>
+          <button class="tab-btn" onclick="switchTab('non-engaged')">😴 Non-Engaged</button>
+          <button class="tab-btn" onclick="switchTab('bounced')">⚠️ Bounced</button>
+        </div>
+
+        <!-- Tab Content -->
+        <div id="tab-engaged" class="tab-content active">
+          <div class="table-container">
+            <table id="engaged-table">
+              <!-- Table will be loaded here -->
+            </table>
+          </div>
+        </div>
+
+        <div id="tab-non-engaged" class="tab-content" style="display: none;">
+          <div class="table-container">
+            <table id="non-engaged-table">
+              <!-- Table will be loaded here -->
+            </table>
+          </div>
+        </div>
+
+        <div id="tab-bounced" class="tab-content" style="display: none;">
+          <div class="table-container">
+            <table id="bounced-table">
+              <!-- Table will be loaded here -->
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Loading Spinner -->
+  <div id="loading" class="loading hidden">
+    <div class="spinner"></div>
+  </div>
+
+  <!-- Toast Notification -->
+  <div id="toast" class="toast hidden"></div>
+
+  <style>
+    /* Tab Styles */
+    .tabs {
+      display: flex;
+      gap: 0.5rem;
+      border-bottom: 2px solid #E5E7EB;
+      padding-bottom: 0;
+    }
+
+    .tab-btn {
+      padding: 0.75rem 1.5rem;
+      background: none;
+      border: none;
+      border-bottom: 3px solid transparent;
+      font-size: 0.9375rem;
+      font-weight: 500;
+      color: #6B7280;
+      cursor: pointer;
+      transition: all 0.2s;
+      margin-bottom: -2px;
+    }
+
+    .tab-btn:hover {
+      color: #3B82F6;
+      background: #F3F4F6;
+    }
+
+    .tab-btn.active {
+      color: #3B82F6;
+      border-bottom-color: #3B82F6;
+      font-weight: 600;
+    }
+
+    .tab-content {
+      animation: fadeIn 0.3s;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    /* Link Progress Bar */
+    .link-item {
+      margin-bottom: 1rem;
+      padding-bottom: 0.75rem;
+      border-bottom: 1px solid #F3F4F6;
+    }
+
+    .link-item:last-child {
+      border-bottom: none;
+    }
+
+    .link-header {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 0.5rem;
+    }
+
+    .link-url {
+      font-weight: 500;
+      color: #1F2937;
+    }
+
+    .link-clicks {
+      color: #6B7280;
+      font-size: 0.875rem;
+    }
+
+    .link-progress {
+      height: 8px;
+      background: #F3F4F6;
+      border-radius: 4px;
+      overflow: hidden;
+    }
+
+    .link-progress-bar {
+      height: 100%;
+      background: linear-gradient(90deg, #3B82F6, #60A5FA);
+      transition: width 0.3s;
+    }
+  </style>
+
+  <script src="campaign-report.js"></script>
+</body>
+</html>

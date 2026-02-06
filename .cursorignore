@@ -1,0 +1,14 @@
+**/node_modules/**
+**/dist/**
+**/build/**
+**/.cache/**
+**/coverage/**
+**/.next/**
+**/out/**
+**/.turbo/**
+**/.parcel-cache/**
+**/.vite/**
+**/.storybook/**
+**/public/uploads/**
+**/data/database.json
+**/*.md

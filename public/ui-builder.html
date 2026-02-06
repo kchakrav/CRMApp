@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>UI Builder</title>
+  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="ui-builder.css">
+</head>
+<body>
+  <div class="ui-builder">
+    <header class="ui-builder-header">
+      <button class="btn-back" id="ui-back-btn" title="Back to Custom Objects">
+        <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><path d="M12.5 15L7.5 10L12.5 5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </button>
+      <div>
+        <div class="ui-builder-title">Extensibility UI Builder</div>
+        <div class="ui-builder-subtitle" id="ui-builder-object-label">Loading...</div>
+      </div>
+      <div class="ui-builder-actions">
+        <button class="btn btn-ghost" id="ui-versions-btn" title="Version History">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+          History
+        </button>
+        <button class="btn btn-secondary" id="ui-preview-btn">Preview</button>
+        <button class="btn btn-secondary" id="ui-save-btn">Save Draft</button>
+        <button class="btn btn-primary" id="ui-publish-btn">Publish</button>
+      </div>
+    </header>
+
+    <div class="ui-builder-main">
+      <aside class="ui-builder-left">
+        <div class="ui-panel">
+          <div class="ui-panel-title">Layouts</div>
+          <div class="layout-grid" id="layout-grid"></div>
+        </div>
+        <div class="ui-panel">
+          <div class="ui-panel-title">Block Library</div>
+          <div class="ui-library-section">
+            <div class="ui-library-title">Fields</div>
+            <div id="field-library"></div>
+          </div>
+          <div class="ui-library-section">
+            <div class="ui-library-title">Blocks</div>
+            <div id="block-library"></div>
+          </div>
+        </div>
+      </aside>
+
+      <section class="ui-builder-canvas">
+        <div class="canvas-toolbar">
+          <div class="canvas-view-toggle">
+            <button class="canvas-view-btn active" id="detail-view-btn" title="Detail View">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="9" y1="21" x2="9" y2="9"/></svg>
+              Detail View
+            </button>
+            <button class="canvas-view-btn" id="list-view-btn" title="List View">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
+              List View
+            </button>
+          </div>
+          <div class="canvas-toolbar-right">
+            <button class="btn btn-ghost" id="add-section-btn">+ Add Section</button>
+            <button class="btn btn-ghost" id="undo-btn">Undo</button>
+            <button class="btn btn-ghost" id="redo-btn">Redo</button>
+          </div>
+        </div>
+        <div id="canvas-empty" class="canvas-empty hidden">
+          Choose a layout to start building your UI.
+        </div>
+        <div id="canvas-content" class="canvas-content"></div>
+        <div id="list-config-content" class="canvas-content hidden"></div>
+      </section>
+
+      <aside class="ui-builder-right">
+        <div class="ui-panel">
+          <div class="ui-panel-title">Inspector</div>
+          <div id="inspector-content" class="inspector-content">
+            Select a block or section to edit properties.
+          </div>
+        </div>
+      </aside>
+    </div>
+  </div>
+
+  <!-- Version History Modal -->
+  <div id="version-history-modal" class="version-modal-overlay hidden">
+    <div class="version-modal">
+      <div class="version-modal-header">
+        <div>
+          <h3 class="version-modal-title">Version History</h3>
+          <p class="version-modal-subtitle">Each publish creates a snapshot you can restore later.</p>
+        </div>
+        <button class="btn btn-ghost version-modal-close" onclick="closeVersionHistory()">&times;</button>
+      </div>
+      <div class="version-modal-body">
+        <div id="version-list" class="version-list">
+          <div class="version-empty">Loading...</div>
+        </div>
+        <div id="version-preview" class="version-preview">
+          <div class="version-preview-empty">Select a version to preview its layout.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="ui-toast" class="toast hidden"></div>
+  <script src="ui-builder.js"></script>
+</body>
+</html>

@@ -1,0 +1,571 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Email Designer</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="email-editor" id="email-editor-page">
+    <div class="email-editor-header">
+      <div class="email-editor-title">
+        <span>Email Designer</span>
+        <span class="email-editor-subtitle" id="email-editor-delivery-name">Loading…</span>
+      </div>
+        <div class="email-editor-toolbar">
+        <button class="btn-back preview-keep" type="button" onclick="goBackToDelivery()" title="Back to Delivery">
+          <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><path d="M12.5 15L7.5 10L12.5 5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </button>
+        <select class="form-input email-editor-zoom">
+          <option value="100">100%</option>
+          <option value="90">90%</option>
+          <option value="75">75%</option>
+        </select>
+        <button class="btn btn-secondary" type="button" id="preview-desktop-btn" onclick="setDevicePreview('desktop')">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+          Desktop
+        </button>
+        <button class="btn btn-secondary" type="button" id="preview-tablet-btn" onclick="setDevicePreview('tablet')">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="2" width="16" height="20" rx="2" ry="2"/><line x1="12" y1="18" x2="12.01" y2="18"/></svg>
+          Tablet
+        </button>
+        <button class="btn btn-secondary" type="button" id="preview-mobile-btn" onclick="setDevicePreview('mobile')">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="2" width="14" height="20" rx="2" ry="2"/><line x1="12" y1="18" x2="12.01" y2="18"/></svg>
+          Mobile
+        </button>
+        <button class="btn btn-secondary" type="button" id="simulate-content-btn" onclick="switchPreviewTab('simulated')">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+          Simulate Content
+        </button>
+        <button class="btn btn-secondary" type="button" id="toggle-preview-btn" onclick="togglePreviewMode()">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+          Preview
+        </button>
+          <button class="btn btn-icon" type="button" title="Undo" onclick="undoEditor()">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 105.42-9.42L1 10"/></svg>
+          </button>
+          <button class="btn btn-icon" type="button" title="Redo" onclick="redoEditor()">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 11-5.42-9.42L23 10"/></svg>
+          </button>
+        <div class="email-more-menu">
+          <button class="btn btn-secondary" type="button" onclick="toggleEmailMoreMenu()">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="5" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="12" cy="19" r="2"/></svg>
+            More
+          </button>
+          <div id="email-more-dropdown" class="email-more-dropdown hidden">
+            <button type="button" onclick="resetEmailEditor()">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 105.42-9.42L1 10"/></svg>
+              Reset email
+            </button>
+            <button type="button" onclick="saveAsFragment()">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="8" height="8" rx="1"/><rect x="14" y="2" width="8" height="8" rx="1"/><rect x="2" y="14" width="8" height="8" rx="1"/></svg>
+              Save as fragment
+            </button>
+            <button type="button" onclick="openImportHtml()">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+              Import HTML
+            </button>
+            <button type="button" onclick="switchToCodeEditor()">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
+              Switch to code editor
+            </button>
+            <button type="button" onclick="changeEmailDesign()">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="13.5" cy="6.5" r="2.5"/><path d="M17 2H7a5 5 0 00-5 5v10a5 5 0 005 5h10a5 5 0 005-5V7a5 5 0 00-5-5z"/></svg>
+              Change your design
+            </button>
+            <button type="button" onclick="saveAsTemplate()">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+              Save as content template
+            </button>
+            <button type="button" onclick="exportEmailHtml()">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+              Export HTML
+            </button>
+            <button type="button" onclick="openValidationModal()">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg>
+              Validate &amp; Preview
+            </button>
+          </div>
+        </div>
+        <button class="btn btn-primary" type="button" onclick="saveDeliveryContent()">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+          Save
+        </button>
+      </div>
+    </div>
+
+    <div class="email-editor-body" id="email-editor-body">
+      <div class="email-editor-left">
+        <div class="email-editor-rail">
+          <button class="email-rail-btn active" type="button" data-mode="components">
+            <span class="rail-icon">▦</span>
+            <span class="rail-label">Components</span>
+          </button>
+          <button class="email-rail-btn" type="button" data-mode="fragments">
+            <span class="rail-icon">🧩</span>
+            <span class="rail-label">Fragments</span>
+          </button>
+          <button class="email-rail-btn" type="button" data-mode="structure">
+            <span class="rail-icon">▤</span>
+            <span class="rail-label">Structure</span>
+          </button>
+          <button class="email-rail-btn" type="button" data-mode="links">
+            <span class="rail-icon">🔗</span>
+            <span class="rail-label">Links</span>
+          </button>
+          <button class="email-rail-btn" type="button" data-mode="assets">
+            <span class="rail-icon">🖼</span>
+            <span class="rail-label">Asset library</span>
+          </button>
+          <button class="email-rail-btn" type="button" data-mode="conditional">
+            <span class="rail-icon">⫶</span>
+            <span class="rail-label">Conditional</span>
+          </button>
+        </div>
+        <div class="email-editor-panel" id="email-left-panel"></div>
+      </div>
+
+      <div class="email-editor-center">
+        <div class="email-preview-tabs">
+          <button class="preview-tab active" type="button" data-preview-tab="actual" onclick="switchPreviewTab('actual')">Design</button>
+          <button class="preview-tab" type="button" data-preview-tab="simulated" onclick="switchPreviewTab('simulated')">Preview (Simulated)</button>
+        </div>
+        <div class="email-designer-canvas">
+          <div id="email-designer-actual" class="email-canvas-drop"></div>
+          <div id="email-designer-simulated" class="email-canvas-drop hidden"></div>
+        </div>
+      </div>
+
+      <div class="email-editor-right">
+        <div class="email-editor-panel" id="email-properties-panel">
+          <div class="editor-panel-header">
+            <div class="editor-panel-title">Properties</div>
+            <div id="email-settings-breadcrumb" class="settings-breadcrumb"></div>
+          </div>
+          <div class="editor-tab-row">
+            <button class="editor-tab active" type="button" onclick="switchEditorTab('settings')">Settings</button>
+            <button class="editor-tab" type="button" onclick="switchEditorTab('styles')">Styles</button>
+          </div>
+          <div id="email-settings-tab" class="compact-form">
+          <div id="email-delivery-settings">
+            <div class="form-group">
+              <label class="form-label">Subject line</label>
+              <div class="form-inline-actions">
+                <input type="text" id="delivery-subject-input" class="form-input" value="">
+                <button class="btn btn-icon" type="button" title="Generate with AI" onclick="generateSubjectForDelivery()">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+                </button>
+                <button class="btn btn-icon" type="button" title="Add personalization" onclick="openPersonalizationPicker('delivery-subject-input')">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                </button>
+              </div>
+              <div id="delivery-subject-suggestions" class="ai-output hidden"></div>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Preheader</label>
+              <div class="form-inline-actions">
+                <input type="text" id="delivery-preheader-input" class="form-input" value="" placeholder="Optional preview text">
+                <button class="btn btn-icon" type="button" title="Add personalization" onclick="openPersonalizationPicker('delivery-preheader-input')">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                </button>
+              </div>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Document title</label>
+              <div class="form-inline-actions">
+                <input type="text" id="delivery-document-title-input" class="form-input" value="">
+                <button class="btn btn-icon" type="button" title="Add personalization" onclick="openPersonalizationPicker('delivery-document-title-input')">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                </button>
+              </div>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Document language</label>
+              <div class="form-inline-actions">
+                <input type="text" id="delivery-document-language-input" class="form-input" value="" placeholder="en-US">
+                <button class="btn btn-icon" type="button" title="Add personalization" onclick="openPersonalizationPicker('delivery-document-language-input')">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                </button>
+              </div>
+            </div>
+          </div>
+          <div id="landing-page-settings" class="hidden">
+            <div class="form-group">
+              <label class="form-label">Page name</label>
+              <input type="text" id="landing-page-name-input" class="form-input" value="">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Slug</label>
+              <input type="text" id="landing-page-slug-input" class="form-input" value="" placeholder="vip-offer">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Status</label>
+              <select id="landing-page-status-input" class="form-input">
+                <option value="draft">Draft</option>
+                <option value="published">Published</option>
+              </select>
+            </div>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Canvas width</label>
+            <div class="form-inline-actions">
+              <input type="range" id="email-body-width-slider" class="form-range" min="320" max="1200" step="10" oninput="updateBodyWidthFromSlider(this.value)">
+              <input type="number" id="email-body-width-input" class="form-input" min="320" max="1200" step="10" onchange="updateBodyWidthFromSlider(this.value)">
+            </div>
+            <div class="form-helper">Adjusts the canvas width in the editor.</div>
+          </div>
+          </div>
+          <div id="email-styles-tab" class="hidden">
+            <div id="email-styles-panel"></div>
+          </div>
+        </div>
+        <div id="email-ai-panel" class="email-ai-panel">
+          <div class="email-ai-header">
+            <div class="email-ai-title">AI Assistant</div>
+          </div>
+          <div class="email-ai-breadcrumb" id="email-ai-breadcrumb">Body → Generate Content</div>
+          <div class="ai-mode-toggle" id="email-ai-mode-toggle">
+            <button class="ai-mode-btn" type="button" data-mode="content" title="Generate content" onclick="setAiTarget('body')">▢</button>
+            <button class="ai-mode-btn" type="button" data-mode="image" title="Generate image" onclick="setAiTarget('image')">🧪</button>
+          </div>
+          <div class="email-ai-divider"></div>
+          <div id="email-ai-main">
+            <div class="email-ai-section">
+              <div class="email-ai-section-title" id="email-ai-section-title">Generate Content</div>
+              <div class="ai-settings-title">Settings</div>
+              <div class="form-group">
+                <label class="form-label">Brand</label>
+                <div class="ai-field-inline">
+                  <span class="ai-field-icon">≡</span>
+                  <select class="form-input" id="email-ai-brand-select">
+                    <option value="default">Connection5g Brand Guidelines (Default)</option>
+                  </select>
+                </div>
+              </div>
+              <div class="form-group ai-prompt-group" id="email-ai-prompt-group">
+                <label class="form-label">Prompt *</label>
+                <div class="ai-field-inline">
+                  <textarea class="form-input" id="email-ai-prompt" rows="3" placeholder="Describe what you want generated..." required></textarea>
+                  <button class="btn btn-icon ai-prompt-action" type="button" title="Insert example prompt">⧉</button>
+                </div>
+                <div class="form-helper ai-error-text hidden" id="email-ai-prompt-error">This field is required</div>
+              </div>
+              <div class="form-group ai-target-toggle hidden" id="email-ai-targets">
+                <label class="form-label">Target output</label>
+                <div class="ai-target-toggle">
+                  <button type="button" class="ai-target-btn" data-target="subject" onclick="setAiTarget('subject')">Subject line</button>
+                  <button type="button" class="ai-target-btn" data-target="preheader" onclick="setAiTarget('preheader')">Preheader</button>
+                  <button type="button" class="ai-target-btn" data-target="body" onclick="setAiTarget('body')">Body</button>
+                  <button type="button" class="ai-target-btn" data-target="button" onclick="setAiTarget('button')">Button text</button>
+                  <button type="button" class="ai-target-btn" data-target="image" onclick="setAiTarget('image')">Image</button>
+                </div>
+              </div>
+            </div>
+            <div class="ai-summary-list" id="email-ai-text-summary">
+              <button class="ai-summary-row" type="button" onclick="openAiSubpanel('text')">
+                <span class="ai-summary-icon">T</span>
+                <span class="ai-summary-text">
+                  <span class="ai-summary-title">Text settings</span>
+                  <span class="ai-summary-subtitle">None</span>
+                </span>
+                <span class="ai-summary-chevron">›</span>
+              </button>
+              <button class="ai-summary-row" type="button" onclick="openAiSubpanel('reference')">
+                <span class="ai-summary-icon">≡</span>
+                <span class="ai-summary-text">
+                  <span class="ai-summary-title">Reference content</span>
+                  <span class="ai-summary-subtitle">None</span>
+                </span>
+                <span class="ai-summary-chevron">›</span>
+              </button>
+            </div>
+          </div>
+          <details class="inspector-section" open id="email-ai-image-settings">
+            <summary>Image settings</summary>
+            <div class="inspector-fields">
+              <div class="form-group">
+                <label class="form-label">Aspect ratio</label>
+                <select class="form-input">
+                  <option>Custom</option>
+                  <option>1:1</option>
+                  <option>4:3</option>
+                  <option>16:9</option>
+                </select>
+              </div>
+              <div class="ai-field-grid">
+                <div class="form-group">
+                  <label class="form-label">Width *</label>
+                  <input type="number" class="form-input" value="555">
+                </div>
+                <div class="form-group">
+                  <label class="form-label">Height *</label>
+                  <input type="number" class="form-input" value="333">
+                </div>
+              </div>
+              <div class="form-group">
+                <label class="form-label">Content type</label>
+                <select class="form-input">
+                  <option>None</option>
+                  <option>Product</option>
+                  <option>Illustration</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label class="form-label">Visual intensity</label>
+                <div class="ai-slider-row">
+                  <input type="range" min="1" max="10" value="6" oninput="updateAiSliderValue('ai-visual-intensity-value', this.value)">
+                  <span id="ai-visual-intensity-value">6</span>
+                </div>
+              </div>
+              <div class="form-group">
+                <label class="form-label">Color and tone</label>
+                <select class="form-input">
+                  <option>None</option>
+                  <option>Warm</option>
+                  <option>Cool</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label class="form-label">Lighting</label>
+                <select class="form-input">
+                  <option>None</option>
+                  <option>Soft</option>
+                  <option>Dramatic</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label class="form-label">Composition</label>
+                <select class="form-input">
+                  <option>None</option>
+                  <option>Centered</option>
+                  <option>Rule of thirds</option>
+                </select>
+              </div>
+            </div>
+          </details>
+          <div class="email-ai-footer">
+            <button class="btn btn-primary" type="button" id="email-ai-generate-btn" onclick="generateAiContent()">Generate</button>
+          </div>
+          <div class="ai-subpanel hidden" id="email-ai-subpanel-text">
+            <div class="ai-subpanel-header">
+              <button class="ai-subpanel-back" type="button" onclick="closeAiSubpanel()">←</button>
+              <div class="ai-subpanel-title">Text settings</div>
+            </div>
+            <div class="ai-subpanel-body">
+              <div class="form-group">
+                <label class="form-label">Communication strategy</label>
+                <select class="form-input">
+                  <option>None</option>
+                  <option>Promotional</option>
+                  <option>Informational</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label class="form-label">Language</label>
+                <select class="form-input">
+                  <option>None</option>
+                  <option>English</option>
+                  <option>Spanish</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label class="form-label">Tone</label>
+                <select class="form-input">
+                  <option>None</option>
+                  <option>Professional</option>
+                  <option>Friendly</option>
+                </select>
+              </div>
+            </div>
+            <div class="ai-subpanel-footer">
+              <button class="btn btn-primary" type="button" onclick="generateAiContent()">Generate</button>
+            </div>
+          </div>
+          <div class="ai-subpanel hidden" id="email-ai-subpanel-reference">
+            <div class="ai-subpanel-header">
+              <button class="ai-subpanel-back" type="button" onclick="closeAiSubpanel()">←</button>
+              <div class="ai-subpanel-title">Reference content</div>
+            </div>
+            <div class="ai-subpanel-body">
+              <div class="form-group">
+                <div class="form-label">Upload reference content</div>
+                <div class="form-helper">Upload reference content for content generation.</div>
+              </div>
+              <div class="ai-reference-row">
+                <div class="form-group">
+                  <label class="form-label">Web URL</label>
+                  <input type="text" class="form-input">
+                </div>
+                <div class="form-group">
+                  <label class="form-label">Name</label>
+                  <input type="text" class="form-input">
+                </div>
+                <button class="btn btn-icon" type="button" title="Upload reference">☁</button>
+              </div>
+              <div class="ai-upload-row">
+                <input type="file" id="ai-reference-file" class="ai-file-input">
+                <label for="ai-reference-file" class="ai-upload-btn">Upload file</label>
+                <button class="btn btn-icon" type="button" title="Info">?</button>
+              </div>
+              <div class="ai-reference-meta">
+                <span>Uploaded reference content (0)</span>
+              </div>
+            </div>
+            <div class="ai-subpanel-footer">
+              <button class="btn btn-primary" type="button" onclick="generateAiContent()">Generate</button>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="email-right-rail" aria-label="Right rail">
+        <button class="email-right-rail-btn" type="button" title="AI Assistant" data-rail="ai" onclick="toggleAiPanel()">✨</button>
+        <button class="email-right-rail-btn" type="button" title="Properties" onclick="toggleRightPanel()">⚙</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="email-inline-toolbar" class="email-inline-toolbar hidden">
+    <button class="btn btn-sm btn-secondary" type="button" onclick="toggleTextStyle('bold')">B</button>
+    <button class="btn btn-sm btn-secondary" type="button" onclick="toggleTextStyle('italic')">I</button>
+    <button class="btn btn-sm btn-secondary" type="button" onclick="toggleTextStyle('underline')">U</button>
+    <select class="form-input email-inline-select" onchange="updateTextStyle('fontSize', this.value)">
+      <option value="12">12px</option>
+      <option value="14" selected>14px</option>
+      <option value="16">16px</option>
+      <option value="20">20px</option>
+      <option value="24">24px</option>
+      <option value="32">32px</option>
+    </select>
+    <button class="btn btn-sm btn-secondary" type="button" onclick="updateTextStyle('textAlign','left')">⟸</button>
+    <button class="btn btn-sm btn-secondary" type="button" onclick="updateTextStyle('textAlign','center')">≡</button>
+    <button class="btn btn-sm btn-secondary" type="button" onclick="updateTextStyle('textAlign','right')">⟹</button>
+    <button class="btn btn-icon" type="button" title="Add personalization" onclick="openPersonalizationPickerForBlock()">👤+</button>
+  </div>
+  <div id="email-code-modal" class="email-modal hidden">
+    <div class="email-modal-content">
+      <div class="email-modal-header">
+        <h3>Code editor</h3>
+        <button class="email-modal-close" onclick="closeCodeEditor()">×</button>
+      </div>
+      <div class="email-modal-body">
+        <textarea id="email-code-textarea" class="form-input email-code-textarea" rows="18"></textarea>
+      </div>
+      <div class="email-modal-footer">
+        <button class="btn btn-secondary" onclick="closeCodeEditor()">Cancel</button>
+        <button class="btn btn-primary" onclick="applyCodeEditor()">Apply</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="email-import-modal" class="email-modal hidden">
+    <div class="email-modal-content">
+      <div class="email-modal-header">
+        <h3>Import HTML</h3>
+        <button class="email-modal-close" onclick="closeImportHtml()">×</button>
+      </div>
+      <div class="email-modal-body">
+        <textarea id="email-import-textarea" class="form-input email-code-textarea" rows="18" placeholder="Paste HTML here"></textarea>
+        <div class="form-group">
+          <label class="form-label">Upload file</label>
+          <input type="file" id="email-import-file" class="form-input" accept=".html,.htm,.txt,.zip" onchange="handleImportFileChange(this)">
+          <div class="form-helper">Supported: HTML, TXT, ZIP (zip parsing coming soon).</div>
+        </div>
+        <label class="form-checkbox">
+          <input type="checkbox" id="email-import-raw">
+          Keep as raw HTML (do not convert to blocks)
+        </label>
+      </div>
+      <div class="email-modal-footer">
+        <button class="btn btn-secondary" onclick="closeImportHtml()">Cancel</button>
+        <button class="btn btn-primary" onclick="applyImportHtml()">Import & edit</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="email-design-modal" class="email-modal hidden">
+    <div class="email-modal-content">
+      <div class="email-modal-header">
+        <h3>Change your design</h3>
+        <button class="email-modal-close" onclick="closeDesignPicker()">×</button>
+      </div>
+      <div class="email-modal-body">
+        <div id="email-template-list" class="email-template-list"></div>
+      </div>
+      <div class="email-modal-footer">
+        <button class="btn btn-secondary" onclick="closeDesignPicker()">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="email-simulate-modal" class="email-modal hidden">
+    <div class="email-modal-content email-simulate-content">
+      <div class="email-modal-header">
+        <h3>Simulated preview</h3>
+        <button class="email-modal-close" onclick="closeSimulatePreview()">×</button>
+      </div>
+      <div class="email-modal-body">
+        <div id="email-simulate-body" class="email-simulate-body"></div>
+      </div>
+      <div class="email-modal-footer">
+        <button class="btn btn-secondary" onclick="closeSimulatePreview()">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="email-personalization-modal" class="email-modal hidden">
+    <div class="email-modal-content">
+      <div class="email-modal-header">
+        <h3>Personalization</h3>
+        <button class="email-modal-close" onclick="closePersonalizationPicker()">×</button>
+      </div>
+      <div class="email-modal-body">
+        <div class="form-group">
+          <input type="text" id="personalization-search" class="form-input" placeholder="Search attributes..." oninput="filterPersonalizationTree(this.value)">
+        </div>
+        <div class="schema-tree" id="personalization-schema"></div>
+      </div>
+      <div class="email-modal-footer">
+        <button class="btn btn-secondary" onclick="closePersonalizationPicker()">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="asset-picker-modal" class="email-modal hidden">
+    <div class="email-modal-content">
+      <div class="email-modal-header">
+        <h3>Asset library</h3>
+        <button class="email-modal-close" onclick="closeAssetPicker()">×</button>
+      </div>
+      <div class="email-modal-body">
+        <div id="asset-picker-list" class="asset-grid"></div>
+      </div>
+      <div class="email-modal-footer">
+        <button class="btn btn-secondary" onclick="closeAssetPicker()">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="validation-modal" class="email-modal hidden">
+    <div class="email-modal-content">
+      <div class="email-modal-header">
+        <h3>Validation</h3>
+        <button class="email-modal-close" onclick="closeValidationModal()">×</button>
+      </div>
+      <div class="email-modal-body">
+        <div id="validation-summary" class="form-helper"></div>
+        <div id="validation-list" class="validation-list"></div>
+      </div>
+      <div class="email-modal-footer">
+        <button class="btn btn-secondary" onclick="closeValidationModal()">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="loading" class="loading hidden">
+    <div class="spinner"></div>
+  </div>
+  <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+  <script src="email-editor-page.js"></script>
+</body>
+</html>

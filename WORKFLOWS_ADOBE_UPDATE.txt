@@ -1,0 +1,112 @@
+//COMPLETE WORKFLOWS TABLE REPLACEMENT - ADOBE CAMPAIGN STYLE
+
+async function loadWorkflows(filterType = 'all') {
+  showLoading();
+  currentWorkflowFilter = filterType;
+  workflowFilters.type = filterType;
+  
+  try {
+    const response = await fetch(`${API_BASE}/workflows`);
+    let workflows = await response.json();
+    
+    // Apply filters
+    workflows = workflows.filter(w => {
+      if (workflowFilters.type !== 'all' && w.workflow_type !== workflowFilters.type) return false;
+      if (workflowFilters.status !== 'all' && w.status !== workflowFilters.status) return false;
+      if (workflowFilters.search) {
+        const searchTerm = workflowFilters.search.toLowerCase();
+        const name = (w.name || '').toLowerCase();
+        const desc = (w.description || '').toLowerCase();
+        if (!name.includes(searchTerm) && !desc.includes(searchTerm)) return false;
+      }
+      return true;
+    });
+    
+    // Apply sorting
+    workflows = applySorting(workflows, currentTableSort.column || 'id');
+    
+    const counts = {
+      all: workflows.length,
+      broadcast: workflows.filter(w => w.workflow_type === 'broadcast').length,
+      automated: workflows.filter(w => w.workflow_type === 'automated').length,
+      recurring: workflows.filter(w => w.workflow_type === 'recurring').length
+    };
+    
+    // Generate Adobe Campaign style table rows
+    const tableRows = workflows.map(w => {
+      const statusMap = {
+        'active': 'in-progress',
+        'paused': 'paused',
+        'completed': 'stopped',
+        'draft': 'draft',
+        'archived': 'draft'
+      };
+      
+      return `
+        <tr>
+          <td>${createTableLink(w.name, `navigateTo('workflows', 'edit', ${w.id})`)}</td>
+          <td>${createStatusIndicator(statusMap[w.status] || 'draft', w.status)}</td>
+          <td>${w.created_by || 'System'}</td>
+          <td>${new Date(w.updated_at || w.created_at || Date.now()).toLocaleString()}</td>
+          <td>${new Date().toLocaleString()}</td>
+          <td>${w.next_run_at ? new Date(w.next_run_at).toLocaleString() : '-'}</td>
+          <td>
+            ${createActionMenu(w.id, [
+              {icon: '✏️', label: 'Edit', onclick: `navigateTo('workflows', 'edit', ${w.id})`},
+              {icon: '🎨', label: 'Orchestration', onclick: `window.location.href='orchestration.html?workflowId=${w.id}'`},
+              {icon: '📊', label: 'View Report', onclick: `showWorkflowReport(${w.id})`},
+              {divider: true},
+              w.status === 'draft' || w.status === 'paused' ? 
+                {icon: '▶️', label: 'Activate', onclick: `activateWorkflow(${w.id})`} : null,
+              w.status === 'active' ? 
+                {icon: '⏸️', label: 'Pause', onclick: `pauseWorkflow(${w.id})`} : null,
+              {divider: true},
+              {icon: '🗑️', label: 'Delete', onclick: `confirmDeleteWorkflow(${w.id})`, danger: true}
+            ].filter(Boolean))}
+          </td>
+        </tr>
+      `;
+    }).join('');
+    
+    const content = `
+      <div class="card">
+        <div class="card-header">
+          <h3 class="card-title">⚡ Workflows</h3>
+        </div>
+        
+        ${createTableToolbar({
+          tabs: ['Browse', 'Templates'],
+          activeTab: 'Browse',
+          resultCount: workflows.length,
+          totalCount: workflows.length,
+          onRefresh: 'loadWorkflows'
+        })}
+        
+        <div class="data-table-container">
+          <table class="data-table">
+            <thead>
+              <tr>
+                ${createSortableHeader('name', 'Workflow', currentTableSort)}
+                ${createSortableHeader('status', 'Status', currentTableSort)}
+                ${createSortableHeader('created_by', 'Created by', currentTableSort)}
+                ${createSortableHeader('updated_at', 'Last modified', currentTableSort)}
+                <th>Last processing</th>
+                <th>Next processing</th>
+                <th style="width: 50px;"></th>
+              </tr>
+            </thead>
+            <tbody>
+              ${tableRows || '<tr><td colspan="7" style="text-align: center; padding: 2rem;">No workflows found</td></tr>'}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    `;
+    
+    document.getElementById('content').innerHTML = content;
+  } catch (error) {
+    showError('Failed to load workflows: ' + error.message);
+  } finally {
+    hideLoading();
+  }
+}

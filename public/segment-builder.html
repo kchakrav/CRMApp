@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Segment Builder - Marketing Automation</title>
+  <link rel="stylesheet" href="segment-builder.css">
+</head>
+<body>
+  <div class="builder-container">
+    <!-- Header -->
+    <header class="builder-header">
+      <div class="header-left">
+        <button class="btn-back" onclick="goBack()" title="Back to Segments">
+          <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><path d="M12.5 15L7.5 10L12.5 5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </button>
+        <button class="btn-back" id="return-to-delivery" style="display:none;" onclick="returnToDelivery()" title="Back to Delivery">
+          <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><path d="M12.5 15L7.5 10L12.5 5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </button>
+        <h1 id="segment-name-display">New Segment</h1>
+      </div>
+      <div class="header-right">
+        <button class="btn btn-secondary" onclick="saveSegment(false)">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+          Save Draft
+        </button>
+        <button class="btn btn-primary" onclick="saveSegment(true)">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+          Save &amp; Activate
+        </button>
+      </div>
+    </header>
+
+    <!-- Main Layout -->
+    <div class="builder-main">
+      <!-- Left Sidebar - Attribute Library -->
+      <aside class="attribute-library">
+        <div class="library-header">
+          <h3>
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-1px;margin-right:4px;opacity:0.6"><path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>
+            Attributes
+          </h3>
+          <input type="text" class="library-search" placeholder="Search..." id="attr-search">
+        </div>
+
+        <div id="attribute-categories"></div>
+      </aside>
+
+      <!-- Center - Query Builder -->
+      <main class="query-builder">
+        <!-- Segment Info -->
+        <div class="segment-info-card">
+          <div class="form-group">
+            <label class="form-label">Segment Name *</label>
+            <input type="text" id="segment-name" class="form-input" placeholder="e.g., VIP Customers" required>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Description</label>
+            <textarea id="segment-description" class="form-input" rows="2" placeholder="Describe your segment..."></textarea>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Type</label>
+            <select id="segment-type" class="form-input">
+              <option value="dynamic">Dynamic (Auto-update)</option>
+              <option value="static">Static (One-time)</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Base Entity</label>
+            <select id="base-entity" class="form-input"></select>
+            <div class="form-help">Used for SQL preview and custom queries</div>
+          </div>
+        </div>
+
+        <!-- Query Builder Card -->
+        <div class="query-builder-card">
+          <div class="query-header">
+            <h3>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-1px;margin-right:3px;opacity:0.5"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+              Build Query
+            </h3>
+            <div class="logic-toggle">
+              <label>Match:</label>
+              <select id="logic-operator" class="logic-select" onchange="updatePreview()">
+                <option value="AND">All conditions (AND)</option>
+                <option value="OR">Any condition (OR)</option>
+              </select>
+            </div>
+          </div>
+
+          <div id="rules-container" class="rules-container">
+            <div class="empty-state">
+              <p>Drag attributes from the left to build your segment</p>
+              <p class="empty-state-hint">or</p>
+              <button class="btn btn-secondary" onclick="addEmptyRule()">+ Add Condition</button>
+            </div>
+          </div>
+
+          <div class="query-actions">
+            <button class="btn btn-secondary btn-sm" onclick="addEmptyRule()">+ Add Condition</button>
+            <button class="btn btn-ghost btn-sm" onclick="clearRules()">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg>
+              Clear All
+            </button>
+          </div>
+        </div>
+
+      </main>
+
+      <!-- Right Sidebar - Preview -->
+      <aside class="preview-panel">
+        <div class="preview-header">
+          <h3>
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-1px;margin-right:3px;opacity:0.5"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+            Preview
+          </h3>
+          <div class="preview-header-actions">
+            <button class="btn btn-sm btn-secondary" onclick="updatePreview()">
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/></svg>
+              Refresh
+            </button>
+            <button class="btn btn-sm btn-ghost" onclick="togglePreviewPanel()" id="preview-toggle-btn">Hide</button>
+          </div>
+        </div>
+
+        <div class="preview-body">
+          <!-- Count -->
+          <div class="preview-count">
+            <div class="count-label" id="preview-count-label">Matching Customers</div>
+            <div class="count-value" id="preview-count">0</div>
+            <div class="count-hint">customers match your criteria</div>
+          </div>
+
+          <!-- Sample Results -->
+          <div class="preview-samples">
+            <div class="preview-samples-header">
+              <h4>Sample Results</h4>
+              <button class="btn btn-sm btn-secondary" type="button" onclick="openSampleResults()" id="sample-results-btn">View</button>
+            </div>
+            <div class="preview-samples-meta" id="sample-results-meta">Build your query to see results</div>
+          </div>
+
+          <!-- Quick Stats -->
+          <div class="preview-stats" id="preview-stats" style="display: none;">
+            <h4>Quick Stats</h4>
+            <div class="stat-item">
+              <span class="stat-label">Avg Engagement Score:</span>
+              <span class="stat-value" id="stat-avg-score">-</span>
+            </div>
+            <div class="stat-item">
+              <span class="stat-label">Active:</span>
+              <span class="stat-value" id="stat-active">-</span>
+            </div>
+            <div class="stat-item">
+              <span class="stat-label">VIP:</span>
+              <span class="stat-value" id="stat-vip">-</span>
+            </div>
+          </div>
+
+          <!-- SQL Preview Panel -->
+          <div class="sql-preview-panel">
+            <div class="sql-header">
+              <h3>SQL Preview</h3>
+              <div class="sql-actions">
+                <button class="btn btn-sm btn-ghost" onclick="toggleSQLPanel()">Collapse</button>
+                <button class="btn btn-sm btn-secondary" onclick="copySQLToClipboard()">Copy</button>
+              </div>
+            </div>
+            <pre id="sql-output" class="sql-code">SELECT * FROM contacts</pre>
+          </div>
+        </div>
+      </aside>
+    </div>
+    
+  </div>
+
+  <!-- Loading Overlay -->
+  <div id="loading-overlay" class="loading-overlay hidden">
+    <div class="loading-spinner"></div>
+    <p>Loading...</p>
+  </div>
+
+  <!-- Toast Container -->
+  <div id="toast-container" class="toast-container"></div>
+
+  <!-- Sample Results Modal -->
+  <div id="sample-results-modal" class="modal-backdrop hidden" onclick="closeSampleResults()">
+    <div class="modal-card" onclick="event.stopPropagation()">
+      <div class="modal-header">
+        <h3>Sample Results</h3>
+        <div class="modal-actions">
+          <div class="sample-columns">
+            <button class="btn btn-sm btn-secondary" type="button" id="sample-columns-btn" onclick="toggleSampleColumnsMenu()">Columns</button>
+            <div class="sample-columns-menu hidden" id="sample-columns-menu"></div>
+          </div>
+          <button class="btn btn-ghost btn-sm" type="button" onclick="closeSampleResults()">Close</button>
+        </div>
+      </div>
+      <div class="modal-body">
+        <div id="sample-results" class="sample-table">
+          <p class="empty-preview">Build your query to see results</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Distribution Modal -->
+  <div id="distribution-modal" class="modal-backdrop hidden" onclick="closeDistributionModal()">
+    <div class="modal-card modal-wide" onclick="event.stopPropagation()">
+      <div class="modal-header">
+        <div class="modal-title-group">
+          <h3>Distribution of values</h3>
+          <div class="modal-subtitle" id="distribution-title">Attribute</div>
+        </div>
+        <div class="modal-actions">
+          <button class="btn btn-sm btn-secondary" type="button">Select attribute and value</button>
+          <button class="btn btn-sm btn-ghost" type="button" onclick="closeDistributionModal()">Close</button>
+        </div>
+      </div>
+      <div class="modal-body">
+        <div id="distribution-list"></div>
+      </div>
+    </div>
+  </div>
+
+  <script src="segment-builder.js"></script>
+</body>
+</html>

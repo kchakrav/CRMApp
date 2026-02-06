@@ -1,0 +1,639 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "B2C Marketing Automation API",
+    "description": "Complete REST API for the B2C Marketing Automation Platform. Manage contacts, workflows, deliveries, segments, audiences, custom objects, and more.",
+    "version": "2.0.0",
+    "contact": {
+      "name": "Platform Team"
+    }
+  },
+  "servers": [
+    {
+      "url": "/api",
+      "description": "Current server"
+    }
+  ],
+  "tags": [
+    { "name": "Health", "description": "Health check and API info" },
+    { "name": "Contacts", "description": "B2C consumer profile management" },
+    { "name": "Workflows", "description": "Unified campaigns and workflow orchestration" },
+    { "name": "Orchestration", "description": "Workflow canvas orchestration and execution" },
+    { "name": "Deliveries", "description": "Email, SMS, Push delivery management" },
+    { "name": "Segments", "description": "Audience segmentation and targeting" },
+    { "name": "Audiences", "description": "Campaign-specific audience definitions" },
+    { "name": "Analytics", "description": "Dashboard metrics and drill-down analytics" },
+    { "name": "AI", "description": "AI-powered features and predictions" },
+    { "name": "Custom Objects", "description": "Extensible custom data objects and UI builder" },
+    { "name": "Email Templates", "description": "Email template management" },
+    { "name": "Assets", "description": "Asset library (images, files)" },
+    { "name": "Fragments", "description": "Reusable content fragments" },
+    { "name": "Landing Pages", "description": "Landing page management" },
+    { "name": "Predefined Filters", "description": "Saved filter configurations" },
+    { "name": "Query Service", "description": "Ad-hoc data querying and SQL execution" }
+  ],
+  "paths": {
+    "/": {
+      "get": {
+        "tags": ["Health"],
+        "summary": "API root",
+        "description": "Returns API version info and available endpoints.",
+        "responses": { "200": { "description": "API information" } }
+      }
+    },
+    "/health": {
+      "get": {
+        "tags": ["Health"],
+        "summary": "Health check",
+        "description": "Returns server health status and timestamp.",
+        "responses": { "200": { "description": "Health status" } }
+      }
+    },
+
+    "/contacts": {
+      "get": {
+        "tags": ["Contacts"],
+        "summary": "List contacts",
+        "description": "Get all contacts with pagination and filtering support.",
+        "parameters": [
+          { "name": "page", "in": "query", "schema": { "type": "integer", "default": 1 } },
+          { "name": "limit", "in": "query", "schema": { "type": "integer", "default": 50 } },
+          { "name": "status", "in": "query", "schema": { "type": "string" } },
+          { "name": "search", "in": "query", "schema": { "type": "string" } }
+        ],
+        "responses": { "200": { "description": "Paginated list of contacts" } }
+      },
+      "post": {
+        "tags": ["Contacts"],
+        "summary": "Create contact",
+        "description": "Create a new B2C consumer profile.",
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ContactInput" } } } },
+        "responses": { "201": { "description": "Contact created" } }
+      }
+    },
+    "/contacts/search": {
+      "post": {
+        "tags": ["Contacts"],
+        "summary": "Advanced search",
+        "description": "Search contacts with advanced criteria.",
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "type": "object" } } } },
+        "responses": { "200": { "description": "Search results" } }
+      }
+    },
+    "/contacts/{id}": {
+      "get": {
+        "tags": ["Contacts"],
+        "summary": "Get contact",
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "integer" } }],
+        "responses": { "200": { "description": "Contact details" }, "404": { "description": "Not found" } }
+      },
+      "put": {
+        "tags": ["Contacts"],
+        "summary": "Update contact",
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "integer" } }],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ContactInput" } } } },
+        "responses": { "200": { "description": "Contact updated" } }
+      },
+      "delete": {
+        "tags": ["Contacts"],
+        "summary": "Delete contact",
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "integer" } }],
+        "responses": { "200": { "description": "Contact deleted" } }
+      }
+    },
+    "/contacts/{id}/events": {
+      "get": {
+        "tags": ["Contacts"],
+        "summary": "Get contact events",
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "integer" } }],
+        "responses": { "200": { "description": "Contact event history" } }
+      }
+    },
+    "/contacts/{id}/orders": {
+      "get": {
+        "tags": ["Contacts"],
+        "summary": "Get contact orders",
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "integer" } }],
+        "responses": { "200": { "description": "Contact order history" } }
+      }
+    },
+    "/contacts/{id}/stats": {
+      "get": {
+        "tags": ["Contacts"],
+        "summary": "Get contact statistics",
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "integer" } }],
+        "responses": { "200": { "description": "Contact stats (engagement, lifetime value, etc.)" } }
+      }
+    },
+
+    "/workflows": {
+      "get": {
+        "tags": ["Workflows"],
+        "summary": "List workflows",
+        "description": "Get all workflows with optional type/status filtering.",
+        "parameters": [
+          { "name": "type", "in": "query", "schema": { "type": "string", "enum": ["broadcast", "automated", "transactional"] } },
+          { "name": "status", "in": "query", "schema": { "type": "string" } }
+        ],
+        "responses": { "200": { "description": "List of workflows" } }
+      },
+      "post": {
+        "tags": ["Workflows"],
+        "summary": "Create workflow",
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/WorkflowInput" } } } },
+        "responses": { "201": { "description": "Workflow created" } }
+      }
+    },
+    "/workflows/templates/list": {
+      "get": {
+        "tags": ["Workflows"],
+        "summary": "List workflow templates",
+        "responses": { "200": { "description": "Available workflow templates" } }
+      }
+    },
+    "/workflows/quick/send-now": {
+      "post": {
+        "tags": ["Workflows"],
+        "summary": "Quick send now",
+        "description": "Create and immediately activate a broadcast workflow.",
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "type": "object" } } } },
+        "responses": { "200": { "description": "Workflow created and activated" } }
+      }
+    },
+    "/workflows/{id}": {
+      "get": {
+        "tags": ["Workflows"],
+        "summary": "Get workflow",
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "integer" } }],
+        "responses": { "200": { "description": "Workflow details" } }
+      },
+      "put": {
+        "tags": ["Workflows"],
+        "summary": "Update workflow",
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "integer" } }],
+        "responses": { "200": { "description": "Workflow updated" } }
+      },
+      "delete": {
+        "tags": ["Workflows"],
+        "summary": "Delete workflow",
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "integer" } }],
+        "responses": { "200": { "description": "Workflow deleted" } }
+      }
+    },
+    "/workflows/{id}/activate": {
+      "post": {
+        "tags": ["Workflows"],
+        "summary": "Activate workflow",
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "integer" } }],
+        "responses": { "200": { "description": "Workflow activated" } }
+      }
+    },
+    "/workflows/{id}/pause": {
+      "post": {
+        "tags": ["Workflows"],
+        "summary": "Pause workflow",
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "integer" } }],
+        "responses": { "200": { "description": "Workflow paused" } }
+      }
+    },
+    "/workflows/{id}/complete": {
+      "post": {
+        "tags": ["Workflows"],
+        "summary": "Complete workflow",
+        "description": "Mark a broadcast workflow as complete.",
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "integer" } }],
+        "responses": { "200": { "description": "Workflow completed" } }
+      }
+    },
+    "/workflows/{id}/archive": {
+      "post": {
+        "tags": ["Workflows"],
+        "summary": "Archive workflow",
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "integer" } }],
+        "responses": { "200": { "description": "Workflow archived" } }
+      }
+    },
+    "/workflows/{id}/orchestration": {
+      "get": {
+        "tags": ["Workflows"],
+        "summary": "Get workflow orchestration",
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "integer" } }],
+        "responses": { "200": { "description": "Orchestration canvas data" } }
+      },
+      "put": {
+        "tags": ["Workflows"],
+        "summary": "Save workflow orchestration",
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "integer" } }],
+        "responses": { "200": { "description": "Orchestration saved" } }
+      }
+    },
+    "/workflows/{id}/report": {
+      "get": {
+        "tags": ["Workflows"],
+        "summary": "Get workflow report",
+        "description": "Get performance metrics and report data for a workflow.",
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "integer" } }],
+        "responses": { "200": { "description": "Workflow report" } }
+      }
+    },
+
+    "/orchestration/{campaignId}": {
+      "get": {
+        "tags": ["Orchestration"],
+        "summary": "Get orchestration",
+        "parameters": [{ "name": "campaignId", "in": "path", "required": true, "schema": { "type": "integer" } }],
+        "responses": { "200": { "description": "Orchestration data" } }
+      },
+      "post": {
+        "tags": ["Orchestration"],
+        "summary": "Save orchestration",
+        "parameters": [{ "name": "campaignId", "in": "path", "required": true, "schema": { "type": "integer" } }],
+        "responses": { "200": { "description": "Orchestration saved" } }
+      }
+    },
+    "/orchestration/{campaignId}/execute": {
+      "post": {
+        "tags": ["Orchestration"],
+        "summary": "Execute orchestration",
+        "description": "Run the campaign with the orchestration flow.",
+        "parameters": [{ "name": "campaignId", "in": "path", "required": true, "schema": { "type": "integer" } }],
+        "responses": { "200": { "description": "Execution started" } }
+      }
+    },
+    "/orchestration/{campaignId}/waits": {
+      "get": {
+        "tags": ["Orchestration"],
+        "summary": "Monitor waiting signals",
+        "parameters": [{ "name": "campaignId", "in": "path", "required": true, "schema": { "type": "integer" } }],
+        "responses": { "200": { "description": "Waiting signal list" } }
+      }
+    },
+    "/orchestration/{campaignId}/signal": {
+      "post": {
+        "tags": ["Orchestration"],
+        "summary": "Send external signal",
+        "parameters": [{ "name": "campaignId", "in": "path", "required": true, "schema": { "type": "integer" } }],
+        "responses": { "200": { "description": "Signal received" } }
+      }
+    },
+    "/orchestration/{campaignId}/preview/schema": {
+      "get": {
+        "tags": ["Orchestration"],
+        "summary": "Preview schema",
+        "parameters": [{ "name": "campaignId", "in": "path", "required": true, "schema": { "type": "integer" } }],
+        "responses": { "200": { "description": "Schema preview" } }
+      }
+    },
+    "/orchestration/{campaignId}/preview/results": {
+      "get": {
+        "tags": ["Orchestration"],
+        "summary": "Preview results",
+        "parameters": [{ "name": "campaignId", "in": "path", "required": true, "schema": { "type": "integer" } }],
+        "responses": { "200": { "description": "Results preview" } }
+      }
+    },
+
+    "/deliveries": {
+      "get": {
+        "tags": ["Deliveries"],
+        "summary": "List deliveries",
+        "parameters": [{ "name": "channel", "in": "query", "schema": { "type": "string", "enum": ["email", "sms", "push"] } }],
+        "responses": { "200": { "description": "List of deliveries" } }
+      },
+      "post": {
+        "tags": ["Deliveries"],
+        "summary": "Create delivery",
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/DeliveryInput" } } } },
+        "responses": { "201": { "description": "Delivery created" } }
+      }
+    },
+    "/deliveries/{id}": {
+      "get": {
+        "tags": ["Deliveries"],
+        "summary": "Get delivery",
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "integer" } }],
+        "responses": { "200": { "description": "Delivery details" } }
+      },
+      "put": {
+        "tags": ["Deliveries"],
+        "summary": "Update delivery",
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "integer" } }],
+        "responses": { "200": { "description": "Delivery updated" } }
+      },
+      "delete": {
+        "tags": ["Deliveries"],
+        "summary": "Delete delivery",
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "integer" } }],
+        "responses": { "200": { "description": "Delivery deleted" } }
+      }
+    },
+    "/deliveries/{id}/approve": {
+      "post": { "tags": ["Deliveries"], "summary": "Approve delivery", "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "integer" } }], "responses": { "200": { "description": "Approved" } } }
+    },
+    "/deliveries/{id}/send": {
+      "post": { "tags": ["Deliveries"], "summary": "Send delivery", "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "integer" } }], "responses": { "200": { "description": "Sent" } } }
+    },
+    "/deliveries/{id}/pause": {
+      "post": { "tags": ["Deliveries"], "summary": "Pause delivery", "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "integer" } }], "responses": { "200": { "description": "Paused" } } }
+    },
+    "/deliveries/{id}/resume": {
+      "post": { "tags": ["Deliveries"], "summary": "Resume delivery", "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "integer" } }], "responses": { "200": { "description": "Resumed" } } }
+    },
+    "/deliveries/{id}/stop": {
+      "post": { "tags": ["Deliveries"], "summary": "Stop delivery", "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "integer" } }], "responses": { "200": { "description": "Stopped" } } }
+    },
+    "/deliveries/{id}/report": {
+      "get": { "tags": ["Deliveries"], "summary": "Delivery report", "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "integer" } }], "responses": { "200": { "description": "Report data" } } }
+    },
+    "/deliveries/{id}/proof": {
+      "post": { "tags": ["Deliveries"], "summary": "Save proof emails", "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "integer" } }], "responses": { "200": { "description": "Proof saved" } } }
+    },
+    "/deliveries/{id}/publish": {
+      "post": { "tags": ["Deliveries"], "summary": "Publish delivery", "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "integer" } }], "responses": { "200": { "description": "Published" } } }
+    },
+
+    "/segments": {
+      "get": {
+        "tags": ["Segments"],
+        "summary": "List segments",
+        "responses": { "200": { "description": "List of segments" } }
+      },
+      "post": {
+        "tags": ["Segments"],
+        "summary": "Create segment",
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/SegmentInput" } } } },
+        "responses": { "201": { "description": "Segment created" } }
+      }
+    },
+    "/segments/for-segments": {
+      "get": { "tags": ["Segments"], "summary": "Get custom objects for segment builder", "responses": { "200": { "description": "Available objects" } } }
+    },
+    "/segments/by-status/{status}": {
+      "get": {
+        "tags": ["Segments"],
+        "summary": "Get segments by status",
+        "parameters": [{ "name": "status", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "responses": { "200": { "description": "Filtered segments" } }
+      }
+    },
+    "/segments/preview": {
+      "post": { "tags": ["Segments"], "summary": "Preview segment", "description": "Get count and sample results for segment criteria.", "responses": { "200": { "description": "Preview results" } } }
+    },
+    "/segments/distribution": {
+      "post": { "tags": ["Segments"], "summary": "Attribute distribution", "description": "Get distribution of values for a given attribute.", "responses": { "200": { "description": "Distribution data" } } }
+    },
+    "/segments/{id}": {
+      "get": {
+        "tags": ["Segments"],
+        "summary": "Get segment",
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "integer" } }],
+        "responses": { "200": { "description": "Segment details" } }
+      },
+      "put": {
+        "tags": ["Segments"],
+        "summary": "Update segment",
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "integer" } }],
+        "responses": { "200": { "description": "Segment updated" } }
+      },
+      "delete": {
+        "tags": ["Segments"],
+        "summary": "Delete segment",
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "integer" } }],
+        "responses": { "200": { "description": "Segment deleted" } }
+      }
+    },
+    "/segments/{id}/contacts": {
+      "get": { "tags": ["Segments"], "summary": "Get contacts in segment", "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "integer" } }], "responses": { "200": { "description": "Contact list" } } }
+    },
+    "/segments/{id}/status": {
+      "patch": { "tags": ["Segments"], "summary": "Change segment status", "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "integer" } }], "responses": { "200": { "description": "Status updated" } } }
+    },
+
+    "/audiences": {
+      "get": { "tags": ["Audiences"], "summary": "List audiences", "responses": { "200": { "description": "List of audiences" } } },
+      "post": { "tags": ["Audiences"], "summary": "Create audience", "responses": { "201": { "description": "Audience created" } } }
+    },
+    "/audiences/preview": {
+      "post": { "tags": ["Audiences"], "summary": "Preview audience", "description": "Get count and sample contacts for audience criteria.", "responses": { "200": { "description": "Preview results" } } }
+    },
+    "/audiences/{id}": {
+      "get": { "tags": ["Audiences"], "summary": "Get audience", "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "integer" } }], "responses": { "200": { "description": "Audience details" } } },
+      "put": { "tags": ["Audiences"], "summary": "Update audience", "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "integer" } }], "responses": { "200": { "description": "Updated" } } },
+      "delete": { "tags": ["Audiences"], "summary": "Delete audience", "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "integer" } }], "responses": { "200": { "description": "Deleted" } } }
+    },
+    "/audiences/{id}/members": {
+      "get": { "tags": ["Audiences"], "summary": "Calculate audience members", "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "integer" } }], "responses": { "200": { "description": "Member list" } } }
+    },
+    "/audiences/{id}/import-csv": {
+      "post": { "tags": ["Audiences"], "summary": "Import contacts from CSV", "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "integer" } }], "responses": { "200": { "description": "Import results" } } }
+    },
+
+    "/analytics/dashboard": { "get": { "tags": ["Analytics"], "summary": "Dashboard metrics", "description": "Top-level dashboard KPIs.", "responses": { "200": { "description": "Dashboard data" } } } },
+    "/analytics/campaigns": { "get": { "tags": ["Analytics"], "summary": "Campaign analytics", "responses": { "200": { "description": "Campaign performance data" } } } },
+    "/analytics/channels": { "get": { "tags": ["Analytics"], "summary": "Channel analytics", "responses": { "200": { "description": "Channel breakdown" } } } },
+    "/analytics/revenue": { "get": { "tags": ["Analytics"], "summary": "Revenue analytics", "responses": { "200": { "description": "Revenue data" } } } },
+    "/analytics/customers": { "get": { "tags": ["Analytics"], "summary": "Customer analytics", "responses": { "200": { "description": "Customer analytics" } } } },
+    "/analytics/drill-down/customers": { "get": { "tags": ["Analytics"], "summary": "Contact drill-down", "responses": { "200": { "description": "Detailed contact trends" } } } },
+    "/analytics/drill-down/campaigns": { "get": { "tags": ["Analytics"], "summary": "Campaign drill-down", "responses": { "200": { "description": "Detailed campaign performance" } } } },
+    "/analytics/drill-down/email": { "get": { "tags": ["Analytics"], "summary": "Email drill-down", "responses": { "200": { "description": "Detailed email performance" } } } },
+    "/analytics/drill-down/revenue": { "get": { "tags": ["Analytics"], "summary": "Revenue drill-down", "responses": { "200": { "description": "Detailed revenue breakdown" } } } },
+
+    "/ai/generate-subject": { "post": { "tags": ["AI"], "summary": "Generate email subjects", "description": "AI-powered email subject line generation.", "requestBody": { "required": true, "content": { "application/json": { "schema": { "type": "object", "properties": { "context": { "type": "string" } } } } } }, "responses": { "200": { "description": "Generated subjects" } } } },
+    "/ai/predict-churn": { "post": { "tags": ["AI"], "summary": "Predict churn", "responses": { "200": { "description": "Churn predictions" } } } },
+    "/ai/recommend-products": { "post": { "tags": ["AI"], "summary": "Product recommendations", "responses": { "200": { "description": "Recommended products" } } } },
+    "/ai/optimize-send-time": { "post": { "tags": ["AI"], "summary": "Optimize send time", "responses": { "200": { "description": "Optimal send times" } } } },
+    "/ai/next-action": { "post": { "tags": ["AI"], "summary": "Next best action", "responses": { "200": { "description": "Recommended next actions" } } } },
+    "/ai/auto-segment": { "post": { "tags": ["AI"], "summary": "Auto-segment contacts", "responses": { "200": { "description": "Auto-generated segments" } } } },
+    "/ai/generate-content": { "post": { "tags": ["AI"], "summary": "Generate email content", "responses": { "200": { "description": "Generated content" } } } },
+
+    "/custom-objects": {
+      "get": { "tags": ["Custom Objects"], "summary": "List custom objects", "responses": { "200": { "description": "All custom objects" } } },
+      "post": {
+        "tags": ["Custom Objects"],
+        "summary": "Create custom object",
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/CustomObjectInput" } } } },
+        "responses": { "201": { "description": "Object created" } }
+      }
+    },
+    "/custom-objects/relationship-meta": {
+      "get": { "tags": ["Custom Objects"], "summary": "Relationship metadata", "description": "Get table names and fields for building relationships.", "responses": { "200": { "description": "Table metadata" } } }
+    },
+    "/custom-objects/{id}": {
+      "get": { "tags": ["Custom Objects"], "summary": "Get custom object", "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "integer" } }], "responses": { "200": { "description": "Object details" } } },
+      "put": { "tags": ["Custom Objects"], "summary": "Update custom object", "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "integer" } }], "responses": { "200": { "description": "Updated" } } },
+      "delete": { "tags": ["Custom Objects"], "summary": "Delete custom object", "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "integer" } }], "responses": { "200": { "description": "Deleted" } } }
+    },
+    "/custom-objects/{id}/ui": {
+      "get": {
+        "tags": ["Custom Objects"],
+        "summary": "Get UI layout",
+        "description": "Get draft or published UI builder layout.",
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "integer" } },
+          { "name": "mode", "in": "query", "schema": { "type": "string", "enum": ["draft", "published"], "default": "published" } }
+        ],
+        "responses": { "200": { "description": "Layout data" } }
+      }
+    },
+    "/custom-objects/{id}/ui/draft": {
+      "put": { "tags": ["Custom Objects"], "summary": "Save UI draft", "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "integer" } }], "responses": { "200": { "description": "Draft saved" } } }
+    },
+    "/custom-objects/{id}/ui/publish": {
+      "post": { "tags": ["Custom Objects"], "summary": "Publish UI", "description": "Publish the current draft (previous published version is saved to version history).", "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "integer" } }], "responses": { "200": { "description": "Published" } } }
+    },
+    "/custom-objects/{id}/ui/versions": {
+      "get": { "tags": ["Custom Objects"], "summary": "List UI versions", "description": "Get version history for a custom object's UI.", "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "integer" } }], "responses": { "200": { "description": "Version list" } } }
+    },
+    "/custom-objects/{id}/ui/versions/{versionId}": {
+      "get": { "tags": ["Custom Objects"], "summary": "Get version layout", "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "integer" } }, { "name": "versionId", "in": "path", "required": true, "schema": { "type": "string" } }], "responses": { "200": { "description": "Version layout data" } } }
+    },
+    "/custom-objects/{id}/ui/versions/{versionId}/restore": {
+      "post": { "tags": ["Custom Objects"], "summary": "Restore version", "description": "Restore a previous version as the current draft.", "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "integer" } }, { "name": "versionId", "in": "path", "required": true, "schema": { "type": "string" } }], "responses": { "200": { "description": "Version restored as draft" } } }
+    },
+    "/custom-objects/{id}/data": {
+      "get": { "tags": ["Custom Objects"], "summary": "Get records", "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "integer" } }], "responses": { "200": { "description": "Record list" } } },
+      "post": { "tags": ["Custom Objects"], "summary": "Add record", "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "integer" } }], "responses": { "201": { "description": "Record created" } } }
+    },
+    "/custom-objects/{id}/import": {
+      "post": { "tags": ["Custom Objects"], "summary": "Bulk import (CSV)", "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "integer" } }], "responses": { "200": { "description": "Import results" } } }
+    },
+    "/custom-objects/{id}/data/{recordId}": {
+      "put": { "tags": ["Custom Objects"], "summary": "Update record", "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "integer" } }, { "name": "recordId", "in": "path", "required": true, "schema": { "type": "number" } }], "responses": { "200": { "description": "Record updated" } } },
+      "delete": { "tags": ["Custom Objects"], "summary": "Delete record", "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "integer" } }, { "name": "recordId", "in": "path", "required": true, "schema": { "type": "number" } }], "responses": { "200": { "description": "Record deleted" } } }
+    },
+
+    "/email-templates": {
+      "get": { "tags": ["Email Templates"], "summary": "List templates", "responses": { "200": { "description": "Template list" } } },
+      "post": { "tags": ["Email Templates"], "summary": "Create template", "responses": { "201": { "description": "Template created" } } }
+    },
+    "/email-templates/{id}": {
+      "get": { "tags": ["Email Templates"], "summary": "Get template", "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "integer" } }], "responses": { "200": { "description": "Template details" } } },
+      "put": { "tags": ["Email Templates"], "summary": "Update template", "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "integer" } }], "responses": { "200": { "description": "Updated" } } },
+      "delete": { "tags": ["Email Templates"], "summary": "Delete template", "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "integer" } }], "responses": { "200": { "description": "Deleted" } } }
+    },
+
+    "/assets": {
+      "get": { "tags": ["Assets"], "summary": "List assets", "responses": { "200": { "description": "Asset list" } } },
+      "post": { "tags": ["Assets"], "summary": "Upload asset", "requestBody": { "required": true, "content": { "multipart/form-data": { "schema": { "type": "object", "properties": { "file": { "type": "string", "format": "binary" } } } } } }, "responses": { "201": { "description": "Asset uploaded" } } }
+    },
+    "/assets/{id}": {
+      "delete": { "tags": ["Assets"], "summary": "Delete asset", "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "integer" } }], "responses": { "200": { "description": "Deleted" } } }
+    },
+
+    "/fragments": {
+      "get": { "tags": ["Fragments"], "summary": "List fragments", "parameters": [{ "name": "type", "in": "query", "schema": { "type": "string" } }], "responses": { "200": { "description": "Fragment list" } } },
+      "post": { "tags": ["Fragments"], "summary": "Create fragment", "responses": { "201": { "description": "Fragment created" } } }
+    },
+    "/fragments/{id}": {
+      "get": { "tags": ["Fragments"], "summary": "Get fragment", "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "integer" } }], "responses": { "200": { "description": "Fragment details" } } },
+      "put": { "tags": ["Fragments"], "summary": "Update fragment", "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "integer" } }], "responses": { "200": { "description": "Updated" } } },
+      "delete": { "tags": ["Fragments"], "summary": "Delete fragment", "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "integer" } }], "responses": { "200": { "description": "Deleted" } } }
+    },
+
+    "/landing-pages": {
+      "get": { "tags": ["Landing Pages"], "summary": "List landing pages", "responses": { "200": { "description": "Landing page list" } } },
+      "post": { "tags": ["Landing Pages"], "summary": "Create landing page", "responses": { "201": { "description": "Created" } } }
+    },
+    "/landing-pages/{id}": {
+      "get": { "tags": ["Landing Pages"], "summary": "Get landing page", "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "integer" } }], "responses": { "200": { "description": "Details" } } },
+      "put": { "tags": ["Landing Pages"], "summary": "Update landing page", "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "integer" } }], "responses": { "200": { "description": "Updated" } } },
+      "delete": { "tags": ["Landing Pages"], "summary": "Delete landing page", "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "integer" } }], "responses": { "200": { "description": "Deleted" } } }
+    },
+
+    "/predefined-filters": {
+      "get": { "tags": ["Predefined Filters"], "summary": "List filters", "responses": { "200": { "description": "Filter list" } } },
+      "post": { "tags": ["Predefined Filters"], "summary": "Create filter", "responses": { "201": { "description": "Created" } } }
+    },
+    "/predefined-filters/{id}": {
+      "get": { "tags": ["Predefined Filters"], "summary": "Get filter", "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "integer" } }], "responses": { "200": { "description": "Details" } } },
+      "put": { "tags": ["Predefined Filters"], "summary": "Update filter", "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "integer" } }], "responses": { "200": { "description": "Updated" } } },
+      "delete": { "tags": ["Predefined Filters"], "summary": "Delete filter", "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "integer" } }], "responses": { "200": { "description": "Deleted" } } }
+    },
+
+    "/query/sql": {
+      "post": { "tags": ["Query Service"], "summary": "Execute SQL query", "description": "Run a SQL-like query against the data store.", "requestBody": { "required": true, "content": { "application/json": { "schema": { "type": "object", "properties": { "sql": { "type": "string" } }, "required": ["sql"] } } } }, "responses": { "200": { "description": "Query results" } } }
+    },
+    "/query/tables": {
+      "get": { "tags": ["Query Service"], "summary": "List tables", "description": "Get available tables and their columns.", "responses": { "200": { "description": "Table list" } } }
+    },
+    "/query": {
+      "post": { "tags": ["Query Service"], "summary": "Query data", "description": "Query data with filters, field selection, and aggregates.", "requestBody": { "required": true, "content": { "application/json": { "schema": { "type": "object" } } } }, "responses": { "200": { "description": "Query results" } } }
+    }
+  },
+  "components": {
+    "schemas": {
+      "ContactInput": {
+        "type": "object",
+        "properties": {
+          "email": { "type": "string", "format": "email" },
+          "first_name": { "type": "string" },
+          "last_name": { "type": "string" },
+          "phone": { "type": "string" },
+          "status": { "type": "string", "enum": ["active", "inactive"] },
+          "city": { "type": "string" },
+          "state": { "type": "string" },
+          "country": { "type": "string" }
+        },
+        "required": ["email", "first_name", "last_name"]
+      },
+      "WorkflowInput": {
+        "type": "object",
+        "properties": {
+          "name": { "type": "string" },
+          "type": { "type": "string", "enum": ["broadcast", "automated", "transactional"] },
+          "channel": { "type": "string", "enum": ["email", "sms", "push"] },
+          "subject": { "type": "string" },
+          "content": { "type": "string" },
+          "segment_id": { "type": "integer" },
+          "audience_id": { "type": "integer" }
+        },
+        "required": ["name", "type"]
+      },
+      "DeliveryInput": {
+        "type": "object",
+        "properties": {
+          "name": { "type": "string" },
+          "channel": { "type": "string", "enum": ["email", "sms", "push"] },
+          "subject": { "type": "string" },
+          "content": { "type": "string" },
+          "scheduled_at": { "type": "string", "format": "date-time" }
+        },
+        "required": ["name", "channel"]
+      },
+      "SegmentInput": {
+        "type": "object",
+        "properties": {
+          "name": { "type": "string" },
+          "description": { "type": "string" },
+          "segment_type": { "type": "string" },
+          "rules": { "type": "array", "items": { "type": "object" } }
+        },
+        "required": ["name"]
+      },
+      "CustomObjectInput": {
+        "type": "object",
+        "properties": {
+          "name": { "type": "string", "pattern": "^[a-z][a-z0-9_]*$" },
+          "label": { "type": "string" },
+          "description": { "type": "string" },
+          "fields": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "name": { "type": "string" },
+                "label": { "type": "string" },
+                "type": { "type": "string", "enum": ["text", "number", "date", "datetime", "boolean"] },
+                "is_required": { "type": "boolean" },
+                "is_primary": { "type": "boolean" }
+              },
+              "required": ["name", "type"]
+            }
+          },
+          "relationships": { "type": "array", "items": { "type": "object" } }
+        },
+        "required": ["name", "label", "fields"]
+      }
+    }
+  }
+}

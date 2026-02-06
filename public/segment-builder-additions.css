@@ -1,0 +1,136 @@
+/* ============================================
+   SQL PREVIEW PANEL (Modern)
+   ============================================ */
+
+.sql-preview-panel {
+  position: static;
+  margin: 1.5rem;
+  border: 1px solid var(--border-color);
+  border-radius: 0.75rem;
+  background: var(--card-bg);
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.08);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  height: auto;
+}
+
+.sql-preview-panel.collapsed {
+  height: auto;
+}
+
+.sql-preview-docked {
+  position: static;
+}
+
+.sql-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 16px;
+  background: var(--background);
+  border-bottom: 1px solid var(--border-color);
+  min-height: 44px;
+}
+
+.sql-header h3 {
+  color: var(--text-primary);
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.sql-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.sql-code {
+  padding: 16px;
+  color: #0f172a;
+  font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+  font-size: 13px;
+  line-height: 1.6;
+  overflow: auto;
+  flex: 1;
+  margin: 0;
+  background: #0b1220;
+  color: #e2e8f0;
+}
+
+.sql-code::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+.sql-code::-webkit-scrollbar-track {
+  background: #0f172a;
+}
+
+.sql-code::-webkit-scrollbar-thumb {
+  background: #334155;
+  border-radius: 5px;
+}
+
+.sql-code::-webkit-scrollbar-thumb:hover {
+  background: #475569;
+}
+
+/* ============================================
+   CONDITION OPERATORS (AND/OR)
+   ============================================ */
+
+.condition-operator {
+  display: flex;
+  gap: 8px;
+  margin: 16px 0;
+  justify-content: center;
+  align-items: center;
+}
+
+.condition-operator::before,
+.condition-operator::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--border-color);
+}
+
+.operator-toggle-group {
+  display: flex;
+  gap: 0;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  overflow: hidden;
+  background: white;
+}
+
+.operator-toggle {
+  padding: 6px 20px;
+  border: none;
+  background: white;
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 12px;
+  color: var(--text-secondary);
+  transition: all 0.2s;
+  border-right: 1px solid var(--border-color);
+}
+
+.operator-toggle:last-child {
+  border-right: none;
+}
+
+.operator-toggle:hover {
+  background: var(--background);
+}
+
+.operator-toggle.active {
+  background: var(--primary-color);
+  color: white;
+}
+
+/* Adjust main content to accommodate SQL panel */
+.builder-main {
+  padding-bottom: 2rem;
+}

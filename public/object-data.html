@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Object Data - Marketing Automation</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div style="min-height: 100vh; background: #F9FAFB; padding: 2rem;">
+    <!-- Header -->
+    <div class="card" style="margin-bottom: 1.5rem;">
+      <div class="card-header" style="display: flex; justify-content: space-between; align-items: center;">
+        <div style="display: flex; align-items: center; gap: 0.75rem;">
+          <button class="btn-back" onclick="goBack()" title="Back to Custom Objects">
+            <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><path d="M12.5 15L7.5 10L12.5 5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </button>
+          <span id="object-label" style="font-size: 1.5rem; font-weight: 600;">Object Data</span>
+        </div>
+        <div style="display: flex; gap: 0.5rem;">
+          <button class="btn btn-secondary" onclick="showImportModal()">📤 Import CSV</button>
+          <button class="btn btn-primary" onclick="showAddRecordModal()">+ Add Record</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Stats Card -->
+    <div class="stats-grid" style="margin-bottom: 1.5rem;">
+      <div class="stat-card">
+        <div class="stat-card-header">
+          <span class="stat-card-title">Total Records</span>
+          <span class="stat-card-icon">📊</span>
+        </div>
+        <div class="stat-card-value" id="record-count">0</div>
+      </div>
+    </div>
+
+    <!-- Data Table -->
+    <div class="card">
+      <div class="card-header">
+        <h3 class="card-title">Records</h3>
+      </div>
+      <div class="card-body">
+        <div class="table-container" id="data-table-container">
+          <!-- Table will be dynamically generated -->
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Import Modal -->
+  <div id="import-modal" class="modal hidden">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2>Import CSV Data</h2>
+        <button class="modal-close" onclick="closeImportModal()">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label class="form-label">CSV File</label>
+          <input type="file" id="csv-file" accept=".csv" class="form-input">
+          <div class="form-help">CSV should have headers matching your field names</div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Customer ID Column (optional)</label>
+          <input type="text" id="customer-id-column" class="form-input" placeholder="e.g., customer_id">
+          <div class="form-help">Column name that contains customer IDs for linking</div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" onclick="closeImportModal()">Cancel</button>
+        <button class="btn btn-primary" onclick="importCSV()">Import</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Add Record Modal -->
+  <div id="add-record-modal" class="modal hidden">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2 id="record-modal-title">Add Record</h2>
+        <button class="modal-close" onclick="closeAddRecordModal()">&times;</button>
+      </div>
+      <div class="modal-body" id="record-form-container">
+        <!-- Form will be dynamically generated -->
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" onclick="closeAddRecordModal()">Cancel</button>
+        <button class="btn btn-primary" onclick="saveRecord()">Save</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Loading Spinner -->
+  <div id="loading" class="loading hidden">
+    <div class="spinner"></div>
+  </div>
+
+  <!-- Toast Notification -->
+  <div id="toast" class="toast hidden"></div>
+
+  <script src="object-data.js"></script>
+</body>
+</html>

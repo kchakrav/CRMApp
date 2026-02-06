@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>B2C Marketing Automation Platform</title>
+  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="table-enhancements.css">
+</head>
+<body>
+  <div class="app-container">
+    <!-- Left Sidebar Navigation (Adobe-style) -->
+    <aside class="sidebar">
+      <div class="sidebar-header">
+        <a href="#" class="sidebar-logo" data-view="dashboard">
+          <span class="sidebar-logo-icon">🚀</span>
+          <span>Marketing Automation</span>
+        </a>
+      </div>
+      <nav class="sidebar-nav">
+        <a href="#" class="nav-item active" data-view="dashboard">
+          <span class="icon">📊</span> Dashboard
+        </a>
+        <a href="#" class="nav-item" data-view="explorer">
+          <span class="icon">🔍</span> Explorer
+        </a>
+        
+        <!-- Campaign Management Section -->
+        <div class="nav-section">
+          <div class="nav-section-header" onclick="toggleNavSection(this)">
+            <span class="nav-section-icon">▼</span>
+            <span>Campaign Management</span>
+          </div>
+          <div class="nav-section-content">
+            <a href="#" class="nav-item" data-view="workflows">
+              <span class="icon">⚡</span> Workflows
+            </a>
+            <a href="#" class="nav-item" data-view="deliveries">
+              <span class="icon">📤</span> Deliveries
+            </a>
+          </div>
+        </div>
+        
+        <!-- Triggered Messages Section -->
+        <div class="nav-section">
+          <div class="nav-section-header" onclick="toggleNavSection(this)">
+            <span class="nav-section-icon">▼</span>
+            <span>Triggered Messages</span>
+          </div>
+          <div class="nav-section-content">
+            <a href="#" class="nav-item" data-view="transactional">
+              <span class="icon">💬</span> Transactional messages
+            </a>
+            <a href="#" class="nav-item" data-view="event-history">
+              <span class="icon">📜</span> Event history
+            </a>
+          </div>
+        </div>
+        
+        <!-- Content Management Section -->
+        <div class="nav-section">
+          <div class="nav-section-header" onclick="toggleNavSection(this)">
+            <span class="nav-section-icon">▼</span>
+            <span>Content Management</span>
+          </div>
+          <div class="nav-section-content">
+            <a href="#" class="nav-item" data-view="content-templates">
+              <span class="icon">📄</span> Content templates
+            </a>
+            <a href="#" class="nav-item" data-view="assets">
+              <span class="icon">🖼️</span> Asset library
+            </a>
+            <a href="#" class="nav-item" data-view="landing-pages">
+              <span class="icon">🌐</span> Landing pages
+            </a>
+            <a href="#" class="nav-item" data-view="fragments">
+              <span class="icon">🧩</span> Fragments
+            </a>
+            <a href="#" class="nav-item" data-view="brands">
+              <span class="icon">🏷️</span> Brands
+            </a>
+          </div>
+        </div>
+        
+        <!-- Customer Management Section -->
+        <div class="nav-section">
+          <div class="nav-section-header" onclick="toggleNavSection(this)">
+            <span class="nav-section-icon">▼</span>
+            <span>Customer Management</span>
+          </div>
+          <div class="nav-section-content">
+            <a href="#" class="nav-item" data-view="contacts">
+              <span class="icon">👥</span> Profiles
+            </a>
+            <a href="#" class="nav-item" data-view="audiences">
+              <span class="icon">👥</span> Audiences
+            </a>
+            <a href="#" class="nav-item" data-view="subscription-services">
+              <span class="icon">📧</span> Subscription services
+            </a>
+            <a href="#" class="nav-item" data-view="predefined-filters">
+              <span class="icon">🔧</span> Predefined filters
+            </a>
+          </div>
+        </div>
+        
+        <!-- Data & Configuration -->
+        <div class="nav-section">
+          <div class="nav-section-header" onclick="toggleNavSection(this)">
+            <span class="nav-section-icon">▼</span>
+            <span>Data & Configuration</span>
+          </div>
+          <div class="nav-section-content">
+            <a href="#" class="nav-item" data-view="segments">
+              <span class="icon">🎯</span> Segments
+            </a>
+            <a href="#" class="nav-item" data-view="custom-objects">
+              <span class="icon">🗂️</span> Custom Objects
+            </a>
+            <a href="#" class="nav-item" data-view="query-service">
+              <span class="icon">🧮</span> Query Service
+            </a>
+            <a href="#" class="nav-item" data-view="analytics">
+              <span class="icon">📈</span> Analytics
+            </a>
+            <a href="#" class="nav-item" data-view="ai">
+              <span class="icon">🤖</span> AI Features
+            </a>
+            <a href="#" class="nav-item" data-view="api-docs">
+              <span class="icon">📘</span> API Documentation
+            </a>
+          </div>
+        </div>
+      </nav>
+    </aside>
+
+    <!-- Main Content Area -->
+    <main class="main-content">
+      <!-- Top Header Bar (Adobe-style) -->
+      <header class="header">
+        <div class="header-left">
+          <h1 id="page-title" class="header-title">Dashboard</h1>
+        </div>
+        <div class="header-actions">
+          <button class="btn btn-primary" id="create-btn" style="display: none;">
+            <span id="create-btn-text">+ Create</span>
+          </button>
+          <button class="btn btn-secondary" id="refresh-btn">🔄</button>
+        </div>
+      </header>
+
+      <!-- Breadcrumbs (Adobe-style) -->
+      <nav id="breadcrumbs" class="breadcrumbs hidden">
+        <!-- Breadcrumbs will be dynamically inserted here -->
+      </nav>
+
+      <!-- Content Wrapper -->
+      <div class="content-wrapper">
+        <div id="content">
+          <!-- Dynamic content will be loaded here -->
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <!-- Delete Confirmation Modal (Adobe Spectrum Dialog) -->
+  <div id="confirm-modal" class="modal-overlay hidden" onclick="if(event.target === this) closeConfirmModal()">
+    <div class="modal">
+      <div class="modal-header">
+        <h2 class="modal-title">Confirm Action</h2>
+        <span class="modal-close" onclick="closeConfirmModal()">&times;</span>
+      </div>
+      <div class="modal-body">
+        <p id="confirm-message">Are you sure you want to proceed?</p>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" onclick="closeConfirmModal()">Cancel</button>
+        <button class="btn btn-danger" id="confirm-delete-btn">Confirm</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Full Screen Email Editor Modal -->
+  <div id="email-editor-modal" class="modal-overlay hidden" onclick="if(event.target === this) closeEmailEditorModal()">
+    <div class="email-editor-modal-content">
+      <button class="email-editor-modal-close" onclick="closeEmailEditorModal()" aria-label="Close email editor">×</button>
+      <iframe id="email-editor-iframe" title="Email Designer" class="email-editor-iframe"></iframe>
+    </div>
+  </div>
+
+  <!-- Loading Spinner -->
+  <div id="loading" class="loading hidden">
+    <div class="spinner"></div>
+  </div>
+
+  <!-- Toast Notifications Container (Adobe-style) -->
+  <div id="toast-container"></div>
+
+  <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
+  <script src="app.js"></script>
+  <script src="adobe-features.js"></script>
+  <script src="table-helpers.js"></script>
+</body>
+</html>
