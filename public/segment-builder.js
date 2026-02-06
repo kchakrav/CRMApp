@@ -14,7 +14,7 @@ const BASE_ATTRIBUTE_OBJECTS = [
   {
     name: 'customer',
     label: 'Contacts',
-    icon: '👤',
+    icon: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>',
     fields: [
       { name: 'email', label: 'Email', type: 'text' },
       { name: 'first_name', label: 'First Name', type: 'text' },
@@ -28,7 +28,7 @@ const BASE_ATTRIBUTE_OBJECTS = [
   {
     name: 'orders',
     label: 'Orders',
-    icon: '🛒',
+    icon: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="21" r="1"/><circle cx="19" cy="21" r="1"/><path d="M2.05 2.05h2l2.66 12.42a2 2 0 0 0 2 1.58h9.78a2 2 0 0 0 1.95-1.57l1.65-7.43H5.12"/></svg>',
     fields: [
       { name: 'id', label: 'Order ID', type: 'number' },
       { name: 'total_amount', label: 'Total Amount', type: 'number' },
@@ -42,7 +42,7 @@ const BASE_ATTRIBUTE_OBJECTS = [
   {
     name: 'events',
     label: 'Activity',
-    icon: '⚡',
+    icon: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>',
     fields: [
       { name: 'event_count', label: 'Total Events', type: 'number' },
       { name: 'last_activity_date', label: 'Last Activity Date', type: 'date' }
@@ -106,7 +106,7 @@ function renderAttributeLibrary(customObjects) {
     const categoryHtml = `
       <div class="attr-category">
         <div class="category-header collapsed" onclick="toggleAttrCategory(this)">
-          <span class="category-icon">${obj.icon || '📁'}</span>
+          <span class="category-icon">${obj.icon || '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"/></svg>'}</span>
           <span class="category-title">${obj.label}</span>
           <span class="category-toggle">▼</span>
         </div>
@@ -146,13 +146,13 @@ function renderBaseEntityOptions(customObjects) {
 // Helper to get icon for field type
 function getIconForType(type) {
   const icons = {
-    text: '📝',
-    number: '🔢',
-    date: '📅',
-    select: '📋',
-    boolean: '✓'
+    text: '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 7 4 4 20 4 20 7"/><line x1="9" x2="15" y1="20" y2="20"/><line x1="12" x2="12" y1="4" y2="20"/></svg>',
+    number: '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="9" x2="20" y2="9"/><line x1="4" y1="15" x2="20" y2="15"/><line x1="10" y1="3" x2="8" y2="21"/><line x1="16" y1="3" x2="14" y2="21"/></svg>',
+    date: '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>',
+    select: '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="8" x2="21" y1="6" y2="6"/><line x1="8" x2="21" y1="12" y2="12"/><line x1="8" x2="21" y1="18" y2="18"/><line x1="3" x2="3.01" y1="6" y2="6"/><line x1="3" x2="3.01" y1="12" y2="12"/><line x1="3" x2="3.01" y1="18" y2="18"/></svg>',
+    boolean: '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="12" x="2" y="6" rx="6" ry="6"/><circle cx="16" cy="12" r="2"/></svg>'
   };
-  return icons[type] || '📄';
+  return icons[type] || '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/></svg>';
 }
 
 // SVG icons for field types (compact chip style)
@@ -731,7 +731,7 @@ function showAttributeSelector(ruleId) {
     <div class="modal-content">
       <div class="modal-header">
         <h3>Select Attribute</h3>
-        <button class="modal-close" onclick="closeAttributeSelector()">×</button>
+        <button class="modal-close" onclick="closeAttributeSelector()"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></button>
       </div>
       <div class="modal-body">
         <input type="text" class="modal-search" id="modal-attr-search" placeholder="Search attributes..." onkeyup="filterModalAttributes(this.value)">

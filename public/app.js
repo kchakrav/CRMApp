@@ -4,6 +4,93 @@ const API_BASE = '/api';
 // Shared back-button chevron SVG
 const BACK_SVG = '<svg width="20" height="20" viewBox="0 0 20 20" fill="none"><path d="M12.5 15L7.5 10L12.5 5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>';
 
+// ============================================
+// LUCIDE ICON LIBRARY (line/outline, monochrome, consistent stroke)
+// Usage: ICONS.name  — returns an SVG string
+// ============================================
+const _i = (w, paths) => '<svg width="' + w + '" height="' + w + '" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' + paths + '</svg>';
+
+const ICONS = {
+  // --- Navigation / Sections ---
+  dashboard:    _i(16, '<rect width="7" height="9" x="3" y="3" rx="1"/><rect width="7" height="5" x="14" y="3" rx="1"/><rect width="7" height="9" x="14" y="12" rx="1"/><rect width="7" height="5" x="3" y="16" rx="1"/>'),
+  compass:      _i(16, '<circle cx="12" cy="12" r="10"/><polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76"/>'),
+  zap:          _i(16, '<polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>'),
+  send:         _i(16, '<path d="m22 2-7 20-4-9-9-4Z"/><path d="m22 2-11 11"/>'),
+  messageSquare:_i(16, '<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>'),
+  history:      _i(16, '<path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l4 2"/>'),
+  fileText:     _i(16, '<path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M10 9H8"/><path d="M16 13H8"/><path d="M16 17H8"/>'),
+  image:        _i(16, '<rect width="18" height="18" x="3" y="3" rx="2" ry="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/>'),
+  globe:        _i(16, '<circle cx="12" cy="12" r="10"/><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"/><path d="M2 12h20"/>'),
+  layers:       _i(16, '<path d="M12 2 2 7l10 5 10-5-10-5Z"/><path d="m2 17 10 5 10-5"/><path d="m2 12 10 5 10-5"/>'),
+  tag:          _i(16, '<path d="M12 2H2v10l9.29 9.29c.94.94 2.48.94 3.42 0l6.58-6.58c.94-.94.94-2.48 0-3.42L12 2Z"/><path d="M7 7h.01"/>'),
+  users:        _i(16, '<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>'),
+  usersRound:   _i(16, '<path d="M18 21a8 8 0 0 0-16 0"/><circle cx="10" cy="8" r="5"/><path d="M22 20c0-3.37-2-6.5-4-8a5 5 0 0 0-.45-8.3"/>'),
+  mail:         _i(16, '<rect width="20" height="16" x="2" y="4" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/>'),
+  sliders:      _i(16, '<line x1="21" x2="14" y1="4" y2="4"/><line x1="10" x2="3" y1="4" y2="4"/><line x1="21" x2="12" y1="12" y2="12"/><line x1="8" x2="3" y1="12" y2="12"/><line x1="21" x2="16" y1="20" y2="20"/><line x1="12" x2="3" y1="20" y2="20"/><line x1="14" x2="14" y1="2" y2="6"/><line x1="8" x2="8" y1="10" y2="14"/><line x1="16" x2="16" y1="18" y2="22"/>'),
+  target:       _i(16, '<circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/>'),
+  database:     _i(16, '<ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5V19A9 3 0 0 0 21 19V5"/><path d="M3 12A9 3 0 0 0 21 12"/>'),
+  code:         _i(16, '<polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/>'),
+  trendingUp:   _i(16, '<polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>'),
+  sparkles:     _i(16, '<path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/><path d="M5 3v4"/><path d="M19 17v4"/><path d="M3 5h4"/><path d="M17 19h4"/>'),
+  bookOpen:     _i(16, '<path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/>'),
+
+  // --- Common Actions ---
+  edit:         _i(14, '<path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/><path d="m15 5 4 4"/>'),
+  trash:        _i(14, '<path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/>'),
+  play:         _i(14, '<polygon points="6 3 20 12 6 21 6 3"/>'),
+  pause:        _i(14, '<rect width="4" height="16" x="6" y="4"/><rect width="4" height="16" x="14" y="4"/>'),
+  stop:         _i(14, '<rect width="14" height="14" x="5" y="5" rx="2"/>'),
+  save:         _i(14, '<path d="M15.2 3a2 2 0 0 1 1.4.6l3.8 3.8a2 2 0 0 1 .6 1.4V19a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2Z"/><path d="M17 21v-7a1 1 0 0 0-1-1H8a1 1 0 0 0-1 1v7"/><path d="M7 3v4a1 1 0 0 0 1 1h7"/>'),
+  refresh:      _i(14, '<path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/>'),
+  search:       _i(14, '<circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/>'),
+  plus:         _i(14, '<path d="M5 12h14"/><path d="M12 5v14"/>'),
+  x:            _i(14, '<path d="M18 6 6 18"/><path d="m6 6 12 12"/>'),
+  check:        _i(14, '<path d="M20 6 9 17l-5-5"/>'),
+  alertTriangle:_i(14, '<path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><path d="M12 9v4"/><path d="M12 17h.01"/>'),
+  info:         _i(14, '<circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/>'),
+  chevronRight: _i(14, '<path d="m9 18 6-6-6-6"/>'),
+  arrowUp:      _i(14, '<path d="m5 12 7-7 7 7"/><path d="M12 19V5"/>'),
+  arrowDown:    _i(14, '<path d="M12 5v14"/><path d="m19 12-7 7-7-7"/>'),
+  barChart:     _i(14, '<line x1="12" x2="12" y1="20" y2="10"/><line x1="18" x2="18" y1="20" y2="4"/><line x1="6" x2="6" y1="20" y2="16"/>'),
+  palette:      _i(14, '<circle cx="13.5" cy="6.5" r="0.5" fill="currentColor"/><circle cx="17.5" cy="10.5" r="0.5" fill="currentColor"/><circle cx="8.5" cy="7.5" r="0.5" fill="currentColor"/><circle cx="6.5" cy="12" r="0.5" fill="currentColor"/><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.926 0 1.648-.746 1.648-1.688 0-.437-.18-.835-.437-1.125-.29-.289-.438-.652-.438-1.125a1.64 1.64 0 0 1 1.668-1.668h1.996c3.051 0 5.555-2.503 5.555-5.554C21.965 6.012 17.461 2 12 2Z"/>'),
+
+  // --- Workflow / Campaign ---
+  broadcast:    _i(14, '<path d="m3 11 18-5v12L3 13v-2z"/><path d="M11.6 16.8a3 3 0 1 1-5.8-1.6"/>'),
+  bot:          _i(14, '<path d="M12 8V4H8"/><rect width="16" height="12" x="4" y="8" rx="2"/><path d="M2 14h2"/><path d="M20 14h2"/><path d="M15 13v2"/><path d="M9 13v2"/>'),
+  repeat:       _i(14, '<path d="m17 2 4 4-4 4"/><path d="M3 11v-1a4 4 0 0 1 4-4h14"/><path d="m7 22-4-4 4-4"/><path d="M21 13v1a4 4 0 0 1-4 4H3"/>'),
+  workflow:     _i(14, '<rect width="8" height="8" x="3" y="3" rx="2"/><path d="M7 11v4a2 2 0 0 0 2 2h4"/><rect width="8" height="8" x="13" y="13" rx="2"/>'),
+
+  // --- Analytics / Stats ---
+  mailStat:     _i(16, '<rect width="20" height="16" x="2" y="4" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/>'),
+  eye:          _i(14, '<path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/>'),
+  mousePointer: _i(14, '<path d="m3 3 7.07 16.97 2.51-7.39 7.39-2.51L3 3z"/><path d="m13 13 6 6"/>'),
+  star:         _i(14, '<polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>'),
+  gem:          _i(14, '<path d="M6 3h12l4 6-10 13L2 9Z"/><path d="M11 3 8 9l4 13 4-13-3-6"/><path d="M2 9h20"/>'),
+  dollarSign:   _i(14, '<line x1="12" x2="12" y1="2" y2="22"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>'),
+  thumbsUp:     _i(14, '<path d="M7 10v12"/><path d="M15 5.88 14 10h5.83a2 2 0 0 1 1.92 2.56l-2.33 8A2 2 0 0 1 17.5 22H4a2 2 0 0 1-2-2v-8a2 2 0 0 1 2-2h2.76a2 2 0 0 0 1.79-1.11L12 2h0a3.13 3.13 0 0 1 3 3.88Z"/>'),
+  handWave:     _i(14, '<path d="M18.11 12.68a3.44 3.44 0 0 0-4.86 0l-.49.49a1 1 0 0 1-1.42-1.42l2.13-2.12a3.07 3.07 0 0 0-4.32-4.37l-3.53 3.53a8 8 0 0 0 0 11.31l.49.49a8 8 0 0 0 11.31 0l3.18-3.17a3.44 3.44 0 0 0-2.49-5.74Z"/>'),
+  timer:        _i(14, '<line x1="10" x2="14" y1="2" y2="2"/><line x1="12" x2="15" y1="14" y2="11"/><circle cx="12" cy="14" r="8"/>'),
+  megaphone:    _i(14, '<path d="m3 11 18-5v12L3 13v-2z"/><path d="M11.6 16.8a3 3 0 1 1-5.8-1.6"/>'),
+
+  // --- Content / UI ---
+  folder:       _i(14, '<path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"/>'),
+  puzzle:       _i(14, '<path d="M19.439 7.85c-.049.322.059.648.289.878l1.568 1.568c.47.47.706 1.087.706 1.704s-.235 1.233-.706 1.704l-1.611 1.611a.98.98 0 0 1-.837.276c-.47-.07-.802-.48-.968-.925a2.501 2.501 0 1 0-3.214 3.214c.446.166.855.497.925.968a.979.979 0 0 1-.276.837l-1.61 1.61a2.404 2.404 0 0 1-1.705.707 2.402 2.402 0 0 1-1.704-.706l-1.568-1.568a1.026 1.026 0 0 0-.877-.29c-.493.074-.84.504-1.02.968a2.5 2.5 0 1 1-3.237-3.237c.464-.18.894-.527.967-1.02a1.026 1.026 0 0 0-.289-.877l-1.568-1.568A2.402 2.402 0 0 1 1.998 12c0-.617.236-1.234.706-1.704L4.23 8.77c.24-.24.581-.353.917-.303.515.077.877.528 1.073 1.01a2.5 2.5 0 1 0 3.259-3.259c-.482-.196-.933-.558-1.01-1.073-.05-.336.062-.676.303-.917l1.525-1.525A2.402 2.402 0 0 1 12 1.998c.617 0 1.234.236 1.704.706l1.568 1.568c.23.23.556.338.877.29.493-.074.84-.504 1.02-.968a2.5 2.5 0 1 1 3.237 3.237c-.464.18-.894.527-.967 1.02Z"/>'),
+  blocks:       _i(14, '<rect width="7" height="7" x="3" y="3" rx="1"/><rect width="7" height="7" x="14" y="3" rx="1"/><rect width="7" height="7" x="3" y="14" rx="1"/><rect width="7" height="7" x="14" y="14" rx="1"/>'),
+  monitor:      _i(14, '<rect width="20" height="14" x="2" y="3" rx="2"/><line x1="8" x2="16" y1="21" y2="21"/><line x1="12" x2="12" y1="17" y2="21"/>'),
+  link:         _i(14, '<path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>'),
+  userPlus:     _i(14, '<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" x2="19" y1="8" y2="14"/><line x1="22" x2="16" y1="11" y2="11"/>'),
+  combine:      _i(14, '<circle cx="7" cy="12" r="3"/><circle cx="17" cy="12" r="3"/><path d="M14 12H10"/>'),
+  saveData:     _i(14, '<path d="M15.2 3a2 2 0 0 1 1.4.6l3.8 3.8a2 2 0 0 1 .6 1.4V19a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2Z"/><path d="M17 21v-7a1 1 0 0 0-1-1H8a1 1 0 0 0-1 1v7"/><path d="M7 3v4a1 1 0 0 0 1 1h7"/>'),
+  hardDrive:    _i(14, '<line x1="22" x2="2" y1="12" y2="12"/><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/><line x1="6" x2="6.01" y1="16" y2="16"/><line x1="10" x2="10.01" y1="16" y2="16"/>'),
+  webhook:      _i(14, '<path d="M18 16.98h1a2 2 0 0 0 2-1.98V7a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v8c0 1.1.9 2 2 2h1"/><path d="m12 18 4 4"/><path d="m8 22 4-4"/>'),
+  smartphone:   _i(14, '<rect width="14" height="20" x="5" y="2" rx="2" ry="2"/><path d="M12 18h.01"/>'),
+  entryPoint:   _i(14, '<circle cx="12" cy="12" r="10"/><polygon points="10 8 16 12 10 16 10 8"/>'),
+  splitBranch:  _i(14, '<circle cx="18" cy="18" r="3"/><circle cx="6" cy="6" r="3"/><circle cx="18" cy="6" r="3"/><path d="M6 9v6c0 1.66 1.34 3 3 3h3"/><path d="M6 9h6c1.66 0 3-1.34 3-3"/>'),
+  wait:         _i(14, '<circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>'),
+  jump:         _i(14, '<polyline points="17 11 21 7 17 3"/><path d="M21 7H9a4 4 0 0 0-4 4v10"/>'),
+};
+
+
 // Debounce utility function
 let debounceTimers = {};
 function debounce(key, callback, delay = 500) {
@@ -172,7 +259,7 @@ function renderMissingView(viewLabel) {
   content.innerHTML = `
     <div class="card">
       <div class="card-header">
-        <h3 class="card-title">⚠️ ${label}</h3>
+        <h3 class="card-title">${ICONS.alertTriangle} ${label}</h3>
         <div class="card-subtitle">This view is not available yet</div>
       </div>
       <div class="card-body">
@@ -636,12 +723,12 @@ function renderWorkflowForm(workflow = null) {
         <!-- Workflow Type Selection (only for new workflows) -->
         ${!isEdit ? `
         <div class="form-section">
-          <h3 class="form-section-title">⚡ Choose Workflow Type</h3>
+          <h3 class="form-section-title">${ICONS.zap} Choose Workflow Type</h3>
           <div class="workflow-type-selector" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 1rem; margin-bottom: 1.5rem;">
             <label class="workflow-type-card" onclick="selectWorkflowType('broadcast')">
               <input type="radio" name="workflow_type" value="broadcast" checked style="display: none;">
               <div class="type-card broadcast active">
-                <div class="type-icon">📢</div>
+                <div class="type-icon">${ICONS.broadcast}</div>
                 <div class="type-title">Broadcast</div>
                 <div class="type-description">One-time or scheduled send to your audience</div>
                 <div class="type-examples">Product launches, announcements, promotions</div>
@@ -650,7 +737,7 @@ function renderWorkflowForm(workflow = null) {
             <label class="workflow-type-card" onclick="selectWorkflowType('automated')">
               <input type="radio" name="workflow_type" value="automated" style="display: none;">
               <div class="type-card automated">
-                <div class="type-icon">🤖</div>
+                <div class="type-icon">${ICONS.bot}</div>
                 <div class="type-title">Automated</div>
                 <div class="type-description">Event-triggered journey that runs continuously</div>
                 <div class="type-examples">Welcome series, cart recovery, win-back</div>
@@ -659,7 +746,7 @@ function renderWorkflowForm(workflow = null) {
             <label class="workflow-type-card" onclick="selectWorkflowType('recurring')">
               <input type="radio" name="workflow_type" value="recurring" style="display: none;">
               <div class="type-card recurring">
-                <div class="type-icon">🔄</div>
+                <div class="type-icon">${ICONS.repeat}</div>
                 <div class="type-title">Recurring</div>
                 <div class="type-description">Scheduled workflow that repeats regularly</div>
                 <div class="type-examples">Weekly newsletter, monthly roundup</div>
@@ -672,7 +759,7 @@ function renderWorkflowForm(workflow = null) {
           <div class="form-section">
             <div class="info-banner" style="padding: 1rem; background: #EFF6FF; border-left: 4px solid #3B82F6; border-radius: 0.5rem; margin-bottom: 1.5rem;">
               <strong>Workflow Type:</strong> 
-              ${workflowType === 'broadcast' ? '📢 Broadcast' : workflowType === 'automated' ? '🤖 Automated' : '🔄 Recurring'}
+              ${workflowType === 'broadcast' ? `${ICONS.broadcast} Broadcast` : workflowType === 'automated' ? `${ICONS.bot} Automated` : `${ICONS.repeat} Recurring`}
               <div style="font-size: 0.875rem; color: #6B7280; margin-top: 0.25rem;">Workflow type cannot be changed after creation</div>
             </div>
           </div>
@@ -721,8 +808,8 @@ function renderWorkflowForm(workflow = null) {
         
         <div class="form-actions">
           <button type="button" class="btn btn-secondary" onclick="navigateTo('workflows', 'list')">Cancel</button>
-          <button type="submit" class="btn btn-primary">${isEdit ? '💾 Update' : '✨ Create'} Workflow</button>
-          ${isEdit ? `<button type="button" class="btn btn-primary" onclick="window.location.href='orchestration.html?workflowId=${workflow.id}'">🎨 Edit Orchestration</button>` : ''}
+          <button type="submit" class="btn btn-primary">${isEdit ? `${ICONS.save} Update` : `${ICONS.sparkles} Create`} Workflow</button>
+          ${isEdit ? `<button type="button" class="btn btn-primary" onclick="window.location.href='orchestration.html?workflowId=${workflow.id}'">${ICONS.palette} Edit Orchestration</button>` : ''}
         </div>
       </form>
     </div>
@@ -1066,35 +1153,35 @@ async function loadDashboard() {
         cta: 'Manage experiences'
       },
       {
-        icon: '🌐',
+        icon: ICONS.globe,
         title: 'Multilingual deliveries',
         description: 'Send localized messages with language variations and fallback logic.',
         tag: 'Campaign Management',
         cta: 'Create multilingual delivery'
       },
       {
-        icon: '🧩',
+        icon: ICONS.puzzle,
         title: 'Profile enrichment',
         description: 'Add behavioral and transactional attributes to improve targeting.',
         tag: 'Data Enrichment',
         cta: 'Enrich profiles'
       },
       {
-        icon: '🧪',
+        icon: ICONS.sparkles,
         title: 'Content experiments: A/B testing',
         description: 'Test subject lines, blocks, and offers with winner automation.',
         tag: 'Content Optimization',
         cta: 'Create content experiments'
       },
       {
-        icon: '📈',
+        icon: ICONS.trendingUp,
         title: 'Continuous delivery activity',
         description: 'Monitor and optimize ongoing deliveries with live metrics.',
         tag: 'Continuous Delivery',
         cta: 'Continuous delivery'
       },
       {
-        icon: '✅',
+        icon: ICONS.check,
         title: 'Campaign approval management',
         description: 'Control approvals with role-based workflows and audit trails.',
         tag: 'Campaign Operations',
@@ -1393,10 +1480,10 @@ async function loadContacts() {
       const subStatus = c.subscription_status === 'subscribed' ? 'in-progress' : 'stopped';
       
       const actions = [
-        {icon: '✏️', label: 'Edit', onclick: `navigateTo('contacts', 'edit', ${c.id})`},
-        {icon: '📊', label: 'View Activity', onclick: `showToast('View activity for ${c.first_name}', 'info')`},
+        {icon: ICONS.edit, label: 'Edit', onclick: `navigateTo('contacts', 'edit', ${c.id})`},
+        {icon: ICONS.barChart, label: 'View Activity', onclick: `showToast('View activity for ${c.first_name}', 'info')`},
         {divider: true},
-        {icon: '🗑️', label: 'Delete', onclick: `deleteContact(${c.id})`, danger: true}
+        {icon: ICONS.trash, label: 'Delete', onclick: `deleteContact(${c.id})`, danger: true}
       ];
       
       return `
@@ -1445,7 +1532,7 @@ async function loadContacts() {
     const content = `
       <div class="card">
         <div class="card-header">
-          <h3 class="card-title">👥 Profiles</h3>
+          <h3 class="card-title">${ICONS.users} Profiles</h3>
         </div>
         
         ${createTableToolbar({
@@ -1727,14 +1814,14 @@ async function loadCampaigns() {
           <td>${campaign.created_at ? new Date(campaign.created_at).toLocaleDateString() : 'N/A'}</td>
           <td>
             <div class="action-buttons">
-              ${campaign.status !== 'draft' ? `<button class="btn btn-sm btn-info" onclick="viewCampaignReport(${campaign.id})" title="View Campaign Report">📊 Report</button>` : ''}
-              <button class="btn btn-sm btn-primary" onclick="openOrchestration(${campaign.id})" title="Open Orchestration Canvas">🎨 Orchestrate</button>
-              ${campaign.status === 'draft' ? `<button class="btn btn-sm btn-success" onclick="changeCampaignStatus(${campaign.id}, 'active')" title="Activate Campaign">▶️ Activate</button>` : ''}
-              ${campaign.status === 'active' ? `<button class="btn btn-sm btn-warning" onclick="changeCampaignStatus(${campaign.id}, 'paused')" title="Pause Campaign">⏸️ Pause</button>` : ''}
-              ${campaign.status === 'paused' ? `<button class="btn btn-sm btn-success" onclick="changeCampaignStatus(${campaign.id}, 'active')" title="Resume Campaign">▶️ Resume</button>` : ''}
-              ${['active', 'paused'].includes(campaign.status) ? `<button class="btn btn-sm btn-info" onclick="changeCampaignStatus(${campaign.id}, 'completed')" title="Complete Campaign">✅ Complete</button>` : ''}
-              <button class="btn btn-sm btn-secondary" onclick="navigateTo('campaigns', 'edit', ${campaign.id})">✏️ Edit</button>
-              <button class="btn btn-sm btn-danger" onclick="deleteCampaign(${campaign.id})">🗑️ Delete</button>
+              ${campaign.status !== 'draft' ? `<button class="btn btn-sm btn-info" onclick="viewCampaignReport(${campaign.id})" title="View Campaign Report">${ICONS.barChart} Report</button>` : ''}
+              <button class="btn btn-sm btn-primary" onclick="openOrchestration(${campaign.id})" title="Open Orchestration Canvas">${ICONS.palette} Orchestrate</button>
+              ${campaign.status === 'draft' ? `<button class="btn btn-sm btn-success" onclick="changeCampaignStatus(${campaign.id}, 'active')" title="Activate Campaign">${ICONS.play} Activate</button>` : ''}
+              ${campaign.status === 'active' ? `<button class="btn btn-sm btn-warning" onclick="changeCampaignStatus(${campaign.id}, 'paused')" title="Pause Campaign">${ICONS.pause} Pause</button>` : ''}
+              ${campaign.status === 'paused' ? `<button class="btn btn-sm btn-success" onclick="changeCampaignStatus(${campaign.id}, 'active')" title="Resume Campaign">${ICONS.play} Resume</button>` : ''}
+              ${['active', 'paused'].includes(campaign.status) ? `<button class="btn btn-sm btn-info" onclick="changeCampaignStatus(${campaign.id}, 'completed')" title="Complete Campaign">${ICONS.check} Complete</button>` : ''}
+              <button class="btn btn-sm btn-secondary" onclick="navigateTo('campaigns', 'edit', ${campaign.id})">${ICONS.edit} Edit</button>
+              <button class="btn btn-sm btn-danger" onclick="deleteCampaign(${campaign.id})">${ICONS.trash} Delete</button>
             </div>
           </td>
         </tr>
@@ -1806,14 +1893,14 @@ function showCampaignModal(campaign = null) {
       <label class="form-label">Subject Line *</label>
       <input type="text" id="campaign-subject" class="form-input" value="${campaign?.subject_line || ''}" required>
       <button type="button" class="btn btn-sm btn-secondary" style="margin-top: 0.5rem;" onclick="generateSubjectForCampaign()">
-        ✨ Generate with AI
+        ${ICONS.sparkles} Generate with AI
       </button>
     </div>
     <div class="form-group">
       <label class="form-label">Email Content (HTML)</label>
       <textarea id="campaign-content" class="form-input" rows="6">${campaign?.content_html || '<h1>Your Campaign Title</h1><p>Your message here...</p>'}</textarea>
       <button type="button" class="btn btn-sm btn-secondary" style="margin-top: 0.5rem;" onclick="generateContentForCampaign()">
-        ✨ Generate with AI
+        ${ICONS.sparkles} Generate with AI
       </button>
     </div>
   `;
@@ -1827,9 +1914,9 @@ function showCampaignModal(campaign = null) {
       { label: 'A/B Testing', text: 'Test different subject lines to find what resonates with your audience' }
     ],
     quickActions: [
-      { text: '✨ Generate Subject Lines', action: 'generateSubjectForCampaign' },
-      { text: '✍️ Generate Email Content', action: 'generateContentForCampaign' },
-      { text: '🎯 Suggest Improvements', action: 'suggestCampaignImprovements' }
+      { text: `${ICONS.sparkles} Generate Subject Lines`, action: 'generateSubjectForCampaign' },
+      { text: `${ICONS.sparkles} Generate Email Content`, action: 'generateContentForCampaign' },
+      { text: `${ICONS.target} Suggest Improvements`, action: 'suggestCampaignImprovements' }
     ]
   });
   
@@ -2053,8 +2140,8 @@ async function loadWorkflows(filterType = 'all') {
       };
       
       const typeIcon = 
-        w.workflow_type === 'broadcast' ? '📢' :
-        w.workflow_type === 'automated' ? '🤖' : '🔄';
+        w.workflow_type === 'broadcast' ? ICONS.broadcast :
+        w.workflow_type === 'automated' ? ICONS.bot : ICONS.repeat;
       
       const usage = { segments: [], audiences: [], deliveries: [] };
       const addUniqueUsage = (list, item) => {
@@ -2091,21 +2178,21 @@ async function loadWorkflows(filterType = 'all') {
       ];
       
       const actions = [
-        {icon: '✏️', label: 'Edit', onclick: `navigateTo('workflows', 'edit', ${w.id})`},
-        {icon: '🎨', label: 'Orchestration', onclick: `window.location.href='orchestration.html?workflowId=${w.id}'`},
-        {icon: '📊', label: 'View Report', onclick: `showWorkflowReport(${w.id})`},
+        {icon: ICONS.edit, label: 'Edit', onclick: `navigateTo('workflows', 'edit', ${w.id})`},
+        {icon: ICONS.palette, label: 'Orchestration', onclick: `window.location.href='orchestration.html?workflowId=${w.id}'`},
+        {icon: ICONS.barChart, label: 'View Report', onclick: `showWorkflowReport(${w.id})`},
         {divider: true}
       ];
       
       if (w.status === 'draft' || w.status === 'paused') {
-        actions.push({icon: '▶️', label: 'Activate', onclick: `activateWorkflow(${w.id})`});
+        actions.push({icon: ICONS.play, label: 'Activate', onclick: `activateWorkflow(${w.id})`});
       }
       if (w.status === 'active') {
-        actions.push({icon: '⏸️', label: 'Pause', onclick: `pauseWorkflow(${w.id})`});
+        actions.push({icon: ICONS.pause, label: 'Pause', onclick: `pauseWorkflow(${w.id})`});
       }
       
       actions.push({divider: true});
-      actions.push({icon: '🗑️', label: 'Delete', onclick: `confirmDeleteWorkflow(${w.id})`, danger: true});
+      actions.push({icon: ICONS.trash, label: 'Delete', onclick: `confirmDeleteWorkflow(${w.id})`, danger: true});
       
       return `
         <tr>
@@ -2140,16 +2227,16 @@ async function loadWorkflows(filterType = 'all') {
     const content = `
       <div class="card">
         <div class="card-header">
-          <h3 class="card-title">⚡ Workflows</h3>
+          <h3 class="card-title">${ICONS.zap} Workflows</h3>
           <button class="btn btn-primary" onclick="navigateTo('workflows', 'create')">+ Create Workflow</button>
         </div>
         
         ${createTableToolbar({
           tabs: [
             {id: 'all', label: `All (${counts.all})`, active: filterType === 'all', onclick: 'loadWorkflows("all")'},
-            {id: 'broadcast', label: `📢 Broadcast (${counts.broadcast})`, active: filterType === 'broadcast', onclick: 'loadWorkflows("broadcast")'},
-            {id: 'automated', label: `🤖 Automated (${counts.automated})`, active: filterType === 'automated', onclick: 'loadWorkflows("automated")'},
-            {id: 'recurring', label: `🔄 Recurring (${counts.recurring})`, active: filterType === 'recurring', onclick: 'loadWorkflows("recurring")'}
+            {id: 'broadcast', label: `${ICONS.broadcast} Broadcast (${counts.broadcast})`, active: filterType === 'broadcast', onclick: 'loadWorkflows("broadcast")'},
+            {id: 'automated', label: `${ICONS.bot} Automated (${counts.automated})`, active: filterType === 'automated', onclick: 'loadWorkflows("automated")'},
+            {id: 'recurring', label: `${ICONS.repeat} Recurring (${counts.recurring})`, active: filterType === 'recurring', onclick: 'loadWorkflows("recurring")'}
           ],
           resultCount: workflows.length,
           totalCount: allWorkflows.length,
@@ -2252,8 +2339,8 @@ function showWorkflowModal(workflow = null) {
       { label: 'Best Practice', text: 'Add wait steps between emails to avoid overwhelming customers' }
     ],
     quickActions: [
-      { text: '💡 Suggest Workflow Steps', action: 'suggestWorkflowSteps' },
-      { text: '⏱️ Optimize Timing', action: 'optimizeWorkflowTiming' }
+      { text: `${ICONS.sparkles} Suggest Workflow Steps`, action: 'suggestWorkflowSteps' },
+      { text: `${ICONS.timer} Optimize Timing`, action: 'optimizeWorkflowTiming' }
     ]
   });
   
@@ -2517,23 +2604,23 @@ async function loadSegments() {
       };
       
       const actions = [
-        {icon: '🎨', label: 'Visual Builder', onclick: `window.location.href='/segment-builder.html?id=${seg.id}'`},
-        {icon: '✏️', label: 'Edit', onclick: `navigateTo('segments', 'edit', ${seg.id})`},
+        {icon: ICONS.palette, label: 'Visual Builder', onclick: `window.location.href='/segment-builder.html?id=${seg.id}'`},
+        {icon: ICONS.edit, label: 'Edit', onclick: `navigateTo('segments', 'edit', ${seg.id})`},
         {divider: true}
       ];
       
       if (seg.status === 'draft') {
-        actions.push({icon: '▶️', label: 'Activate', onclick: `changeSegmentStatus(${seg.id}, 'active')`});
+        actions.push({icon: ICONS.play, label: 'Activate', onclick: `changeSegmentStatus(${seg.id}, 'active')`});
       }
       if (seg.status === 'active') {
-        actions.push({icon: '⏸️', label: 'Pause', onclick: `changeSegmentStatus(${seg.id}, 'paused')`});
+        actions.push({icon: ICONS.pause, label: 'Pause', onclick: `changeSegmentStatus(${seg.id}, 'paused')`});
       }
       if (seg.status === 'paused') {
-        actions.push({icon: '▶️', label: 'Resume', onclick: `changeSegmentStatus(${seg.id}, 'active')`});
+        actions.push({icon: ICONS.play, label: 'Resume', onclick: `changeSegmentStatus(${seg.id}, 'active')`});
       }
       
       actions.push({divider: true});
-      actions.push({icon: '🗑️', label: 'Delete', onclick: `deleteSegment(${seg.id})`, danger: true});
+      actions.push({icon: ICONS.trash, label: 'Delete', onclick: `deleteSegment(${seg.id})`, danger: true});
       
       const usage = segmentUsage.get(seg.id) || { workflows: [], deliveries: [], audiences: [] };
       const usedInItems = [
@@ -2580,7 +2667,7 @@ async function loadSegments() {
     const content = `
       <div class="card">
         <div class="card-header">
-          <h3 class="card-title">🎯 Segments</h3>
+          <h3 class="card-title">${ICONS.target} Segments</h3>
         </div>
         
         ${createTableToolbar({
@@ -2717,8 +2804,8 @@ function showSegmentModal(segment = null) {
       { label: 'Tip', text: 'Use dynamic segments for automated, real-time updates' }
     ],
     quickActions: [
-      { text: '🎯 Suggest Segment Ideas', action: 'suggestSegmentIdeas' },
-      { text: '📊 Predict Segment Size', action: 'predictSegmentSize' }
+      { text: `${ICONS.target} Suggest Segment Ideas`, action: 'suggestSegmentIdeas' },
+      { text: `${ICONS.barChart} Predict Segment Size`, action: 'predictSegmentSize' }
     ]
   });
   
@@ -3334,7 +3421,7 @@ async function generateContentForCampaign() {
     document.getElementById('campaign-content').value = data.content_html;
     
     const messagesContainer = document.getElementById('ai-chat-messages');
-    messagesContainer.innerHTML += '<div class="ai-message assistant">✅ Email content generated and inserted! You can now edit it as needed.</div>';
+    messagesContainer.innerHTML += '<div class="ai-message assistant">' + ICONS.check + ' Email content generated and inserted! You can now edit it as needed.</div>';
     messagesContainer.scrollTop = messagesContainer.scrollHeight;
     
     showToast('Email content generated!', 'success');
@@ -3350,7 +3437,7 @@ function suggestCampaignImprovements() {
   const messagesContainer = document.getElementById('ai-chat-messages');
   const suggestions = `
     <div class="ai-message assistant">
-      <strong>💡 Campaign Improvement Suggestions:</strong><br><br>
+      <strong>${ICONS.sparkles} Campaign Improvement Suggestions:</strong><br><br>
       1. <strong>Personalization:</strong> Add {{first_name}} in subject line<br>
       2. <strong>Mobile:</strong> Keep subject under 50 chars<br>
       3. <strong>Urgency:</strong> Add time-limited offer or countdown<br>
@@ -3370,7 +3457,7 @@ function suggestSegmentIdeas() {
   const messagesContainer = document.getElementById('ai-chat-messages');
   const suggestions = `
     <div class="ai-message assistant">
-      <strong>🎯 Popular Segment Ideas:</strong><br><br>
+      <strong>${ICONS.target} Popular Segment Ideas:</strong><br><br>
       1. <strong>VIP Customers:</strong> Lifecycle = VIP + Score ≥ 80<br>
       2. <strong>At-Risk:</strong> No activity 60+ days + Status = Active<br>
       3. <strong>High Potential:</strong> Score ≥ 70 + Lifecycle = Lead<br>
@@ -3399,7 +3486,7 @@ function predictSegmentSize() {
   const messagesContainer = document.getElementById('ai-chat-messages');
   messagesContainer.innerHTML += `
     <div class="ai-message assistant">
-      📊 <strong>Estimated Segment Size:</strong> ${estimate} customers<br><br>
+      ${ICONS.barChart} <strong>Estimated Segment Size:</strong> ${estimate} customers<br><br>
       Based on current conditions. Actual size will be calculated after saving.
     </div>
   `;
@@ -3466,7 +3553,7 @@ function optimizeWorkflowTiming() {
   const messagesContainer = document.getElementById('ai-chat-messages');
   const tips = `
     <div class="ai-message assistant">
-      <strong>⏱️ Timing Optimization Tips:</strong><br><br>
+      <strong>${ICONS.timer} Timing Optimization Tips:</strong><br><br>
       <strong>Wait Times:</strong><br>
       • First email: 5-10 minutes (immediate engagement)<br>
       • Follow-ups: 2-3 days apart<br>
@@ -3547,10 +3634,10 @@ function createToastContainer() {
 
 function getToastIcon(type) {
   const icons = {
-    success: '✓',
-    error: '✕',
-    info: 'ℹ',
-    warning: '⚠'
+    success: ICONS.check,
+    error: ICONS.x,
+    info: ICONS.info,
+    warning: ICONS.alertTriangle
   };
   return icons[type] || icons.info;
 }
@@ -3690,14 +3777,14 @@ async function loadDrillDown(metric, period = 30) {
 }
 
 function renderContactsDrillDown(data, period) {
-  const trendIcon = parseFloat(data.summary.trend) >= 0 ? '📈' : '📉';
+  const trendIcon = parseFloat(data.summary.trend) >= 0 ? ICONS.trendingUp : ICONS.arrowDown;
   const trendClass = parseFloat(data.summary.trend) >= 0 ? 'positive' : 'negative';
   
   return `
     <div class="drill-down-container">
       <div class="drill-down-header">
         <button class="btn-back" onclick="loadDashboard()" title="Back to Dashboard">${BACK_SVG}</button>
-        <h2>👥 Contact Analytics</h2>
+        <h2>${ICONS.users} Contact Analytics</h2>
         <div class="period-selector">
           <button class="btn ${period === 7 ? 'btn-primary' : 'btn-secondary'}" onclick="loadDrillDown('customers', 7)">7 Days</button>
           <button class="btn ${period === 30 ? 'btn-primary' : 'btn-secondary'}" onclick="loadDrillDown('customers', 30)">30 Days</button>
@@ -3709,7 +3796,7 @@ function renderContactsDrillDown(data, period) {
         <div class="stat-card">
           <div class="stat-card-header">
             <span class="stat-card-title">Total Contacts</span>
-            <span class="stat-card-icon">👥</span>
+            <span class="stat-card-icon">${ICONS.users}</span>
           </div>
           <div class="stat-card-value">${data.summary.total.toLocaleString()}</div>
           <div class="stat-card-label">Active: ${data.summary.active}</div>
@@ -3717,7 +3804,7 @@ function renderContactsDrillDown(data, period) {
         <div class="stat-card">
           <div class="stat-card-header">
             <span class="stat-card-title">New Contacts</span>
-            <span class="stat-card-icon">⭐</span>
+            <span class="stat-card-icon">${ICONS.star}</span>
           </div>
           <div class="stat-card-value">${data.summary.new_in_period}</div>
           <div class="stat-card-label">
@@ -3727,7 +3814,7 @@ function renderContactsDrillDown(data, period) {
         <div class="stat-card">
           <div class="stat-card-header">
             <span class="stat-card-title">Subscribed</span>
-            <span class="stat-card-icon">✉️</span>
+            <span class="stat-card-icon">${ICONS.mail}</span>
           </div>
           <div class="stat-card-value">${data.summary.subscribed || 0}</div>
           <div class="stat-card-label">Email subscribers</div>
@@ -3735,7 +3822,7 @@ function renderContactsDrillDown(data, period) {
         <div class="stat-card">
           <div class="stat-card-header">
             <span class="stat-card-title">VIP Tier</span>
-            <span class="stat-card-icon">💎</span>
+            <span class="stat-card-icon">${ICONS.gem}</span>
           </div>
           <div class="stat-card-value">${data.summary.vip}</div>
           <div class="stat-card-label">Gold & Platinum</div>
@@ -3797,7 +3884,7 @@ function renderWorkflowsDrillDown(data, period) {
     <div class="drill-down-container">
       <div class="drill-down-header">
         <button class="btn-back" onclick="loadDashboard()" title="Back to Dashboard">${BACK_SVG}</button>
-        <h2>⚡ Workflow Performance</h2>
+        <h2>${ICONS.zap} Workflow Performance</h2>
         <div class="period-selector">
           <button class="btn ${period === 7 ? 'btn-primary' : 'btn-secondary'}" onclick="loadDrillDown('workflows', 7)">7 Days</button>
           <button class="btn ${period === 30 ? 'btn-primary' : 'btn-secondary'}" onclick="loadDrillDown('workflows', 30)">30 Days</button>
@@ -3809,7 +3896,7 @@ function renderWorkflowsDrillDown(data, period) {
         <div class="stat-card">
           <div class="stat-card-header">
             <span class="stat-card-title">Workflows Executed</span>
-            <span class="stat-card-icon">⚡</span>
+            <span class="stat-card-icon">${ICONS.zap}</span>
           </div>
           <div class="stat-card-value">${data.summary.in_period}</div>
           <div class="stat-card-label">Total: ${data.summary.total_campaigns}</div>
@@ -3817,7 +3904,7 @@ function renderWorkflowsDrillDown(data, period) {
         <div class="stat-card">
           <div class="stat-card-header">
             <span class="stat-card-title">Total Sent</span>
-            <span class="stat-card-icon">📨</span>
+            <span class="stat-card-icon">${ICONS.mail}</span>
           </div>
           <div class="stat-card-value">${data.summary.total_sent.toLocaleString()}</div>
           <div class="stat-card-label">Messages delivered</div>
@@ -3825,7 +3912,7 @@ function renderWorkflowsDrillDown(data, period) {
         <div class="stat-card">
           <div class="stat-card-header">
             <span class="stat-card-title">Avg Open Rate</span>
-            <span class="stat-card-icon">📊</span>
+            <span class="stat-card-icon">${ICONS.barChart}</span>
           </div>
           <div class="stat-card-value">${data.summary.avg_open_rate}%</div>
           <div class="stat-card-label">${data.summary.total_opened.toLocaleString()} opens</div>
@@ -3833,7 +3920,7 @@ function renderWorkflowsDrillDown(data, period) {
         <div class="stat-card">
           <div class="stat-card-header">
             <span class="stat-card-title">Revenue</span>
-            <span class="stat-card-icon">💰</span>
+            <span class="stat-card-icon">${ICONS.dollarSign}</span>
           </div>
           <div class="stat-card-value">$${data.summary.total_revenue.toFixed(2)}</div>
           <div class="stat-card-label">${data.summary.total_converted} conversions</div>
@@ -3916,7 +4003,7 @@ function renderEmailDrillDown(data, period) {
     <div class="drill-down-container">
       <div class="drill-down-header">
         <button class="btn-back" onclick="loadDashboard()" title="Back to Dashboard">${BACK_SVG}</button>
-        <h2>📨 Email Performance</h2>
+        <h2>${ICONS.mail} Email Performance</h2>
         <div class="period-selector">
           <button class="btn ${period === 7 ? 'btn-primary' : 'btn-secondary'}" onclick="loadDrillDown('email', 7)">7 Days</button>
           <button class="btn ${period === 30 ? 'btn-primary' : 'btn-secondary'}" onclick="loadDrillDown('email', 30)">30 Days</button>
@@ -3928,7 +4015,7 @@ function renderEmailDrillDown(data, period) {
         <div class="stat-card">
           <div class="stat-card-header">
             <span class="stat-card-title">Emails Sent</span>
-            <span class="stat-card-icon">📧</span>
+            <span class="stat-card-icon">${ICONS.mail}</span>
           </div>
           <div class="stat-card-value">${data.summary.sent.toLocaleString()}</div>
           <div class="stat-card-label">Total delivered</div>
@@ -3936,7 +4023,7 @@ function renderEmailDrillDown(data, period) {
         <div class="stat-card">
           <div class="stat-card-header">
             <span class="stat-card-title">Open Rate</span>
-            <span class="stat-card-icon">📊</span>
+            <span class="stat-card-icon">${ICONS.barChart}</span>
           </div>
           <div class="stat-card-value">${data.summary.open_rate}%</div>
           <div class="stat-card-label">${data.summary.opened.toLocaleString()} opens</div>
@@ -3944,7 +4031,7 @@ function renderEmailDrillDown(data, period) {
         <div class="stat-card">
           <div class="stat-card-header">
             <span class="stat-card-title">Click Rate</span>
-            <span class="stat-card-icon">🖱️</span>
+            <span class="stat-card-icon">${ICONS.mousePointer}</span>
           </div>
           <div class="stat-card-value">${data.summary.click_rate}%</div>
           <div class="stat-card-label">${data.summary.clicked.toLocaleString()} clicks</div>
@@ -3952,7 +4039,7 @@ function renderEmailDrillDown(data, period) {
         <div class="stat-card">
           <div class="stat-card-header">
             <span class="stat-card-title">Bounce Rate</span>
-            <span class="stat-card-icon">⚠️</span>
+            <span class="stat-card-icon">${ICONS.alertTriangle}</span>
           </div>
           <div class="stat-card-value">${data.summary.bounce_rate}%</div>
           <div class="stat-card-label">${data.summary.bounced.toLocaleString()} bounced</div>
@@ -4008,14 +4095,14 @@ function renderEmailDrillDown(data, period) {
 }
 
 function renderRevenueDrillDown(data, period) {
-  const trendIcon = parseFloat(data.summary.trend) >= 0 ? '📈' : '📉';
+  const trendIcon = parseFloat(data.summary.trend) >= 0 ? ICONS.trendingUp : ICONS.arrowDown;
   const trendClass = parseFloat(data.summary.trend) >= 0 ? 'positive' : 'negative';
   
   return `
     <div class="drill-down-container">
       <div class="drill-down-header">
         <button class="btn-back" onclick="loadDashboard()" title="Back to Dashboard">${BACK_SVG}</button>
-        <h2>💰 Revenue Analytics</h2>
+        <h2>${ICONS.dollarSign} Revenue Analytics</h2>
         <div class="period-selector">
           <button class="btn ${period === 7 ? 'btn-primary' : 'btn-secondary'}" onclick="loadDrillDown('revenue', 7)">7 Days</button>
           <button class="btn ${period === 30 ? 'btn-primary' : 'btn-secondary'}" onclick="loadDrillDown('revenue', 30)">30 Days</button>
@@ -4027,7 +4114,7 @@ function renderRevenueDrillDown(data, period) {
         <div class="stat-card">
           <div class="stat-card-header">
             <span class="stat-card-title">Total Revenue</span>
-            <span class="stat-card-icon">💰</span>
+            <span class="stat-card-icon">${ICONS.dollarSign}</span>
           </div>
           <div class="stat-card-value">$${parseFloat(data.summary.total_revenue).toLocaleString()}</div>
           <div class="stat-card-label">
@@ -4037,7 +4124,7 @@ function renderRevenueDrillDown(data, period) {
         <div class="stat-card">
           <div class="stat-card-header">
             <span class="stat-card-title">Total Orders</span>
-            <span class="stat-card-icon">🛒</span>
+            <span class="stat-card-icon">${ICONS.gem}</span>
           </div>
           <div class="stat-card-value">${data.summary.total_orders.toLocaleString()}</div>
           <div class="stat-card-label">Completed orders</div>
@@ -4045,7 +4132,7 @@ function renderRevenueDrillDown(data, period) {
         <div class="stat-card">
           <div class="stat-card-header">
             <span class="stat-card-title">Avg Order Value</span>
-            <span class="stat-card-icon">📊</span>
+            <span class="stat-card-icon">${ICONS.barChart}</span>
           </div>
           <div class="stat-card-value">$${parseFloat(data.summary.average_order_value).toFixed(2)}</div>
           <div class="stat-card-label">Per transaction</div>
@@ -4358,10 +4445,10 @@ async function loadAudiences() {
       };
       
       const actions = [
-        {icon: '👥', label: 'View Members', onclick: `viewAudienceMembers(${aud.id})`},
-        {icon: '✏️', label: 'Edit', onclick: `navigateTo('audiences', 'edit', ${aud.id})`},
+        {icon: ICONS.usersRound, label: 'View Members', onclick: `viewAudienceMembers(${aud.id})`},
+        {icon: ICONS.edit, label: 'Edit', onclick: `navigateTo('audiences', 'edit', ${aud.id})`},
         {divider: true},
-        {icon: '🗑️', label: 'Delete', onclick: `deleteAudience(${aud.id})`, danger: true}
+        {icon: ICONS.trash, label: 'Delete', onclick: `deleteAudience(${aud.id})`, danger: true}
       ];
       
       const usage = audienceUsage.get(aud.id) || { workflows: [], deliveries: [] };
@@ -4408,7 +4495,7 @@ async function loadAudiences() {
     const content = `
       <div class="card">
         <div class="card-header">
-          <h3 class="card-title">👥 Audiences</h3>
+          <h3 class="card-title">${ICONS.usersRound} Audiences</h3>
         </div>
         
         ${createTableToolbar({
@@ -4541,13 +4628,13 @@ async function loadCustomObjects() {
     const tableRows = objects.map(obj => {
       const statusBadge = obj.is_active ? 'badge-success' : 'badge-secondary';
       const actions = [
-        { icon: '🧩', label: 'Build UI', onclick: `buildObjectUI(${obj.id})` },
-        { icon: '🖥️', label: 'Open UI', onclick: `openObjectUI(${obj.id})` },
+        { icon: ICONS.blocks, label: 'Build UI', onclick: `buildObjectUI(${obj.id})` },
+        { icon: ICONS.monitor, label: 'Open UI', onclick: `openObjectUI(${obj.id})` },
         { divider: true },
-        { icon: '📊', label: 'View Data', onclick: `viewObjectData(${obj.id})` },
-        { icon: '✏️', label: 'Edit', onclick: `navigateTo('custom-objects', 'edit', ${obj.id})` },
+        { icon: ICONS.barChart, label: 'View Data', onclick: `viewObjectData(${obj.id})` },
+        { icon: ICONS.edit, label: 'Edit', onclick: `navigateTo('custom-objects', 'edit', ${obj.id})` },
         { divider: true },
-        { icon: '🗑️', label: 'Delete', onclick: `deleteCustomObject(${obj.id})`, danger: true }
+        { icon: ICONS.trash, label: 'Delete', onclick: `deleteCustomObject(${obj.id})`, danger: true }
       ];
       
       return `
@@ -4759,7 +4846,7 @@ async function showCustomObjectsER() {
               </div>
             </div>
           </div>
-          <button class="btn btn-ghost" onclick="closeCustomObjectsER()">×</button>
+          <button class="btn btn-ghost" onclick="closeCustomObjectsER()">${ICONS.x}</button>
         </div>
         <div class="er-controls">
           <div class="er-controls-group">
@@ -4777,7 +4864,7 @@ async function showCustomObjectsER() {
         <div id="er-export-panel" class="er-export-panel hidden">
           <div class="er-export-header">
             <div class="er-export-title">Export options</div>
-            <button class="btn btn-ghost" type="button" onclick="closeExportPanel()">×</button>
+            <button class="btn btn-ghost" type="button" onclick="closeExportPanel()">${ICONS.x}</button>
           </div>
           <div class="er-export-grid">
             <div class="form-group">
@@ -5592,7 +5679,7 @@ function renderCustomObjectForm(object = null) {
       <div class="field-flag">
         <input type="checkbox" class="field-required" ${field.is_required ? 'checked' : ''}> Required
       </div>
-      <button type="button" class="btn btn-sm btn-danger" onclick="removeField(${index})">×</button>
+      <button type="button" class="btn btn-sm btn-danger" onclick="removeField(${index})">${ICONS.x}</button>
     </div>
   `).join('');
 
@@ -5607,7 +5694,7 @@ function renderCustomObjectForm(object = null) {
         <option value="N:1" ${rel.type === 'N:1' ? 'selected' : ''}>N:1</option>
         <option value="N:N" ${rel.type === 'N:N' ? 'selected' : ''}>N:N</option>
       </select>
-      <button type="button" class="btn btn-sm btn-danger" onclick="removeRelationship(${index})">×</button>
+      <button type="button" class="btn btn-sm btn-danger" onclick="removeRelationship(${index})">${ICONS.x}</button>
     </div>
   `).join('');
   
@@ -5704,7 +5791,7 @@ function addField() {
     <label class="field-flag">
       <input type="checkbox" class="field-required"> Required
     </label>
-    <button type="button" class="btn btn-sm btn-danger" onclick="removeField(${index})">×</button>
+    <button type="button" class="btn btn-sm btn-danger" onclick="removeField(${index})">${ICONS.x}</button>
   `;
   
   container.appendChild(fieldRow);
@@ -5771,7 +5858,7 @@ function addRelationship() {
       <option value="N:1">N:1</option>
       <option value="N:N">N:N</option>
     </select>
-    <button type="button" class="btn btn-sm btn-danger" onclick="removeRelationship(${index})">×</button>
+    <button type="button" class="btn btn-sm btn-danger" onclick="removeRelationship(${index})">${ICONS.x}</button>
   `;
   container.appendChild(row);
   if (relationshipMeta) {
@@ -6134,7 +6221,7 @@ function renderAudienceForm(audience = null) {
     <div class="form-container">
       <form id="audience-form" onsubmit="handleAudienceSubmit(event)">
         <div class="form-section">
-          <h3 class="form-section-title">👥 Basic Information</h3>
+          <h3 class="form-section-title">${ICONS.usersRound} Basic Information</h3>
           
           <div class="form-grid">
             <div class="form-group form-grid-full">
@@ -6172,7 +6259,7 @@ function renderAudienceForm(audience = null) {
         </div>
         
         <div class="form-section" id="audience-segment-based-section">
-          <h3 class="form-section-title">🎯 Targeting</h3>
+          <h3 class="form-section-title">${ICONS.target} Targeting</h3>
           
           <div class="form-grid">
             <div class="form-group">
@@ -6193,7 +6280,7 @@ function renderAudienceForm(audience = null) {
         </div>
         
         <div class="form-section" id="audience-combined-section">
-          <h3 class="form-section-title">🧩 Combined Sources</h3>
+          <h3 class="form-section-title">${ICONS.puzzle} Combined Sources</h3>
           
           <div class="form-grid">
             <div class="form-group">
@@ -6243,7 +6330,7 @@ function renderAudienceForm(audience = null) {
         </div>
         
         <div class="form-section">
-          <h3 class="form-section-title">📊 Size</h3>
+          <h3 class="form-section-title">${ICONS.barChart} Size</h3>
           
           <div class="form-grid">
             <div class="form-group form-grid-full">
@@ -6261,7 +6348,7 @@ function renderAudienceForm(audience = null) {
         
         <div class="form-actions">
           <button type="button" class="btn btn-secondary" onclick="navigateTo('audiences', 'list')">Cancel</button>
-          <button type="submit" class="btn btn-primary">${isEdit ? '💾 Update' : '✨ Create'} Audience</button>
+          <button type="submit" class="btn btn-primary">${isEdit ? `${ICONS.save} Update` : `${ICONS.sparkles} Create`} Audience</button>
         </div>
       </form>
     </div>
@@ -6347,7 +6434,7 @@ function renderSegmentChips(type) {
     return `
       <span class="segment-chip">
         ${name}
-        <button type="button" class="segment-chip-remove" onclick="removeSegmentChip('${type}', ${id})">×</button>
+        <button type="button" class="segment-chip-remove" onclick="removeSegmentChip('${type}', ${id})">${ICONS.x}</button>
       </span>
     `;
   }).join('');
@@ -6552,7 +6639,7 @@ async function loadQueryService() {
     const content = `
       <div class="form-container">
         <div class="form-section">
-          <h3 class="form-section-title">🧮 Query Service</h3>
+          <h3 class="form-section-title">${ICONS.code} Query Service</h3>
           <div class="form-inline" style="margin-bottom: 1rem;">
             <button type="button" class="btn btn-secondary" id="query-mode-builder" onclick="setQueryMode('builder')">Structured</button>
             <button type="button" class="btn btn-secondary" id="query-mode-sql" onclick="setQueryMode('sql')">SQL</button>
@@ -6707,7 +6794,7 @@ function renderAggregateList() {
     const label = `${agg.fn}(${agg.field || '*'})${agg.alias ? ` as ${agg.alias}` : ''}`;
     return `<span class="filter-tag" style="margin-right: 6px;">
       <span class="filter-tag-label">${label}</span>
-      <button class="filter-tag-remove" onclick="removeAggregate(${idx})">×</button>
+      <button class="filter-tag-remove" onclick="removeAggregate(${idx})">${ICONS.x}</button>
     </span>`;
   }).join('');
 }

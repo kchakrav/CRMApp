@@ -197,7 +197,16 @@ body {
 }
 
 .sidebar-logo-icon {
-  font-size: 24px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  flex-shrink: 0;
+}
+
+.sidebar-logo-icon svg {
+  display: block;
 }
 
 .sidebar-nav {
@@ -232,9 +241,22 @@ body {
 }
 
 .nav-item .icon {
-  font-size: 18px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   width: 20px;
-  text-align: center;
+  height: 20px;
+  flex-shrink: 0;
+}
+
+.nav-item .icon svg {
+  display: block;
+  opacity: 0.85;
+}
+
+.nav-item:hover .icon svg,
+.nav-item.active .icon svg {
+  opacity: 1;
 }
 
 /* Main Content Area */
@@ -924,6 +946,10 @@ body {
   cursor: pointer;
   color: var(--text-secondary);
   font-size: 12px;
+  display: inline-flex;
+  align-items: center;
+  padding: 0;
+  line-height: 1;
 }
 
 .filter-tag-remove:hover {
@@ -5049,4 +5075,67 @@ tbody td {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+/* ============================================
+   GLOBAL SVG ICON UTILITIES (Lucide Style)
+   Line/outline, monochrome, consistent stroke
+   ============================================ */
+
+/* Inline SVG icons inherit color from parent via currentColor */
+.action-menu-item svg,
+.btn svg,
+.filter-tag-remove svg,
+.search-icon svg,
+.refresh-icon-btn svg,
+.column-selector-btn svg,
+.status-indicator svg,
+.stat-icon svg,
+.card-title svg,
+.modal-close svg {
+  display: inline-block;
+  vertical-align: middle;
+  flex-shrink: 0;
+}
+
+/* Ensure SVGs in buttons align nicely */
+button svg,
+a svg,
+span svg {
+  vertical-align: middle;
+}
+
+/* Action menu items with SVG icons */
+.action-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.action-menu-item span {
+  display: inline-flex;
+  align-items: center;
+}
+
+/* Toast notification icon alignment */
+.toast svg {
+  flex-shrink: 0;
+}
+
+/* Explorer card icons */
+.explorer-card-icon svg {
+  display: block;
+}
+
+/* Stat card icons */
+.stat-card .stat-icon svg {
+  display: block;
+}
+
+/* Filter tab icons */
+.filter-tab svg,
+.table-tab svg {
+  display: inline-block;
+  vertical-align: -2px;
+  margin-right: 2px;
 }

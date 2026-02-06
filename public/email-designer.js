@@ -75,7 +75,7 @@ function renderBlocks() {
       <div class="email-block">
         <div class="email-block-header">
           <strong>${block.type.toUpperCase()}</strong>
-          <button class="btn btn-secondary" onclick="deleteBlock('${block.id}')">×</button>
+          <button class="btn btn-secondary" onclick="deleteBlock('${block.id}')"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></button>
         </div>
         <div class="email-block-body">${editor}</div>
       </div>

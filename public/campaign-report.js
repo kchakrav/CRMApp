@@ -66,7 +66,7 @@ function renderMetrics() {
     <div class="stat-card">
       <div class="stat-card-header">
         <span class="stat-card-title">Sent</span>
-        <span class="stat-card-icon">📧</span>
+        <span class="stat-card-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="16" x="2" y="4" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></svg></span>
       </div>
       <div class="stat-card-value">${metrics.sent.toLocaleString()}</div>
       <div class="stat-card-label">Total recipients</div>
@@ -75,7 +75,7 @@ function renderMetrics() {
     <div class="stat-card">
       <div class="stat-card-header">
         <span class="stat-card-title">Delivered</span>
-        <span class="stat-card-icon">✅</span>
+        <span class="stat-card-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><path d="m9 11 3 3L22 4"/></svg></span>
       </div>
       <div class="stat-card-value">${metrics.delivered.toLocaleString()}</div>
       <div class="stat-card-label">${rates.delivery_rate}% delivery rate</div>
@@ -84,7 +84,7 @@ function renderMetrics() {
     <div class="stat-card">
       <div class="stat-card-header">
         <span class="stat-card-title">Opened</span>
-        <span class="stat-card-icon">👁️</span>
+        <span class="stat-card-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg></span>
       </div>
       <div class="stat-card-value">${metrics.opened.toLocaleString()}</div>
       <div class="stat-card-label">${rates.open_rate}% open rate</div>
@@ -93,7 +93,7 @@ function renderMetrics() {
     <div class="stat-card">
       <div class="stat-card-header">
         <span class="stat-card-title">Clicked</span>
-        <span class="stat-card-icon">🖱️</span>
+        <span class="stat-card-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m3 3 7.07 16.97 2.51-7.39 7.39-2.51L3 3z"/><path d="m13 13 6 6"/></svg></span>
       </div>
       <div class="stat-card-value">${metrics.clicked.toLocaleString()}</div>
       <div class="stat-card-label">${rates.click_rate}% click rate (CTR)</div>
@@ -102,7 +102,7 @@ function renderMetrics() {
     <div class="stat-card">
       <div class="stat-card-header">
         <span class="stat-card-title">CTOR</span>
-        <span class="stat-card-icon">🎯</span>
+        <span class="stat-card-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg></span>
       </div>
       <div class="stat-card-value">${rates.ctor}%</div>
       <div class="stat-card-label">Click-to-Open Rate</div>
@@ -111,7 +111,7 @@ function renderMetrics() {
     <div class="stat-card">
       <div class="stat-card-header">
         <span class="stat-card-title">Bounced</span>
-        <span class="stat-card-icon">⚠️</span>
+        <span class="stat-card-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg></span>
       </div>
       <div class="stat-card-value">${metrics.bounced.toLocaleString()}</div>
       <div class="stat-card-label">${rates.bounce_rate}% bounce rate</div>
@@ -120,7 +120,7 @@ function renderMetrics() {
     <div class="stat-card">
       <div class="stat-card-header">
         <span class="stat-card-title">Unsubscribed</span>
-        <span class="stat-card-icon">👋</span>
+        <span class="stat-card-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="22" x2="16" y1="11" y2="11"/></svg></span>
       </div>
       <div class="stat-card-value">${metrics.unsubscribed.toLocaleString()}</div>
       <div class="stat-card-label">${rates.unsubscribe_rate}% unsub rate</div>
@@ -129,7 +129,7 @@ function renderMetrics() {
     <div class="stat-card">
       <div class="stat-card-header">
         <span class="stat-card-title">Converted</span>
-        <span class="stat-card-icon">💎</span>
+        <span class="stat-card-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3h12l4 6-10 13L2 9Z"/><path d="M11 3 8 9l4 13 4-13-3-6"/><path d="M2 9h20"/></svg></span>
       </div>
       <div class="stat-card-value">${metrics.converted.toLocaleString()}</div>
       <div class="stat-card-label">${rates.conversion_rate}% conversion rate</div>
@@ -138,7 +138,7 @@ function renderMetrics() {
     <div class="stat-card">
       <div class="stat-card-header">
         <span class="stat-card-title">Revenue</span>
-        <span class="stat-card-icon">💰</span>
+        <span class="stat-card-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" x2="12" y1="2" y2="22"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></span>
       </div>
       <div class="stat-card-value">$${metrics.revenue.toFixed(2)}</div>
       <div class="stat-card-label">Total generated</div>
@@ -419,11 +419,11 @@ function renderRecipientTables() {
           <td><strong>${r.name}</strong></td>
           <td>${r.email}</td>
           <td>${new Date(r.sent_at).toLocaleString()}</td>
-          <td>${r.opened_at ? '✅ ' + new Date(r.opened_at).toLocaleString() : '—'}</td>
-          <td>${r.clicked_at ? '✅ ' + new Date(r.clicked_at).toLocaleString() : '—'}</td>
+          <td>${r.opened_at ? '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:middle;margin-right:4px;"><path d="M20 6 9 17l-5-5"/></svg> ' + new Date(r.opened_at).toLocaleString() : '—'}</td>
+          <td>${r.clicked_at ? '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:middle;margin-right:4px;"><path d="M20 6 9 17l-5-5"/></svg> ' + new Date(r.clicked_at).toLocaleString() : '—'}</td>
           <td>
             <span class="badge ${r.clicked_at ? 'badge-success' : 'badge-info'}">
-              ${r.clicked_at ? '⭐ High' : r.opened_at ? '👍 Medium' : 'Low'}
+              ${r.clicked_at ? '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:middle;margin-right:4px;"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg> High' : r.opened_at ? '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:middle;margin-right:4px;"><path d="M7 10v12"/><path d="M15 5.88 14 10h5.83a2 2 0 0 1 1.92 2.56l-2.33 8A2 2 0 0 1 17.5 22H4a2 2 0 0 1-2-2v-8a2 2 0 0 1 2-2h2.76a2 2 0 0 0 1.79-1.11L12 2h0a3.13 3.13 0 0 1 3 3.88Z"/></svg> Medium' : 'Low'}
             </span>
           </td>
         </tr>

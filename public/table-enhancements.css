@@ -55,6 +55,12 @@
   right: 10px;
   pointer-events: none;
   opacity: 0.5;
+  display: inline-flex;
+  align-items: center;
+}
+
+.inline-search .search-icon svg {
+  display: block;
 }
 
 /* Inline Filters Row */

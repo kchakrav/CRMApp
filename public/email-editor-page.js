@@ -401,7 +401,7 @@ function getPanelContent(mode) {
     <div class="editor-panel-header">
       <span>Components</span>
       <div class="editor-panel-actions component-view-toggle">
-        <button class="btn btn-sm btn-secondary" type="button" onclick="setActiveMode('fragments')">Insert → Fragment</button>
+        <button class="btn btn-sm btn-secondary" type="button" onclick="setActiveMode('fragments')">Insert <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:middle;margin:0 2px;"><path d="m9 18 6-6-6-6"/></svg> Fragment</button>
         <button class="btn btn-icon ${view === 'cards' ? 'active' : ''}" type="button" title="Cards view" aria-label="Cards view" onclick="setComponentView('cards')">▦</button>
         <button class="btn btn-icon ${view === 'list' ? 'active' : ''}" type="button" title="List view" aria-label="List view" onclick="setComponentView('list')">≣</button>
       </div>
@@ -474,7 +474,7 @@ function renderAssetCard(name, meta) {
   return `
     <div class="asset-card">
       <div class="asset-thumb">
-        <div class="asset-thumb-icon">📁</div>
+        <div class="asset-thumb-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"/></svg></div>
       </div>
       <div class="asset-title">${name}</div>
       <div class="asset-meta">${meta.toUpperCase()}</div>
@@ -502,7 +502,7 @@ function renderAssetsPanel() {
     </div>
     <div class="asset-search-row">
       <div class="asset-search">
-        <span class="asset-search-icon">🔍</span>
+        <span class="asset-search-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg></span>
         <input type="text" class="form-input" placeholder="Search assets" value="${editorState.assetSearch || ''}" oninput="updateAssetSearch(this.value)">
       </div>
       <button class="btn btn-icon" type="button" title="Filter">⏷</button>
@@ -523,7 +523,7 @@ function renderAssetItem(asset) {
   const isImage = typeLabel === 'image' || (asset?.mime_type || '').startsWith('image/');
   const thumb = isImage && url
     ? `<div class="asset-thumb" style="background-image:url('${url}'); background-size: cover; background-position: center;"></div>`
-    : `<div class="asset-thumb"><div class="asset-thumb-icon">📄</div></div>`;
+    : `<div class="asset-thumb"><div class="asset-thumb-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M10 9H8"/><path d="M16 13H8"/><path d="M16 17H8"/></svg></div></div>`;
   return `
     <div class="asset-card" onclick="copyAssetUrlToClipboard('${url}')">
       ${thumb}
@@ -636,7 +636,7 @@ function renderContentList() {
     { label: 'Divider', type: 'divider', icon: '━' },
     { label: 'Spacer', type: 'spacer', icon: '↕' },
     { label: 'HTML', type: 'html', icon: '</>' },
-    { label: 'Image', type: 'image', icon: '🖼' },
+    { label: 'Image', type: 'image', icon: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="3" rx="2" ry="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/></svg>' },
     { label: 'Social', type: 'social', icon: '⤴' }
   ];
   return items.map(item => `
@@ -681,7 +681,7 @@ function renderContentCards() {
     { label: 'Embed', type: 'embed', icon: '⧉' },
     { label: 'Divider', type: 'divider', icon: '━' },
     { label: 'HTML', type: 'html', icon: '</>' },
-    { label: 'Image', type: 'image', icon: '🖼' },
+    { label: 'Image', type: 'image', icon: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="3" rx="2" ry="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/></svg>' },
     { label: 'Social', type: 'social', icon: '⤴' },
     { label: 'Offer decision', type: 'offer', icon: '☆' },
     { label: 'Grid', type: 'grid', icon: '▦' }
@@ -2405,7 +2405,7 @@ function renderSettingsBreadcrumb() {
     }
     const idAttr = item.id ? item.id : '';
     return `<button class="breadcrumb-link" type="button" data-breadcrumb-id="${idAttr}">${item.label}</button>`;
-  }).join('<span class="breadcrumb-sep">→</span>');
+  }).join('<span class="breadcrumb-sep"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:middle;"><path d="m9 18 6-6-6-6"/></svg></span>');
   container.querySelectorAll('.breadcrumb-link').forEach(link => {
     link.addEventListener('click', () => {
       const id = link.dataset.breadcrumbId || null;
@@ -2589,7 +2589,7 @@ function updateAiPanelContext() {
   if (generateBtn) generateBtn.textContent = 'Generate';
   if (breadcrumb) {
     const baseLabel = block ? getBlockLabel(block) : 'Body';
-    breadcrumb.textContent = `${baseLabel} → ${label}`;
+    breadcrumb.innerHTML = `${baseLabel} <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:middle;margin:0 2px;"><path d="m9 18 6-6-6-6"/></svg> ${label}`;
   }
   if (textSettings) textSettings.classList.toggle('hidden', isImage);
   if (imageSettings) imageSettings.classList.toggle('hidden', !isImage);
@@ -2906,7 +2906,7 @@ function renderBlockActions(block) {
     <div class="inspector-actions">
       <button class="btn btn-icon" type="button" title="Move up" onclick="moveEmailBlock('${block.id}','up')">↑</button>
       <button class="btn btn-icon" type="button" title="Move down" onclick="moveEmailBlock('${block.id}','down')">↓</button>
-      <button class="btn btn-icon" type="button" title="Delete" onclick="deleteEmailBlock('${block.id}')">🗑</button>
+      <button class="btn btn-icon" type="button" title="Delete" onclick="deleteEmailBlock('${block.id}')"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg></button>
     </div>
   `;
 }
@@ -3481,7 +3481,7 @@ function openValidationModal() {
     <div class="modal" onclick="event.stopPropagation()">
       <div class="modal-header">
         <div class="modal-title">Validation & Preview</div>
-        <span class="modal-close" onclick="closeValidationModal()">×</span>
+        <span class="modal-close" onclick="closeValidationModal()"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></span>
       </div>
       <div class="modal-body">
         <div class="form-group">

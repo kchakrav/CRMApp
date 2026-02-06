@@ -103,7 +103,7 @@
             <span class="rail-label">Components</span>
           </button>
           <button class="email-rail-btn" type="button" data-mode="fragments">
-            <span class="rail-icon">🧩</span>
+            <span class="rail-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2 2 7l10 5 10-5-10-5Z"/><path d="m2 17 10 5 10-5"/><path d="m2 12 10 5 10-5"/></svg></span>
             <span class="rail-label">Fragments</span>
           </button>
           <button class="email-rail-btn" type="button" data-mode="structure">
@@ -111,11 +111,11 @@
             <span class="rail-label">Structure</span>
           </button>
           <button class="email-rail-btn" type="button" data-mode="links">
-            <span class="rail-icon">🔗</span>
+            <span class="rail-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg></span>
             <span class="rail-label">Links</span>
           </button>
           <button class="email-rail-btn" type="button" data-mode="assets">
-            <span class="rail-icon">🖼</span>
+            <span class="rail-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="3" rx="2" ry="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/></svg></span>
             <span class="rail-label">Asset library</span>
           </button>
           <button class="email-rail-btn" type="button" data-mode="conditional">
@@ -224,10 +224,10 @@
           <div class="email-ai-header">
             <div class="email-ai-title">AI Assistant</div>
           </div>
-          <div class="email-ai-breadcrumb" id="email-ai-breadcrumb">Body → Generate Content</div>
+          <div class="email-ai-breadcrumb" id="email-ai-breadcrumb">Body <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:middle;margin:0 2px;"><path d="m9 18 6-6-6-6"/></svg> Generate Content</div>
           <div class="ai-mode-toggle" id="email-ai-mode-toggle">
             <button class="ai-mode-btn" type="button" data-mode="content" title="Generate content" onclick="setAiTarget('body')">▢</button>
-            <button class="ai-mode-btn" type="button" data-mode="image" title="Generate image" onclick="setAiTarget('image')">🧪</button>
+            <button class="ai-mode-btn" type="button" data-mode="image" title="Generate image" onclick="setAiTarget('image')"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 2v7.527a2 2 0 0 1-.211.896L4.72 20.55a1 1 0 0 0 .9 1.45h12.76a1 1 0 0 0 .9-1.45l-5.069-10.127A2 2 0 0 1 14 9.527V2"/><path d="M8.5 2h7"/><path d="M7 16h10"/></svg></button>
           </div>
           <div class="email-ai-divider"></div>
           <div id="email-ai-main">
@@ -349,7 +349,7 @@
           </div>
           <div class="ai-subpanel hidden" id="email-ai-subpanel-text">
             <div class="ai-subpanel-header">
-              <button class="ai-subpanel-back" type="button" onclick="closeAiSubpanel()">←</button>
+              <button class="ai-subpanel-back" type="button" onclick="closeAiSubpanel()"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 19-7-7 7-7"/><path d="M19 12H5"/></svg></button>
               <div class="ai-subpanel-title">Text settings</div>
             </div>
             <div class="ai-subpanel-body">
@@ -384,7 +384,7 @@
           </div>
           <div class="ai-subpanel hidden" id="email-ai-subpanel-reference">
             <div class="ai-subpanel-header">
-              <button class="ai-subpanel-back" type="button" onclick="closeAiSubpanel()">←</button>
+              <button class="ai-subpanel-back" type="button" onclick="closeAiSubpanel()"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 19-7-7 7-7"/><path d="M19 12H5"/></svg></button>
               <div class="ai-subpanel-title">Reference content</div>
             </div>
             <div class="ai-subpanel-body">
@@ -419,8 +419,8 @@
         </div>
       </div>
       <div class="email-right-rail" aria-label="Right rail">
-        <button class="email-right-rail-btn" type="button" title="AI Assistant" data-rail="ai" onclick="toggleAiPanel()">✨</button>
-        <button class="email-right-rail-btn" type="button" title="Properties" onclick="toggleRightPanel()">⚙</button>
+        <button class="email-right-rail-btn" type="button" title="AI Assistant" data-rail="ai" onclick="toggleAiPanel()"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/></svg></button>
+        <button class="email-right-rail-btn" type="button" title="Properties" onclick="toggleRightPanel()"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg></button>
       </div>
     </div>
   </div>
@@ -440,13 +440,13 @@
     <button class="btn btn-sm btn-secondary" type="button" onclick="updateTextStyle('textAlign','left')">⟸</button>
     <button class="btn btn-sm btn-secondary" type="button" onclick="updateTextStyle('textAlign','center')">≡</button>
     <button class="btn btn-sm btn-secondary" type="button" onclick="updateTextStyle('textAlign','right')">⟹</button>
-    <button class="btn btn-icon" type="button" title="Add personalization" onclick="openPersonalizationPickerForBlock()">👤+</button>
+    <button class="btn btn-icon" type="button" title="Add personalization" onclick="openPersonalizationPickerForBlock()"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" x2="19" y1="8" y2="14"/><line x1="22" x2="16" y1="11" y2="11"/></svg></button>
   </div>
   <div id="email-code-modal" class="email-modal hidden">
     <div class="email-modal-content">
       <div class="email-modal-header">
         <h3>Code editor</h3>
-        <button class="email-modal-close" onclick="closeCodeEditor()">×</button>
+        <button class="email-modal-close" onclick="closeCodeEditor()"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></button>
       </div>
       <div class="email-modal-body">
         <textarea id="email-code-textarea" class="form-input email-code-textarea" rows="18"></textarea>
@@ -462,7 +462,7 @@
     <div class="email-modal-content">
       <div class="email-modal-header">
         <h3>Import HTML</h3>
-        <button class="email-modal-close" onclick="closeImportHtml()">×</button>
+        <button class="email-modal-close" onclick="closeImportHtml()"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></button>
       </div>
       <div class="email-modal-body">
         <textarea id="email-import-textarea" class="form-input email-code-textarea" rows="18" placeholder="Paste HTML here"></textarea>
@@ -487,7 +487,7 @@
     <div class="email-modal-content">
       <div class="email-modal-header">
         <h3>Change your design</h3>
-        <button class="email-modal-close" onclick="closeDesignPicker()">×</button>
+        <button class="email-modal-close" onclick="closeDesignPicker()"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></button>
       </div>
       <div class="email-modal-body">
         <div id="email-template-list" class="email-template-list"></div>
@@ -502,7 +502,7 @@
     <div class="email-modal-content email-simulate-content">
       <div class="email-modal-header">
         <h3>Simulated preview</h3>
-        <button class="email-modal-close" onclick="closeSimulatePreview()">×</button>
+        <button class="email-modal-close" onclick="closeSimulatePreview()"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></button>
       </div>
       <div class="email-modal-body">
         <div id="email-simulate-body" class="email-simulate-body"></div>
@@ -517,7 +517,7 @@
     <div class="email-modal-content">
       <div class="email-modal-header">
         <h3>Personalization</h3>
-        <button class="email-modal-close" onclick="closePersonalizationPicker()">×</button>
+        <button class="email-modal-close" onclick="closePersonalizationPicker()"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></button>
       </div>
       <div class="email-modal-body">
         <div class="form-group">
@@ -535,7 +535,7 @@
     <div class="email-modal-content">
       <div class="email-modal-header">
         <h3>Asset library</h3>
-        <button class="email-modal-close" onclick="closeAssetPicker()">×</button>
+        <button class="email-modal-close" onclick="closeAssetPicker()"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></button>
       </div>
       <div class="email-modal-body">
         <div id="asset-picker-list" class="asset-grid"></div>
@@ -550,7 +550,7 @@
     <div class="email-modal-content">
       <div class="email-modal-header">
         <h3>Validation</h3>
-        <button class="email-modal-close" onclick="closeValidationModal()">×</button>
+        <button class="email-modal-close" onclick="closeValidationModal()"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></button>
       </div>
       <div class="email-modal-body">
         <div id="validation-summary" class="form-helper"></div>

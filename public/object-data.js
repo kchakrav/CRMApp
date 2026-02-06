@@ -78,8 +78,8 @@ function renderDataTable(records) {
       <td>${new Date(record.created_at).toLocaleDateString()}</td>
       <td>
         <div class="action-buttons">
-          <button class="btn btn-sm btn-secondary" onclick="editRecord(${record.id})">✏️ Edit</button>
-          <button class="btn btn-sm btn-danger" onclick="deleteRecord(${record.id})">🗑️</button>
+          <button class="btn btn-sm btn-secondary" onclick="editRecord(${record.id})"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:middle;margin-right:4px;"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg> Edit</button>
+          <button class="btn btn-sm btn-danger" onclick="deleteRecord(${record.id})"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg></button>
         </div>
       </td>
     </tr>
@@ -105,7 +105,7 @@ function formatValue(value, type) {
     case 'number':
       return Number(value).toLocaleString();
     case 'boolean':
-      return value ? '✓ Yes' : '✗ No';
+      return value ? '<span style="display:inline-flex;align-items:center;gap:4px;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg> Yes</span>' : '<span style="display:inline-flex;align-items:center;gap:4px;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg> No</span>';
     default:
       return value;
   }

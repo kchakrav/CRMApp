@@ -62,12 +62,12 @@ function createTableToolbar(options = {}) {
                      placeholder="${searchPlaceholder}"
                      value="${searchValue || ''}"
                      onkeyup='${onSearch || 'handleInlineSearch(this.value)'}'>
-              <span class="search-icon">🔍</span>
+              <span class="search-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg></span>
             </div>
           ` : ''}
           ${showColumnSelector && columns.length ? `
             <div class="column-selector">
-              <button class="column-selector-btn" onclick="toggleColumnSelector(event, '${viewKey}')" title="Columns">☰</button>
+              <button class="column-selector-btn" onclick="toggleColumnSelector(event, '${viewKey}')" title="Columns"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" x2="20" y1="12" y2="12"/><line x1="4" x2="20" y1="6" y2="6"/><line x1="4" x2="20" y1="18" y2="18"/></svg></button>
               <div class="column-selector-dropdown" id="column-selector-${viewKey}" onclick="event.stopPropagation()">
                 ${columns.map(col => `
                   <label class="column-selector-item">
@@ -79,7 +79,7 @@ function createTableToolbar(options = {}) {
             </div>
           ` : ''}
           ${showRefresh ? `
-            <button class="refresh-icon-btn" onclick="${onRefresh || 'refreshCurrentView()'}" title="Refresh">🔄</button>
+            <button class="refresh-icon-btn" onclick="${onRefresh || 'refreshCurrentView()'}" title="Refresh"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/></svg></button>
           ` : ''}
         </div>
       </div>
@@ -115,7 +115,7 @@ function createTableToolbar(options = {}) {
           ${filterTags.map(tag => `
             <span class="filter-tag">
               <span class="filter-tag-label">${tag.label}: ${tag.value}</span>
-              ${onClearTag ? `<button class="filter-tag-remove" onclick='${onClearTag}("${tag.key}")'>×</button>` : ''}
+              ${onClearTag ? `<button class="filter-tag-remove" onclick='${onClearTag}("${tag.key}")'><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></button>` : ''}
             </span>
           `).join('')}
           <button class="btn btn-sm btn-secondary" onclick="clearAllFilters()">Clear all</button>

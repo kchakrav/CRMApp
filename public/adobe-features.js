@@ -1,6 +1,9 @@
 // Shared back-button chevron SVG
 const BACK_CHEVRON = '<svg width="20" height="20" viewBox="0 0 20 20" fill="none"><path d="M12.5 15L7.5 10L12.5 5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>';
 
+// Helper function for Lucide-style SVG icons
+const _afIco = (p, s) => '<svg width="' + (s||16) + '" height="' + (s||16) + '" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' + p + '</svg>';
+
 // ============================================
 // NAVIGATION SECTION TOGGLE (Adobe-style)
 // ============================================
@@ -21,53 +24,53 @@ async function loadExplorer() {
     const content = `
       <div class="card">
         <div class="card-header">
-          <h3 class="card-title">🔍 Explorer</h3>
+          <h3 class="card-title">${_afIco('<circle cx="12" cy="12" r="10"/><polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76"/>')} Explorer</h3>
           <div class="card-subtitle">Browse and search all system entities</div>
         </div>
         <div class="card-body">
           <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: var(--spacing-400);">
             <div class="explorer-card" onclick="navigateTo('contacts', 'list')">
-              <div class="explorer-icon">👥</div>
+              <div class="explorer-icon">${_afIco('<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>')}</div>
               <div class="explorer-title">Profiles</div>
               <div class="explorer-desc">Contact database</div>
             </div>
             <div class="explorer-card" onclick="navigateTo('workflows', 'list')">
-              <div class="explorer-icon">⚡</div>
+              <div class="explorer-icon">${_afIco('<polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>')}</div>
               <div class="explorer-title">Workflows</div>
               <div class="explorer-desc">Campaign workflows</div>
             </div>
             <div class="explorer-card" onclick="navigateTo('deliveries', 'list')">
-              <div class="explorer-icon">📤</div>
+              <div class="explorer-icon">${_afIco('<path d="m22 2-7 20-4-9-9-4Z"/><path d="m22 2-11 11"/>')}</div>
               <div class="explorer-title">Deliveries</div>
               <div class="explorer-desc">Message deliveries</div>
             </div>
             <div class="explorer-card" onclick="navigateTo('segments', 'list')">
-              <div class="explorer-icon">🎯</div>
+              <div class="explorer-icon">${_afIco('<circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/>')}</div>
               <div class="explorer-title">Segments</div>
               <div class="explorer-desc">Audience segments</div>
             </div>
             <div class="explorer-card" onclick="navigateTo('content-templates', 'list')">
-              <div class="explorer-icon">📄</div>
+              <div class="explorer-icon">${_afIco('<path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M10 9H8"/><path d="M16 13H8"/><path d="M16 17H8"/>')}</div>
               <div class="explorer-title">Templates</div>
               <div class="explorer-desc">Content templates</div>
             </div>
             <div class="explorer-card" onclick="navigateTo('assets', 'list')">
-              <div class="explorer-icon">🖼️</div>
+              <div class="explorer-icon">${_afIco('<rect width="18" height="18" x="3" y="3" rx="2" ry="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/>')}</div>
               <div class="explorer-title">Asset Library</div>
               <div class="explorer-desc">Images and files</div>
             </div>
             <div class="explorer-card" onclick="navigateTo('landing-pages', 'list')">
-              <div class="explorer-icon">🌐</div>
+              <div class="explorer-icon">${_afIco('<circle cx="12" cy="12" r="10"/><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"/><path d="M2 12h20"/>')}</div>
               <div class="explorer-title">Landing Pages</div>
               <div class="explorer-desc">Web landing pages</div>
             </div>
             <div class="explorer-card" onclick="navigateTo('brands', 'list')">
-              <div class="explorer-icon">🏷️</div>
+              <div class="explorer-icon">${_afIco('<path d="M12 2H2v10l9.29 9.29c.94.94 2.48.94 3.42 0l6.58-6.58c.94-.94.94-2.48 0-3.42L12 2Z"/><path d="M7 7h.01"/>')}</div>
               <div class="explorer-title">Brands</div>
               <div class="explorer-desc">Brand management</div>
             </div>
             <div class="explorer-card" onclick="navigateTo('subscription-services', 'list')">
-              <div class="explorer-icon">📧</div>
+              <div class="explorer-icon">${_afIco('<rect width="20" height="16" x="2" y="4" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/>', 20)}</div>
               <div class="explorer-title">Subscriptions</div>
               <div class="explorer-desc">Service subscriptions</div>
             </div>
@@ -202,21 +205,21 @@ async function loadDeliveries() {
       };
       
       const channelIcon = 
-        d.channel === 'Email' ? '✉️' :
-        d.channel === 'SMS' ? '💬' : '🔔';
+        d.channel === 'Email' ? _afIco('<rect width="20" height="16" x="2" y="4" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/>') :
+        d.channel === 'SMS' ? _afIco('<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>') : _afIco('<path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/>');
       
       const actions = [
-        {icon: '📊', label: 'View Report', onclick: `showDeliveryReport(${d.id})`},
-        {icon: '✏️', label: 'Edit', onclick: `editDelivery(${d.id})`},
-        {icon: '📋', label: 'Duplicate', onclick: `duplicateDelivery(${d.id})`},
+        {icon: _afIco('<line x1="12" x2="12" y1="20" y2="10"/><line x1="18" x2="18" y1="20" y2="4"/><line x1="6" x2="6" y1="20" y2="16"/>', 14), label: 'View Report', onclick: `showDeliveryReport(${d.id})`},
+        {icon: _afIco('<path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/><path d="m15 5 4 4"/>', 14), label: 'Edit', onclick: `editDelivery(${d.id})`},
+        {icon: _afIco('<rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/>', 14), label: 'Duplicate', onclick: `duplicateDelivery(${d.id})`},
         {divider: true},
-        {icon: '▶️', label: 'Send now', onclick: `sendDelivery(${d.id})`},
-        ...(d.approval_required && !d.approved_at ? [{icon: '✅', label: 'Approve', onclick: `approveDelivery(${d.id})`}] : []),
-        {icon: '⏸️', label: 'Pause', onclick: `pauseDelivery(${d.id})`},
-        {icon: '▶️', label: 'Resume', onclick: `resumeDelivery(${d.id})`},
-        {icon: '⏹️', label: 'Stop', onclick: `stopDelivery(${d.id})`},
+        {icon: _afIco('<polygon points="6 3 20 12 6 21 6 3"/>', 14), label: 'Send now', onclick: `sendDelivery(${d.id})`},
+        ...(d.approval_required && !d.approved_at ? [{icon: _afIco('<path d="M20 6 9 17l-5-5"/>', 14), label: 'Approve', onclick: `approveDelivery(${d.id})`}] : []),
+        {icon: _afIco('<rect width="4" height="16" x="6" y="4"/><rect width="4" height="16" x="14" y="4"/>', 14), label: 'Pause', onclick: `pauseDelivery(${d.id})`},
+        {icon: _afIco('<polygon points="6 3 20 12 6 21 6 3"/>', 14), label: 'Resume', onclick: `resumeDelivery(${d.id})`},
+        {icon: _afIco('<rect width="14" height="14" x="5" y="5" rx="2"/>', 14), label: 'Stop', onclick: `stopDelivery(${d.id})`},
         {divider: true},
-        {icon: '🗑️', label: 'Delete', onclick: `deleteDelivery(${d.id})`, danger: true}
+        {icon: _afIco('<path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/>', 14), label: 'Delete', onclick: `deleteDelivery(${d.id})`, danger: true}
       ];
       
       const usage = deliveryUsage.get(d.id) || { workflows: [] };
@@ -258,7 +261,7 @@ async function loadDeliveries() {
     const content = `
       <div class="card">
         <div class="card-header">
-          <h3 class="card-title">📤 Deliveries</h3>
+          <h3 class="card-title">${_afIco('<path d="m22 2-7 20-4-9-9-4Z"/><path d="m22 2-11 11"/>')} Deliveries</h3>
           <button class="btn btn-primary" onclick="showDeliveryForm()">+ Create Delivery</button>
         </div>
         
@@ -426,7 +429,7 @@ function renderDeliveryWizard() {
   const content = `
     <div class="form-container">
       <div class="wizard-header">
-        <div class="wizard-title">📤 Delivery</div>
+        <div class="wizard-title">${_afIco('<path d="m22 2-7 20-4-9-9-4Z"/><path d="m22 2-11 11"/>')} Delivery</div>
         <div class="wizard-actions">
           <button class="btn btn-secondary" onclick="saveDeliveryDraft()">Save Draft</button>
           <button class="btn-back" onclick="loadDeliveries()" title="Back to Deliveries">${BACK_CHEVRON}</button>
@@ -1229,7 +1232,7 @@ function renderEmailBlocks() {
           <div class="email-block-actions">
             <button class="btn btn-sm btn-secondary" onclick="moveEmailBlock('${block.id}','up')">↑</button>
             <button class="btn btn-sm btn-secondary" onclick="moveEmailBlock('${block.id}','down')">↓</button>
-            <button class="btn btn-sm btn-secondary" onclick="deleteEmailBlock('${block.id}')">×</button>
+            <button class="btn btn-sm btn-secondary" onclick="deleteEmailBlock('${block.id}')">${_afIco('<path d="M18 6 6 18"/><path d="m6 6 12 12"/>', 14)}</button>
           </div>
         </div>
         <div class="email-block-body">${editor}</div>
@@ -1308,7 +1311,7 @@ function createAssetPickerModal() {
     <div class="asset-picker-content">
       <div class="asset-picker-header">
         <h3>Asset Library</h3>
-        <button class="btn btn-sm btn-secondary" onclick="closeAssetPicker()">×</button>
+        <button class="btn btn-sm btn-secondary" onclick="closeAssetPicker()">${_afIco('<path d="M18 6 6 18"/><path d="m6 6 12 12"/>', 14)}</button>
       </div>
       <div id="asset-picker-list" class="asset-picker-grid"></div>
     </div>
@@ -1401,7 +1404,7 @@ async function showDeliveryReport(id) {
     const content = `
       <div class="card">
         <div class="card-header">
-          <h3 class="card-title">📊 Delivery Report</h3>
+          <h3 class="card-title">${_afIco('<line x1="12" x2="12" y1="20" y2="10"/><line x1="18" x2="18" y1="20" y2="4"/><line x1="6" x2="6" y1="20" y2="16"/>', 16)} Delivery Report</h3>
           <button class="btn-back" onclick="loadDeliveries()" title="Back to Deliveries">${BACK_CHEVRON}</button>
         </div>
         <div class="card-body">
@@ -1496,7 +1499,7 @@ async function loadTransactionalMessages() {
     const content = `
       <div class="card">
         <div class="card-header">
-          <h3 class="card-title">💬 Transactional Messages</h3>
+          <h3 class="card-title">${_afIco('<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>', 16)} Transactional Messages</h3>
           <div class="card-subtitle">Event-triggered messages (order confirmations, password resets, etc.)</div>
         </div>
         <div class="card-body">
@@ -1515,10 +1518,10 @@ async function loadTransactionalMessages() {
               </thead>
               <tbody>
                 <tr><td colspan="7" style="text-align: center; padding: var(--spacing-700);">
-                  <div style="font-size: 3rem; margin-bottom: var(--spacing-300);">💬</div>
+                  <div style="font-size: 3rem; margin-bottom: var(--spacing-300);">${_afIco('<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>', 48)}</div>
                   <h3>No transactional messages configured</h3>
                   <p style="color: var(--text-secondary); margin-bottom: var(--spacing-400);">Set up automated messages triggered by customer events</p>
-                  <button class="btn btn-primary" onclick="showToast('Transactional message setup coming soon!', 'info')">✨ Create Transactional Message</button>
+                  <button class="btn btn-primary" onclick="showToast('Transactional message setup coming soon!', 'info')">${_afIco('<path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/>', 14)} Create Transactional Message</button>
                 </td></tr>
               </tbody>
             </table>
@@ -1541,7 +1544,7 @@ async function loadEventHistory() {
     const content = `
       <div class="card">
         <div class="card-header">
-          <h3 class="card-title">📜 Event History</h3>
+          <h3 class="card-title">${_afIco('<path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l4 2"/>', 16)} Event History</h3>
           <div class="card-subtitle">Track all system events and triggers</div>
         </div>
         <div class="card-body">
@@ -1559,7 +1562,7 @@ async function loadEventHistory() {
               </thead>
               <tbody>
                 <tr><td colspan="6" style="text-align: center; padding: var(--spacing-700);">
-                  <div style="font-size: 3rem; margin-bottom: var(--spacing-300);">📜</div>
+                  <div style="font-size: 3rem; margin-bottom: var(--spacing-300);">${_afIco('<path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l4 2"/>', 48)}</div>
                   <h3>No events recorded</h3>
                   <p style="color: var(--text-secondary);">System events will appear here as they occur</p>
                 </td></tr>
@@ -1584,7 +1587,7 @@ async function loadContentTemplates() {
     const content = `
       <div class="card">
         <div class="card-header">
-          <h3 class="card-title">📄 Content Templates</h3>
+          <h3 class="card-title">${_afIco('<path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M10 9H8"/><path d="M16 13H8"/><path d="M16 17H8"/>', 16)} Content Templates</h3>
           <div class="card-subtitle">Reusable email, SMS, and push templates</div>
         </div>
         <div class="card-body">
@@ -1602,10 +1605,10 @@ async function loadContentTemplates() {
               </thead>
               <tbody>
                 <tr><td colspan="6" style="text-align: center; padding: var(--spacing-700);">
-                  <div style="font-size: 3rem; margin-bottom: var(--spacing-300);">📄</div>
+                  <div style="font-size: 3rem; margin-bottom: var(--spacing-300);">${_afIco('<path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M10 9H8"/><path d="M16 13H8"/><path d="M16 17H8"/>', 48)}</div>
                   <h3>No content templates</h3>
                   <p style="color: var(--text-secondary); margin-bottom: var(--spacing-400);">Create reusable templates for consistent messaging</p>
-                  <button class="btn btn-primary" onclick="showToast('Template builder coming soon!', 'info')">✨ Create Template</button>
+                  <button class="btn btn-primary" onclick="showToast('Template builder coming soon!', 'info')">${_afIco('<path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/>', 14)} Create Template</button>
                 </td></tr>
               </tbody>
             </table>
@@ -1633,7 +1636,7 @@ async function loadLandingPages() {
       <div class="card">
         <div class="card-header">
           <div>
-            <h3 class="card-title">🌐 Landing Pages</h3>
+            <h3 class="card-title">${_afIco('<circle cx="12" cy="12" r="10"/><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"/><path d="M2 12h20"/>', 16)} Landing Pages</h3>
             <div class="card-subtitle">Create and manage web landing pages</div>
           </div>
           <button class="btn btn-primary" onclick="createLandingPage()">+ Create landing page</button>
@@ -1715,7 +1718,7 @@ function renderLandingPagesTable() {
   if (!filtered.length) {
     body.innerHTML = `
       <tr><td colspan="7" style="text-align:center; padding: var(--spacing-500);">
-        <div style="font-size: 2rem; margin-bottom: var(--spacing-200);">🌐</div>
+        <div style="font-size: 2rem; margin-bottom: var(--spacing-200);">${_afIco('<circle cx="12" cy="12" r="10"/><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"/><path d="M2 12h20"/>', 32)}</div>
         <strong>No landing pages</strong>
         <div style="color: var(--text-secondary); margin-top: var(--spacing-100);">Create your first landing page to get started.</div>
       </td></tr>
@@ -1846,7 +1849,7 @@ async function loadFragments() {
       <div class="card">
         <div class="card-header">
           <div>
-            <h3 class="card-title">🧩 Fragments</h3>
+            <h3 class="card-title">${_afIco('<path d="M12 2 2 7l10 5 10-5-10-5Z"/><path d="m2 17 10 5 10-5"/><path d="m2 12 10 5 10-5"/>', 16)} Fragments</h3>
             <div class="card-subtitle">Reusable content blocks (headers, footers, disclaimers)</div>
           </div>
           <button class="btn btn-primary" onclick="createFragment()">+ Create fragment</button>
@@ -1936,7 +1939,7 @@ function renderFragmentsTable() {
   if (!filtered.length) {
     body.innerHTML = `
       <tr><td colspan="7" style="text-align: center; padding: var(--spacing-500);">
-        <div style="font-size: 2rem; margin-bottom: var(--spacing-200);">🧩</div>
+        <div style="font-size: 2rem; margin-bottom: var(--spacing-200);">${_afIco('<path d="M12 2 2 7l10 5 10-5-10-5Z"/><path d="m2 17 10 5 10-5"/><path d="m2 12 10 5 10-5"/>', 32)}</div>
         <strong>No fragments</strong>
         <div style="color: var(--text-secondary); margin-top: var(--spacing-100);">Create a reusable fragment to get started.</div>
       </td></tr>
@@ -1986,7 +1989,7 @@ async function loadBrands() {
     const content = `
       <div class="card">
         <div class="card-header">
-          <h3 class="card-title">🏷️ Brands</h3>
+          <h3 class="card-title">${_afIco('<path d="M12 2H2v10l9.29 9.29c.94.94 2.48.94 3.42 0l6.58-6.58c.94-.94.94-2.48 0-3.42L12 2Z"/><path d="M7 7h.01"/>', 20)} Brands</h3>
           <div class="card-subtitle">Manage brand identities and configurations</div>
         </div>
         <div class="card-body">
@@ -2005,10 +2008,10 @@ async function loadBrands() {
               </thead>
               <tbody>
                 <tr><td colspan="7" style="text-align: center; padding: var(--spacing-700);">
-                  <div style="font-size: 3rem; margin-bottom: var(--spacing-300);">🏷️</div>
+                  <div style="font-size: 3rem; margin-bottom: var(--spacing-300);">${_afIco('<path d="M12 2H2v10l9.29 9.29c.94.94 2.48.94 3.42 0l6.58-6.58c.94-.94.94-2.48 0-3.42L12 2Z"/><path d="M7 7h.01"/>', 20)}</div>
                   <h3>No brands configured</h3>
                   <p style="color: var(--text-secondary); margin-bottom: var(--spacing-400);">Set up brand configurations for multi-brand campaigns</p>
-                  <button class="btn btn-primary" onclick="showToast('Brand manager coming soon!', 'info')">✨ Create Brand</button>
+                  <button class="btn btn-primary" onclick="showToast('Brand manager coming soon!', 'info')">${_afIco('<path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/>', 14)} Create Brand</button>
                 </td></tr>
               </tbody>
             </table>
@@ -2031,7 +2034,7 @@ async function loadSubscriptionServices() {
     const content = `
       <div class="card">
         <div class="card-header">
-          <h3 class="card-title">📧 Subscription Services</h3>
+          <h3 class="card-title">${_afIco('<rect width="20" height="16" x="2" y="4" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/>', 16)} Subscription Services</h3>
           <div class="card-subtitle">Manage subscription lists and preferences</div>
         </div>
         <div class="card-body">
@@ -2049,10 +2052,10 @@ async function loadSubscriptionServices() {
               </thead>
               <tbody>
                 <tr><td colspan="6" style="text-align: center; padding: var(--spacing-700);">
-                  <div style="font-size: 3rem; margin-bottom: var(--spacing-300);">📧</div>
+                  <div style="font-size: 3rem; margin-bottom: var(--spacing-300);">${_afIco('<rect width="20" height="16" x="2" y="4" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/>', 48)}</div>
                   <h3>No subscription services</h3>
                   <p style="color: var(--text-secondary); margin-bottom: var(--spacing-400);">Create subscription lists for newsletter management</p>
-                  <button class="btn btn-primary" onclick="showToast('Subscription manager coming soon!', 'info')">✨ Create Service</button>
+                  <button class="btn btn-primary" onclick="showToast('Subscription manager coming soon!', 'info')">${_afIco('<path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/>', 14)} Create Service</button>
                 </td></tr>
               </tbody>
             </table>
@@ -2084,9 +2087,9 @@ async function loadPredefinedFilters() {
         <td data-column-id="conditions"><code>${JSON.stringify(f.conditions || {})}</code></td>
         <td data-column-id="usage_count">${f.usage_count || 0}</td>
         <td>${createActionMenu(f.id, [
-          {icon: '✏️', label: 'Edit', onclick: `editPredefinedFilter(${f.id})`},
+          {icon: _afIco('<path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/><path d="m15 5 4 4"/>', 14), label: 'Edit', onclick: `editPredefinedFilter(${f.id})`},
           {divider: true},
-          {icon: '🗑️', label: 'Delete', onclick: `deletePredefinedFilter(${f.id})`, danger: true}
+          {icon: _afIco('<path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/>', 14), label: 'Delete', onclick: `deletePredefinedFilter(${f.id})`, danger: true}
         ])}</td>
       </tr>
     `).join('');
@@ -2102,7 +2105,7 @@ async function loadPredefinedFilters() {
     const content = `
       <div class="card">
         <div class="card-header">
-          <h3 class="card-title">🔧 Predefined Filters</h3>
+          <h3 class="card-title">${_afIco('<line x1="21" x2="14" y1="4" y2="4"/><line x1="10" x2="3" y1="4" y2="4"/><line x1="21" x2="12" y1="12" y2="12"/><line x1="8" x2="3" y1="12" y2="12"/><line x1="21" x2="16" y1="20" y2="20"/><line x1="12" x2="3" y1="20" y2="20"/><line x1="14" x2="14" y1="2" y2="6"/><line x1="8" x2="8" y1="10" y2="14"/><line x1="16" x2="16" y1="18" y2="22"/>', 16)} Predefined Filters</h3>
           <button class="btn btn-primary" onclick="showPredefinedFilterForm()">+ Create Filter</button>
         </div>
         
@@ -2221,9 +2224,9 @@ async function loadAssets() {
           <td data-column-id="used_in">${renderUsedInList(usedInItems)}</td>
           <td data-column-id="created_at">${new Date(a.created_at || Date.now()).toLocaleString()}</td>
           <td>${createActionMenu(a.id, [
-            { icon: '🔗', label: 'Copy URL', onclick: `copyAssetUrl("${a.url}")`},
+            { icon: _afIco('<path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>', 14), label: 'Copy URL', onclick: `copyAssetUrl("${a.url}")`},
             { divider: true },
-            { icon: '🗑️', label: 'Delete', onclick: `deleteAsset(${a.id})`, danger: true }
+            { icon: _afIco('<path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/>', 14), label: 'Delete', onclick: `deleteAsset(${a.id})`, danger: true }
           ])}</td>
         </tr>
       `;
@@ -2242,7 +2245,7 @@ async function loadAssets() {
     const content = `
       <div class="card">
         <div class="card-header">
-          <h3 class="card-title">🖼️ Asset Library</h3>
+          <h3 class="card-title">${_afIco('<rect width="18" height="18" x="3" y="3" rx="2" ry="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/>')} Asset Library</h3>
           <label class="btn btn-primary" style="cursor:pointer;">
             + Upload
             <input type="file" id="asset-upload-input" style="display:none;" onchange="uploadAsset(this.files)">

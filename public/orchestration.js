@@ -2,6 +2,9 @@
 console.log('🚀 ORCHESTRATION.JS LOADED!');
 const API_BASE = '/api';
 
+// Icon helper function for inline SVG icons
+const _ico = (p) => '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' + p + '</svg>';
+
 // State
 let campaignId = null;
 let isWorkflowContext = false;
@@ -82,56 +85,56 @@ document.addEventListener('DOMContentLoaded', async () => {
 const activityDefinitions = [
   {
     category: 'Entry & Exit',
-    icon: '🚀',
+    icon: _ico('<circle cx="12" cy="12" r="10"/><polygon points="10 8 16 12 10 16 10 8"/>'),
     items: [
-      { type: 'entry', category: 'flow', name: 'Entry Point', desc: 'Start of workflow', icon: '▶️' },
-      { type: 'exit', category: 'flow', name: 'End', desc: 'End of workflow', icon: '🏁' },
-      { type: 'stop', category: 'flow', name: 'Stop', desc: 'Stop execution', icon: '⛔' }
+      { type: 'entry', category: 'flow', name: 'Entry Point', desc: 'Start of workflow', icon: _ico('<circle cx="12" cy="12" r="10"/><polygon points="10 8 16 12 10 16 10 8"/>') },
+      { type: 'exit', category: 'flow', name: 'End', desc: 'End of workflow', icon: _ico('<rect width="14" height="14" x="5" y="5" rx="2"/>') },
+      { type: 'stop', category: 'flow', name: 'Stop', desc: 'Stop execution', icon: _ico('<rect width="14" height="14" x="5" y="5" rx="2"/>') }
     ]
   },
   {
     category: 'Targeting',
-    icon: '🎯',
+    icon: _ico('<circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/>'),
     items: [
-      { type: 'query', category: 'targeting', name: 'Query', desc: 'Build target query', icon: '🔍' },
-      { type: 'build_audience', category: 'targeting', name: 'Build Audience', desc: 'Use audience or query', icon: '👥' },
-      { type: 'segment', category: 'targeting', name: 'Segment', desc: 'Filter by segment', icon: '👥' },
-      { type: 'filter', category: 'targeting', name: 'Filter', desc: 'Custom conditions', icon: '🧪' },
-      { type: 'exclude', category: 'targeting', name: 'Exclude', desc: 'Exclude contacts', icon: '🚫' },
-      { type: 'combine', category: 'targeting', name: 'Combine', desc: 'Union/intersection/exclusion', icon: '🧩' },
-      { type: 'deduplication', category: 'targeting', name: 'Deduplication', desc: 'Remove duplicates', icon: '🧹' },
-      { type: 'enrichment', category: 'targeting', name: 'Enrichment', desc: 'Add data fields', icon: '➕' },
-      { type: 'incremental_query', category: 'targeting', name: 'Incremental Query', desc: 'New records only', icon: '🕒' },
-      { type: 'reconciliation', category: 'targeting', name: 'Reconciliation', desc: 'Match external data', icon: '🔗' },
-      { type: 'save_audience', category: 'targeting', name: 'Save Audience', desc: 'Save results', icon: '💾' },
-      { type: 'split', category: 'targeting', name: 'Split', desc: 'Segment population', icon: '🔀' },
-      { type: 'change_dimension', category: 'targeting', name: 'Change Dimension', desc: 'Change targeting dimension', icon: '🧭' },
-      { type: 'change_data_source', category: 'targeting', name: 'Change Data Source', desc: 'Switch data source', icon: '🗄️' }
+      { type: 'query', category: 'targeting', name: 'Query', desc: 'Build target query', icon: _ico('<circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>') },
+      { type: 'build_audience', category: 'targeting', name: 'Build Audience', desc: 'Use audience or query', icon: _ico('<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>') },
+      { type: 'segment', category: 'targeting', name: 'Segment', desc: 'Filter by segment', icon: _ico('<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>') },
+      { type: 'filter', category: 'targeting', name: 'Filter', desc: 'Custom conditions', icon: _ico('<polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/>') },
+      { type: 'exclude', category: 'targeting', name: 'Exclude', desc: 'Exclude contacts', icon: _ico('<circle cx="12" cy="12" r="10"/><line x1="15" x2="9" y1="9" y2="15"/><line x1="9" x2="15" y1="9" y2="15"/>') },
+      { type: 'combine', category: 'targeting', name: 'Combine', desc: 'Union/intersection/exclusion', icon: _ico('<circle cx="7" cy="12" r="3"/><circle cx="17" cy="12" r="3"/><path d="M14 12H10"/>') },
+      { type: 'deduplication', category: 'targeting', name: 'Deduplication', desc: 'Remove duplicates', icon: _ico('<path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/><line x1="12" x2="12" y1="18" y2="12"/><line x1="9" x2="15" y1="15" y2="15"/>') },
+      { type: 'enrichment', category: 'targeting', name: 'Enrichment', desc: 'Add data fields', icon: _ico('<circle cx="12" cy="12" r="10"/><line x1="12" x2="12" y1="8" y2="16"/><line x1="8" x2="16" y1="12" y2="12"/>') },
+      { type: 'incremental_query', category: 'targeting', name: 'Incremental Query', desc: 'New records only', icon: _ico('<circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>') },
+      { type: 'reconciliation', category: 'targeting', name: 'Reconciliation', desc: 'Match external data', icon: _ico('<path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>') },
+      { type: 'save_audience', category: 'targeting', name: 'Save Audience', desc: 'Save results', icon: _ico('<path d="M15.2 3a2 2 0 0 1 1.4.6l3.8 3.8a2 2 0 0 1 .6 1.4V19a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2Z"/><path d="M17 21v-7a1 1 0 0 0-1-1H8a1 1 0 0 0-1 1v7"/><path d="M7 3v4a1 1 0 0 0 1 1h7"/>') },
+      { type: 'split', category: 'targeting', name: 'Split', desc: 'Segment population', icon: _ico('<line x1="12" x2="12" y1="2" y2="22"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>') },
+      { type: 'change_dimension', category: 'targeting', name: 'Change Dimension', desc: 'Change targeting dimension', icon: _ico('<circle cx="12" cy="12" r="10"/><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>') },
+      { type: 'change_data_source', category: 'targeting', name: 'Change Data Source', desc: 'Switch data source', icon: _ico('<line x1="22" x2="2" y1="12" y2="12"/><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/><line x1="6" x2="6.01" y1="16" y2="16"/><line x1="10" x2="10.01" y1="16" y2="16"/>') }
     ]
   },
   {
     category: 'Flow Control',
-    icon: '⚙️',
+    icon: _ico('<path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/>'),
     items: [
-      { type: 'scheduler', category: 'flow_control', name: 'Scheduler', desc: 'Run on schedule', icon: '📅' },
-      { type: 'wait', category: 'flow_control', name: 'Wait', desc: 'Delay execution', icon: '⏱️' },
-      { type: 'condition', category: 'flow_control', name: 'Condition', desc: 'If/else branching', icon: '❓' },
-      { type: 'random', category: 'flow_control', name: 'Random Split', desc: 'Random routing', icon: '🎲' },
-      { type: 'fork', category: 'flow_control', name: 'Fork', desc: 'Parallel branches', icon: '🪢' },
-      { type: 'jump', category: 'flow_control', name: 'Jump', desc: 'Redirect to activity', icon: '↪️' },
-      { type: 'external_signal', category: 'flow_control', name: 'External Signal', desc: 'Wait for signal', icon: '📨' },
-      { type: 'alert', category: 'flow_control', name: 'Alert', desc: 'Send notification', icon: '🚨' }
+      { type: 'scheduler', category: 'flow_control', name: 'Scheduler', desc: 'Run on schedule', icon: _ico('<rect width="18" height="18" x="3" y="4" rx="2" ry="2"/><line x1="16" x2="16" y1="2" y2="6"/><line x1="8" x2="8" y1="2" y2="6"/><line x1="3" x2="21" y1="10" y2="10"/>') },
+      { type: 'wait', category: 'flow_control', name: 'Wait', desc: 'Delay execution', icon: _ico('<circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>') },
+      { type: 'condition', category: 'flow_control', name: 'Condition', desc: 'If/else branching', icon: _ico('<circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><path d="M12 17h.01"/>') },
+      { type: 'random', category: 'flow_control', name: 'Random Split', desc: 'Random routing', icon: _ico('<rect width="18" height="18" x="3" y="3" rx="2"/><path d="M12 8v8"/><path d="M8 12h8"/>') },
+      { type: 'fork', category: 'flow_control', name: 'Fork', desc: 'Parallel branches', icon: _ico('<line x1="12" x2="12" y1="2" y2="22"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>') },
+      { type: 'jump', category: 'flow_control', name: 'Jump', desc: 'Redirect to activity', icon: _ico('<polyline points="17 11 21 7 17 3"/><path d="M21 7H9a4 4 0 0 0-4 4v10"/>') },
+      { type: 'external_signal', category: 'flow_control', name: 'External Signal', desc: 'Wait for signal', icon: _ico('<rect width="20" height="16" x="2" y="4" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/>') },
+      { type: 'alert', category: 'flow_control', name: 'Alert', desc: 'Send notification', icon: _ico('<circle cx="12" cy="12" r="10"/><line x1="12" x2="12" y1="8" y2="12"/><line x1="12" x2="12.01" y1="16" y2="16"/>') }
     ]
   },
   {
     category: 'Channels',
-    icon: '📨',
+    icon: _ico('<rect width="20" height="16" x="2" y="4" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/>'),
     items: [
-      { type: 'email', category: 'channels', name: 'Email', desc: 'Send email', icon: '📧' },
-      { type: 'sms', category: 'channels', name: 'SMS', desc: 'Send SMS', icon: '💬' },
-      { type: 'push', category: 'channels', name: 'Push', desc: 'Push notification', icon: '📱' },
-      { type: 'direct_mail', category: 'channels', name: 'Direct Mail', desc: 'Physical delivery', icon: '📮' },
-      { type: 'webhook', category: 'channels', name: 'Webhook', desc: 'HTTP callback', icon: '🔗' }
+      { type: 'email', category: 'channels', name: 'Email', desc: 'Send email', icon: _ico('<rect width="20" height="16" x="2" y="4" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/>') },
+      { type: 'sms', category: 'channels', name: 'SMS', desc: 'Send SMS', icon: _ico('<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>') },
+      { type: 'push', category: 'channels', name: 'Push', desc: 'Push notification', icon: _ico('<rect width="14" height="20" x="5" y="2" rx="2" ry="2"/><path d="M12 18h.01"/>') },
+      { type: 'direct_mail', category: 'channels', name: 'Direct Mail', desc: 'Physical delivery', icon: _ico('<rect width="20" height="16" x="2" y="4" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/>') },
+      { type: 'webhook', category: 'channels', name: 'Webhook', desc: 'HTTP callback', icon: _ico('<path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>') }
     ]
   },
   // Actions, Data Management, Analytics removed per requirements
@@ -222,7 +225,7 @@ async function loadOrchestration() {
 
     if (nodes.length === 0) {
       // Always start with an Entry activity on empty canvas
-      addNode('entry', 'flow', 'Entry Point', '▶️', 80, 120);
+      addNode('entry', 'flow', 'Entry Point', _ico('<circle cx="12" cy="12" r="10"/><polygon points="10 8 16 12 10 16 10 8"/>'), 80, 120);
       showToast('Added Entry activity to start the flow', 'info');
     } else {
       renderCanvas();
@@ -1754,7 +1757,7 @@ function showNodeProperties(node) {
           <div class="split-transition-actions">
             <button class="btn btn-sm btn-ghost" title="Move up" onclick="moveSplitTransition('${node.id}', '${t.id}', -1)">↑</button>
             <button class="btn btn-sm btn-ghost" title="Move down" onclick="moveSplitTransition('${node.id}', '${t.id}', 1)">↓</button>
-            <button class="btn btn-sm btn-ghost" title="Delete" onclick="removeSplitTransition('${node.id}', '${t.id}')">🗑️</button>
+            <button class="btn btn-sm btn-ghost" title="Delete" onclick="removeSplitTransition('${node.id}', '${t.id}')">${_ico('<path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/>')}</button>
           </div>
         </div>
         <div class="form-group">
@@ -2688,7 +2691,7 @@ function validateOrchestration() {
   
   if (errors.length === 0) {
     const warningText = warnings.length ? `\nWarnings:\n${warnings.join('\n')}` : '';
-    showToast(`✓ Orchestration is valid${warningText}`, warnings.length ? 'info' : 'success');
+    showToast(`${_ico('<path d="M20 6 9 17l-5-5"/>')} Orchestration is valid${warningText}`, warnings.length ? 'info' : 'success');
   } else {
     const warningText = warnings.length ? `\nWarnings:\n${warnings.join('\n')}` : '';
     showToast(`Validation failed:\n${errors.join('\n')}${warningText}`, 'error');
@@ -2739,7 +2742,7 @@ function suggestOrchestration() {
   const chat = document.getElementById('orchestration-ai-chat');
   const suggestion = `
     <div class="ai-message assistant">
-      <strong>💡 Suggested Flow:</strong><br><br>
+      <strong>${_ico('<path d="M12 2v2"/><path d="M12 20v2"/><path d="M4.93 4.93l1.41 1.41"/><path d="M17.66 17.66l1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="M6.34 17.66l-1.41 1.41"/><path d="M19.07 4.93l-1.41 1.41"/><circle cx="12" cy="12" r="5"/>')} Suggested Flow:</strong><br><br>
       1. <strong>Entry</strong> - Start campaign<br>
       2. <strong>Segment</strong> - Filter to VIP customers<br>
       3. <strong>Email</strong> - Send personalized offer<br>
@@ -2747,8 +2750,8 @@ function suggestOrchestration() {
       5. <strong>Condition</strong> - Check if opened<br>
       6. <strong>Email</strong> - Follow-up (if opened)<br>
       7. <strong>Exit</strong> - End campaign<br><br>
-      <button class="btn btn-sm btn-primary" onclick="applyAISuggestion('vip_campaign', false)" style="margin-right: 0.5rem;">✨ Apply to Canvas</button>
-      <button class="btn btn-sm btn-danger" onclick="applyAISuggestion('vip_campaign', true)">🔄 Override All</button>
+      <button class="btn btn-sm btn-primary" onclick="applyAISuggestion('vip_campaign', false)" style="margin-right: 0.5rem;">${_ico('<path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/>')} Apply to Canvas</button>
+      <button class="btn btn-sm btn-danger" onclick="applyAISuggestion('vip_campaign', true)">${_ico('<path d="m17 2 4 4-4 4"/><path d="M3 11v-1a4 4 0 0 1 4-4h14"/><path d="m7 22-4-4 4-4"/><path d="M21 13v1a4 4 0 0 1-4 4H3"/>')} Override All</button>
     </div>
   `;
   chat.innerHTML += suggestion;
@@ -2759,15 +2762,15 @@ function optimizeOrchestration() {
   const chat = document.getElementById('orchestration-ai-chat');
   const tips = `
     <div class="ai-message assistant">
-      <strong>⚡ Optimization Tips:</strong><br><br>
+      <strong>${_ico('<polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>')} Optimization Tips:</strong><br><br>
       • Add Wait nodes between emails (min 24h)<br>
       • Use A/B Split to test messaging<br>
       • Filter by engagement before sending<br>
       • Add Goal nodes to track conversions<br>
       • Exclude customers who already converted<br><br>
       <strong>Want me to apply optimized flow?</strong><br>
-      <button class="btn btn-sm btn-primary" onclick="applyAISuggestion('optimized_flow', false)" style="margin-right: 0.5rem;">✨ Apply Optimization</button>
-      <button class="btn btn-sm btn-danger" onclick="applyAISuggestion('optimized_flow', true)">🔄 Override All</button>
+      <button class="btn btn-sm btn-primary" onclick="applyAISuggestion('optimized_flow', false)" style="margin-right: 0.5rem;">${_ico('<path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/>')} Apply Optimization</button>
+      <button class="btn btn-sm btn-danger" onclick="applyAISuggestion('optimized_flow', true)">${_ico('<path d="m17 2 4 4-4 4"/><path d="M3 11v-1a4 4 0 0 1 4-4h14"/><path d="m7 22-4-4 4-4"/><path d="M21 13v1a4 4 0 0 1-4 4H3"/>')} Override All</button>
     </div>
   `;
   chat.innerHTML += tips;
@@ -2800,56 +2803,56 @@ function applyAISuggestion(flowType, override = false) {
   
   const flowTemplates = {
     vip_campaign: [
-      { type: 'entry', category: 'flow', name: 'Entry Point', icon: '▶️', x: startX, y: startY },
-      { type: 'segment', category: 'targeting', name: 'VIP Segment', icon: '🎯', x: startX, y: startY + 120, config: { action: 'include' } },
-      { type: 'email', category: 'channels', name: 'VIP Offer Email', icon: '📧', x: startX, y: startY + 240, config: { subject: 'Exclusive VIP Offer', content: 'Special offer just for you!' } },
-      { type: 'wait', category: 'flow_control', name: 'Wait 2 Days', icon: '⏰', x: startX, y: startY + 360, config: { wait_time: 2, wait_unit: 'days' } },
-      { type: 'condition', category: 'flow_control', name: 'Check Opened', icon: '❓', x: startX, y: startY + 480, config: { condition_type: 'email_opened', time_window: 2 } },
-      { type: 'email', category: 'channels', name: 'Follow-up Email', icon: '📧', x: startX, y: startY + 600, config: { subject: 'Did you see our offer?', content: 'Follow-up message' } },
-      { type: 'exit', category: 'flow', name: 'Exit', icon: '⏹️', x: startX, y: startY + 720 }
+      { type: 'entry', category: 'flow', name: 'Entry Point', icon: _ico('<circle cx="12" cy="12" r="10"/><polygon points="10 8 16 12 10 16 10 8"/>'), x: startX, y: startY },
+      { type: 'segment', category: 'targeting', name: 'VIP Segment', icon: _ico('<circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/>'), x: startX, y: startY + 120, config: { action: 'include' } },
+      { type: 'email', category: 'channels', name: 'VIP Offer Email', icon: _ico('<rect width="20" height="16" x="2" y="4" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/>'), x: startX, y: startY + 240, config: { subject: 'Exclusive VIP Offer', content: 'Special offer just for you!' } },
+      { type: 'wait', category: 'flow_control', name: 'Wait 2 Days', icon: _ico('<circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>'), x: startX, y: startY + 360, config: { wait_time: 2, wait_unit: 'days' } },
+      { type: 'condition', category: 'flow_control', name: 'Check Opened', icon: _ico('<circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><path d="M12 17h.01"/>'), x: startX, y: startY + 480, config: { condition_type: 'email_opened', time_window: 2 } },
+      { type: 'email', category: 'channels', name: 'Follow-up Email', icon: _ico('<rect width="20" height="16" x="2" y="4" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/>'), x: startX, y: startY + 600, config: { subject: 'Did you see our offer?', content: 'Follow-up message' } },
+      { type: 'exit', category: 'flow', name: 'Exit', icon: _ico('<rect width="14" height="14" x="5" y="5" rx="2"/>'), x: startX, y: startY + 720 }
     ],
     optimized_flow: [
-      { type: 'entry', category: 'flow', name: 'Entry Point', icon: '▶️', x: startX, y: startY },
-      { type: 'segment', category: 'targeting', name: 'Active Subscribers', icon: '🎯', x: startX, y: startY + 120, config: { action: 'include' } },
-      { type: 'split', category: 'flow_control', name: 'A/B Test', icon: '🔀', x: startX, y: startY + 240, config: { split_ratio: 50, variant_a_name: 'Version A', variant_b_name: 'Version B' } },
-      { type: 'email', category: 'channels', name: 'Email Variant A', icon: '📧', x: startX - 150, y: startY + 360, config: { subject: 'Version A Subject' } },
-      { type: 'email', category: 'channels', name: 'Email Variant B', icon: '📧', x: startX + 150, y: startY + 360, config: { subject: 'Version B Subject' } },
-      { type: 'wait', category: 'flow_control', name: 'Wait 24 Hours', icon: '⏰', x: startX, y: startY + 480, config: { wait_time: 24, wait_unit: 'hours' } },
-      { type: 'condition', category: 'flow_control', name: 'Check Engagement', icon: '❓', x: startX, y: startY + 600, config: { condition_type: 'email_clicked', time_window: 1 } },
-      { type: 'goal', category: 'tracking', name: 'Track Goal', icon: '🎯', x: startX, y: startY + 720 },
-      { type: 'exit', category: 'flow', name: 'Exit', icon: '⏹️', x: startX, y: startY + 840 }
+      { type: 'entry', category: 'flow', name: 'Entry Point', icon: _ico('<circle cx="12" cy="12" r="10"/><polygon points="10 8 16 12 10 16 10 8"/>'), x: startX, y: startY },
+      { type: 'segment', category: 'targeting', name: 'Active Subscribers', icon: _ico('<circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/>'), x: startX, y: startY + 120, config: { action: 'include' } },
+      { type: 'split', category: 'flow_control', name: 'A/B Test', icon: _ico('<line x1="12" x2="12" y1="2" y2="22"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>'), x: startX, y: startY + 240, config: { split_ratio: 50, variant_a_name: 'Version A', variant_b_name: 'Version B' } },
+      { type: 'email', category: 'channels', name: 'Email Variant A', icon: _ico('<rect width="20" height="16" x="2" y="4" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/>'), x: startX - 150, y: startY + 360, config: { subject: 'Version A Subject' } },
+      { type: 'email', category: 'channels', name: 'Email Variant B', icon: _ico('<rect width="20" height="16" x="2" y="4" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/>'), x: startX + 150, y: startY + 360, config: { subject: 'Version B Subject' } },
+      { type: 'wait', category: 'flow_control', name: 'Wait 24 Hours', icon: _ico('<circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>'), x: startX, y: startY + 480, config: { wait_time: 24, wait_unit: 'hours' } },
+      { type: 'condition', category: 'flow_control', name: 'Check Engagement', icon: _ico('<circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><path d="M12 17h.01"/>'), x: startX, y: startY + 600, config: { condition_type: 'email_clicked', time_window: 1 } },
+      { type: 'goal', category: 'tracking', name: 'Track Goal', icon: _ico('<circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/>'), x: startX, y: startY + 720 },
+      { type: 'exit', category: 'flow', name: 'Exit', icon: _ico('<rect width="14" height="14" x="5" y="5" rx="2"/>'), x: startX, y: startY + 840 }
     ],
     welcome_flow: [
-      { type: 'entry', category: 'flow', name: 'New Subscriber', icon: '▶️', x: startX, y: startY },
-      { type: 'email', category: 'channels', name: 'Welcome Email', icon: '📧', x: startX, y: startY + 120, config: { subject: 'Welcome! Here\'s what to expect', content: 'Thanks for joining us!' } },
-      { type: 'wait', category: 'flow_control', name: 'Wait 1 Day', icon: '⏰', x: startX, y: startY + 240, config: { wait_time: 1, wait_unit: 'days' } },
-      { type: 'email', category: 'channels', name: 'Getting Started', icon: '📧', x: startX, y: startY + 360, config: { subject: 'Getting started guide', content: 'Here\'s how to get the most out of...' } },
-      { type: 'wait', category: 'flow_control', name: 'Wait 3 Days', icon: '⏰', x: startX, y: startY + 480, config: { wait_time: 3, wait_unit: 'days' } },
-      { type: 'condition', category: 'flow_control', name: 'Made Purchase?', icon: '❓', x: startX, y: startY + 600, config: { condition_type: 'purchased', time_window: 7 } },
-      { type: 'email', category: 'channels', name: 'First Purchase Offer', icon: '📧', x: startX, y: startY + 720, config: { subject: '20% off your first order', content: 'Special offer for new customers' } },
-      { type: 'exit', category: 'flow', name: 'Exit', icon: '⏹️', x: startX, y: startY + 840 }
+      { type: 'entry', category: 'flow', name: 'New Subscriber', icon: _ico('<circle cx="12" cy="12" r="10"/><polygon points="10 8 16 12 10 16 10 8"/>'), x: startX, y: startY },
+      { type: 'email', category: 'channels', name: 'Welcome Email', icon: _ico('<rect width="20" height="16" x="2" y="4" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/>'), x: startX, y: startY + 120, config: { subject: 'Welcome! Here\'s what to expect', content: 'Thanks for joining us!' } },
+      { type: 'wait', category: 'flow_control', name: 'Wait 1 Day', icon: _ico('<circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>'), x: startX, y: startY + 240, config: { wait_time: 1, wait_unit: 'days' } },
+      { type: 'email', category: 'channels', name: 'Getting Started', icon: _ico('<rect width="20" height="16" x="2" y="4" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/>'), x: startX, y: startY + 360, config: { subject: 'Getting started guide', content: 'Here\'s how to get the most out of...' } },
+      { type: 'wait', category: 'flow_control', name: 'Wait 3 Days', icon: _ico('<circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>'), x: startX, y: startY + 480, config: { wait_time: 3, wait_unit: 'days' } },
+      { type: 'condition', category: 'flow_control', name: 'Made Purchase?', icon: _ico('<circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><path d="M12 17h.01"/>'), x: startX, y: startY + 600, config: { condition_type: 'purchased', time_window: 7 } },
+      { type: 'email', category: 'channels', name: 'First Purchase Offer', icon: _ico('<rect width="20" height="16" x="2" y="4" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/>'), x: startX, y: startY + 720, config: { subject: '20% off your first order', content: 'Special offer for new customers' } },
+      { type: 'exit', category: 'flow', name: 'Exit', icon: _ico('<rect width="14" height="14" x="5" y="5" rx="2"/>'), x: startX, y: startY + 840 }
     ],
     cart_recovery: [
-      { type: 'entry', category: 'flow', name: 'Cart Abandoned', icon: '▶️', x: startX, y: startY },
-      { type: 'wait', category: 'flow_control', name: 'Wait 1 Hour', icon: '⏰', x: startX, y: startY + 120, config: { wait_time: 1, wait_unit: 'hours' } },
-      { type: 'email', category: 'channels', name: 'Reminder Email', icon: '📧', x: startX, y: startY + 240, config: { subject: 'You left items in your cart', content: 'Complete your purchase!' } },
-      { type: 'wait', category: 'flow_control', name: 'Wait 24 Hours', icon: '⏰', x: startX, y: startY + 360, config: { wait_time: 24, wait_unit: 'hours' } },
-      { type: 'condition', category: 'flow_control', name: 'Check Purchase', icon: '❓', x: startX, y: startY + 480, config: { condition_type: 'purchased', time_window: 1 } },
-      { type: 'email', category: 'channels', name: 'Incentive Email', icon: '📧', x: startX, y: startY + 600, config: { subject: '10% off to complete your order', content: 'Special discount just for you' } },
-      { type: 'wait', category: 'flow_control', name: 'Wait 48 Hours', icon: '⏰', x: startX, y: startY + 720, config: { wait_time: 48, wait_unit: 'hours' } },
-      { type: 'email', category: 'channels', name: 'Final Reminder', icon: '📧', x: startX, y: startY + 840, config: { subject: 'Last chance - cart expiring soon', content: 'Your cart items are still waiting' } },
-      { type: 'exit', category: 'flow', name: 'Exit', icon: '⏹️', x: startX, y: startY + 960 }
+      { type: 'entry', category: 'flow', name: 'Cart Abandoned', icon: _ico('<circle cx="12" cy="12" r="10"/><polygon points="10 8 16 12 10 16 10 8"/>'), x: startX, y: startY },
+      { type: 'wait', category: 'flow_control', name: 'Wait 1 Hour', icon: _ico('<circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>'), x: startX, y: startY + 120, config: { wait_time: 1, wait_unit: 'hours' } },
+      { type: 'email', category: 'channels', name: 'Reminder Email', icon: _ico('<rect width="20" height="16" x="2" y="4" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/>'), x: startX, y: startY + 240, config: { subject: 'You left items in your cart', content: 'Complete your purchase!' } },
+      { type: 'wait', category: 'flow_control', name: 'Wait 24 Hours', icon: _ico('<circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>'), x: startX, y: startY + 360, config: { wait_time: 24, wait_unit: 'hours' } },
+      { type: 'condition', category: 'flow_control', name: 'Check Purchase', icon: _ico('<circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><path d="M12 17h.01"/>'), x: startX, y: startY + 480, config: { condition_type: 'purchased', time_window: 1 } },
+      { type: 'email', category: 'channels', name: 'Incentive Email', icon: _ico('<rect width="20" height="16" x="2" y="4" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/>'), x: startX, y: startY + 600, config: { subject: '10% off to complete your order', content: 'Special discount just for you' } },
+      { type: 'wait', category: 'flow_control', name: 'Wait 48 Hours', icon: _ico('<circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>'), x: startX, y: startY + 720, config: { wait_time: 48, wait_unit: 'hours' } },
+      { type: 'email', category: 'channels', name: 'Final Reminder', icon: _ico('<rect width="20" height="16" x="2" y="4" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/>'), x: startX, y: startY + 840, config: { subject: 'Last chance - cart expiring soon', content: 'Your cart items are still waiting' } },
+      { type: 'exit', category: 'flow', name: 'Exit', icon: _ico('<rect width="14" height="14" x="5" y="5" rx="2"/>'), x: startX, y: startY + 960 }
     ],
     winback_flow: [
-      { type: 'entry', category: 'flow', name: 'Inactive Customer', icon: '▶️', x: startX, y: startY },
-      { type: 'filter', category: 'targeting', name: 'Filter Inactive', icon: '🔍', x: startX, y: startY + 120, config: { filter_field: 'last_purchase_date', operator: 'greater_than', filter_value: '60' } },
-      { type: 'email', category: 'channels', name: 'We Miss You', icon: '📧', x: startX, y: startY + 240, config: { subject: 'We miss you! Come back', content: 'It\'s been a while...' } },
-      { type: 'wait', category: 'flow_control', name: 'Wait 3 Days', icon: '⏰', x: startX, y: startY + 360, config: { wait_time: 3, wait_unit: 'days' } },
-      { type: 'condition', category: 'flow_control', name: 'Engaged?', icon: '❓', x: startX, y: startY + 480, config: { condition_type: 'email_opened', time_window: 3 } },
-      { type: 'email', category: 'channels', name: 'Special Offer', icon: '📧', x: startX, y: startY + 600, config: { subject: '25% off - Welcome back!', content: 'Exclusive comeback offer' } },
-      { type: 'wait', category: 'flow_control', name: 'Wait 7 Days', icon: '⏰', x: startX, y: startY + 720, config: { wait_time: 7, wait_unit: 'days' } },
-      { type: 'condition', category: 'flow_control', name: 'Converted?', icon: '❓', x: startX, y: startY + 840, config: { condition_type: 'purchased', time_window: 7 } },
-      { type: 'exit', category: 'flow', name: 'Exit', icon: '⏹️', x: startX, y: startY + 960 }
+      { type: 'entry', category: 'flow', name: 'Inactive Customer', icon: _ico('<circle cx="12" cy="12" r="10"/><polygon points="10 8 16 12 10 16 10 8"/>'), x: startX, y: startY },
+      { type: 'filter', category: 'targeting', name: 'Filter Inactive', icon: _ico('<circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>'), x: startX, y: startY + 120, config: { filter_field: 'last_purchase_date', operator: 'greater_than', filter_value: '60' } },
+      { type: 'email', category: 'channels', name: 'We Miss You', icon: _ico('<rect width="20" height="16" x="2" y="4" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/>'), x: startX, y: startY + 240, config: { subject: 'We miss you! Come back', content: 'It\'s been a while...' } },
+      { type: 'wait', category: 'flow_control', name: 'Wait 3 Days', icon: _ico('<circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>'), x: startX, y: startY + 360, config: { wait_time: 3, wait_unit: 'days' } },
+      { type: 'condition', category: 'flow_control', name: 'Engaged?', icon: _ico('<circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><path d="M12 17h.01"/>'), x: startX, y: startY + 480, config: { condition_type: 'email_opened', time_window: 3 } },
+      { type: 'email', category: 'channels', name: 'Special Offer', icon: _ico('<rect width="20" height="16" x="2" y="4" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/>'), x: startX, y: startY + 600, config: { subject: '25% off - Welcome back!', content: 'Exclusive comeback offer' } },
+      { type: 'wait', category: 'flow_control', name: 'Wait 7 Days', icon: _ico('<circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>'), x: startX, y: startY + 720, config: { wait_time: 7, wait_unit: 'days' } },
+      { type: 'condition', category: 'flow_control', name: 'Converted?', icon: _ico('<circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><path d="M12 17h.01"/>'), x: startX, y: startY + 840, config: { condition_type: 'purchased', time_window: 7 } },
+      { type: 'exit', category: 'flow', name: 'Exit', icon: _ico('<rect width="14" height="14" x="5" y="5" rx="2"/>'), x: startX, y: startY + 960 }
     ]
   };
   
@@ -2885,11 +2888,11 @@ function applyAISuggestion(flowType, override = false) {
   }
   
   renderCanvas();
-  showToast(`✨ Applied ${template.length} nodes to canvas!`, 'success');
+  showToast(`${_ico('<path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/>')} Applied ${template.length} nodes to canvas!`, 'success');
   
   // Update chat
   const chat = document.getElementById('orchestration-ai-chat');
-  chat.innerHTML += `<div class="ai-message assistant">✅ Flow applied successfully! You can now customize each node.</div>`;
+  chat.innerHTML += `<div class="ai-message assistant">${_ico('<path d="M20 6 9 17l-5-5"/>')} Flow applied successfully! You can now customize each node.</div>`;
   chat.scrollTop = chat.scrollHeight;
 }
 
@@ -2932,20 +2935,20 @@ function getOrchestrationAIResponse(message) {
   
   if (lower.includes('welcome') || lower.includes('onboard')) {
     return `I can create a welcome/onboarding flow for you!<br><br>
-      <button class="btn btn-sm btn-primary" onclick="applyAISuggestion('welcome_flow', false)" style="margin-right: 0.5rem;">✨ Add Welcome Flow</button>
-      <button class="btn btn-sm btn-danger" onclick="applyAISuggestion('welcome_flow', true)">🔄 Replace All</button>`;
+      <button class="btn btn-sm btn-primary" onclick="applyAISuggestion('welcome_flow', false)" style="margin-right: 0.5rem;">${_ico('<path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/>')} Add Welcome Flow</button>
+      <button class="btn btn-sm btn-danger" onclick="applyAISuggestion('welcome_flow', true)">${_ico('<path d="m17 2 4 4-4 4"/><path d="M3 11v-1a4 4 0 0 1 4-4h14"/><path d="m7 22-4-4 4-4"/><path d="M21 13v1a4 4 0 0 1-4 4H3"/>')} Replace All</button>`;
   }
   
   if (lower.includes('cart') || lower.includes('abandon')) {
     return `I can create a cart abandonment recovery flow!<br><br>
-      <button class="btn btn-sm btn-primary" onclick="applyAISuggestion('cart_recovery', false)" style="margin-right: 0.5rem;">✨ Add Cart Recovery</button>
-      <button class="btn btn-sm btn-danger" onclick="applyAISuggestion('cart_recovery', true)">🔄 Replace All</button>`;
+      <button class="btn btn-sm btn-primary" onclick="applyAISuggestion('cart_recovery', false)" style="margin-right: 0.5rem;">${_ico('<path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/>')} Add Cart Recovery</button>
+      <button class="btn btn-sm btn-danger" onclick="applyAISuggestion('cart_recovery', true)">${_ico('<path d="m17 2 4 4-4 4"/><path d="M3 11v-1a4 4 0 0 1 4-4h14"/><path d="m7 22-4-4 4-4"/><path d="M21 13v1a4 4 0 0 1-4 4H3"/>')} Replace All</button>`;
   }
   
   if (lower.includes('winback') || lower.includes('re-engage') || lower.includes('inactive')) {
     return `I can create a winback campaign for inactive customers!<br><br>
-      <button class="btn btn-sm btn-primary" onclick="applyAISuggestion('winback_flow', false)" style="margin-right: 0.5rem;">✨ Add Winback Flow</button>
-      <button class="btn btn-sm btn-danger" onclick="applyAISuggestion('winback_flow', true)">🔄 Replace All</button>`;
+      <button class="btn btn-sm btn-primary" onclick="applyAISuggestion('winback_flow', false)" style="margin-right: 0.5rem;">${_ico('<path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/>')} Add Winback Flow</button>
+      <button class="btn btn-sm btn-danger" onclick="applyAISuggestion('winback_flow', true)">${_ico('<path d="m17 2 4 4-4 4"/><path d="M3 11v-1a4 4 0 0 1 4-4h14"/><path d="m7 22-4-4 4-4"/><path d="M21 13v1a4 4 0 0 1-4 4H3"/>')} Replace All</button>`;
   }
   
   if (lower.includes('create') || lower.includes('template') || lower.includes('suggest')) {
@@ -2991,5 +2994,5 @@ function showToast(message, type = 'info') {
 // Test function to manually add a node
 function testAddNode() {
   console.log('🧪 TEST: Manually adding a test node');
-  addNode('email', 'channels', 'Test Email', '📧', 100, 100);
+  addNode('email', 'channels', 'Test Email', _ico('<rect width="20" height="16" x="2" y="4" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/>'), 100, 100);
 }
