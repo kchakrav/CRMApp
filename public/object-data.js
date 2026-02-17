@@ -4,6 +4,8 @@ const API_BASE = '/api';
 let objectId = null;
 let currentObject = null;
 let currentRecordId = null;
+/** @type {Record<string, Array<{key: string, label: string}>>} */
+let enumCache = {};
 
 // Initialize
 document.addEventListener('DOMContentLoaded', async () => {
@@ -19,13 +21,28 @@ document.addEventListener('DOMContentLoaded', async () => {
   await loadData();
 });
 
-// Load object definition
+// Load object definition and any enumerations referenced by enum_ref fields
 async function loadObject() {
   try {
     const response = await fetch(`${API_BASE}/custom-objects/${objectId}`);
     currentObject = await response.json();
-    
     document.getElementById('object-label').textContent = currentObject.label;
+
+    const refs = [...new Set((currentObject.fields || []).filter(f => f.enum_ref).map(f => f.enum_ref))];
+    if (refs.length > 0) {
+      const enumsRes = await fetch(`${API_BASE}/enumerations`);
+      const enumsData = await enumsRes.json();
+      const list = enumsData.enumerations || [];
+      enumCache = {};
+      refs.forEach(name => {
+        const e = list.find(x => (x.name || '').toLowerCase() === name.toLowerCase());
+        if (e && e.values) {
+          enumCache[name.toLowerCase()] = e.values.filter(v => v.enabled !== false);
+        }
+      });
+    } else {
+      enumCache = {};
+    }
   } catch (error) {
     showToast('Error loading object', 'error');
   }
@@ -74,7 +91,7 @@ function renderDataTable(records) {
     <tr>
       <td>${record.id}</td>
       <td>${record.customer_id || 'N/A'}</td>
-      ${fields.map(f => `<td>${formatValue(record[f.name], f.type)}</td>`).join('')}
+      ${fields.map(f => `<td>${formatValue(record[f.name], f)}</td>`).join('')}
       <td>${new Date(record.created_at).toLocaleDateString()}</td>
       <td>
         <div class="action-buttons">
@@ -95,10 +112,12 @@ function renderDataTable(records) {
   `;
 }
 
-// Format value based on type
-function formatValue(value, type) {
+// Format value based on type (second arg is field object for select+enum_ref)
+function formatValue(value, field) {
   if (value === null || value === undefined) return 'N/A';
-  
+  const type = typeof field === 'object' && field ? field.type : field;
+  const f = typeof field === 'object' ? field : null;
+
   switch (type) {
     case 'date':
       return new Date(value).toLocaleDateString();
@@ -106,6 +125,12 @@ function formatValue(value, type) {
       return Number(value).toLocaleString();
     case 'boolean':
       return value ? '<span style="display:inline-flex;align-items:center;gap:4px;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg> Yes</span>' : '<span style="display:inline-flex;align-items:center;gap:4px;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg> No</span>';
+    case 'select':
+      if (f && f.enum_ref && enumCache[f.enum_ref.toLowerCase()]) {
+        const opt = enumCache[f.enum_ref.toLowerCase()].find(o => o.key === value || o.label === value);
+        return opt ? opt.label : value;
+      }
+      return value;
     default:
       return value;
   }
@@ -195,8 +220,16 @@ function renderFieldInput(field, value) {
           <option value="false" ${value === false ? 'selected' : ''}>No</option>
         </select>
       `;
-    case 'select':
-      return `<input type="text" id="field-${field.name}" class="form-input" value="${value || ''}">`;
+    case 'select': {
+      const options = field.enum_ref && enumCache[field.enum_ref.toLowerCase()]
+        ? enumCache[field.enum_ref.toLowerCase()]
+        : [];
+      if (options.length > 0) {
+        const opts = options.map(o => `<option value="${(o.key || '').replace(/"/g, '&quot;')}" ${(value === o.key || value === o.label) ? 'selected' : ''}>${(o.label || o.key || '').replace(/</g, '&lt;')}</option>`).join('');
+        return `<select id="field-${field.name}" class="form-input"><option value="">— Select —</option>${opts}</select>`;
+      }
+      return `<input type="text" id="field-${field.name}" class="form-input" value="${value || ''}" placeholder="Value">`;
+    }
     default:
       return `<input type="text" id="field-${field.name}" class="form-input" value="${value || ''}">`;
   }

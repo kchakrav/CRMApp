@@ -338,9 +338,9 @@ router.get('/drill-down/campaigns', (req, res) => {
     const periodDate = new Date(Date.now() - period * 24 * 60 * 60 * 1000);
     
     // Filter campaigns
-    let filtered = campaigns;
+    let filtered = workflows;
     if (status !== 'all') {
-      filtered = campaigns.filter(c => c.status === status);
+      filtered = workflows.filter(c => c.status === status);
     }
     
     // Recent campaigns
@@ -428,7 +428,7 @@ router.get('/drill-down/campaigns', (req, res) => {
 router.get('/drill-down/email', (req, res) => {
   try {
     const { period = '30' } = req.query;
-    const workflows = query.all('workflows');
+    const campaigns = query.all('workflows');
     const metrics = query.all('workflow_metrics');
     const sends = query.all('campaign_sends');
     

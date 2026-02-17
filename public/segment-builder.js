@@ -16,36 +16,61 @@ const BASE_ATTRIBUTE_OBJECTS = [
     label: 'Contacts',
     icon: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>',
     fields: [
+      // Basic Information
       { name: 'email', label: 'Email', type: 'text' },
       { name: 'first_name', label: 'First Name', type: 'text' },
       { name: 'last_name', label: 'Last Name', type: 'text' },
+      { name: 'phone', label: 'Phone', type: 'text' },
       { name: 'status', label: 'Status', type: 'select' },
+
+      // Demographics
+      { name: 'date_of_birth', label: 'Date of Birth', type: 'date' },
+      { name: 'gender', label: 'Gender', type: 'select' },
+      { name: 'city', label: 'City', type: 'text' },
+      { name: 'state', label: 'State', type: 'text' },
+      { name: 'country', label: 'Country', type: 'text' },
+      { name: 'postal_code', label: 'Postal Code', type: 'text' },
+      { name: 'timezone', label: 'Timezone', type: 'text' },
+      { name: 'language', label: 'Language', type: 'text' },
+
+      // Preferences
+      { name: 'email_opt_in', label: 'Email Opt-in', type: 'boolean' },
+      { name: 'sms_opt_in', label: 'SMS Opt-in', type: 'boolean' },
+      { name: 'push_opt_in', label: 'Push Opt-in', type: 'boolean' },
+      { name: 'whatsapp_opt_in', label: 'WhatsApp Opt-in', type: 'boolean' },
+      { name: 'communication_frequency', label: 'Communication Frequency', type: 'select' },
+      { name: 'preferred_channel', label: 'Preferred Channel', type: 'select' },
+
+      // Engagement & Scoring
+      { name: 'subscription_status', label: 'Subscription Status', type: 'select' },
+      { name: 'engagement_score', label: 'Engagement Score', type: 'number' },
+      { name: 'last_purchase_date', label: 'Last Purchase Date', type: 'date' },
+      { name: 'total_purchases', label: 'Total Purchases', type: 'number' },
+      { name: 'lifetime_value', label: 'Lifetime Value', type: 'number' },
+      { name: 'average_order_value', label: 'Average Order Value', type: 'number' },
+
+      // Loyalty & Rewards
+      { name: 'loyalty_tier', label: 'Loyalty Tier', type: 'select' },
+      { name: 'loyalty_points', label: 'Loyalty Points', type: 'number' },
+      { name: 'referral_count', label: 'Referral Count', type: 'number' },
       { name: 'lifecycle_stage', label: 'Lifecycle Stage', type: 'select' },
-      { name: 'lead_score', label: 'Lead Score', type: 'number' },
-      { name: 'created_at', label: 'Created Date', type: 'date' }
-    ]
-  },
-  {
-    name: 'orders',
-    label: 'Orders',
-    icon: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="21" r="1"/><circle cx="19" cy="21" r="1"/><path d="M2.05 2.05h2l2.66 12.42a2 2 0 0 0 2 1.58h9.78a2 2 0 0 0 1.95-1.57l1.65-7.43H5.12"/></svg>',
-    fields: [
-      { name: 'id', label: 'Order ID', type: 'number' },
-      { name: 'total_amount', label: 'Total Amount', type: 'number' },
-      { name: 'status', label: 'Status', type: 'select' },
+
+      // Marketing Attribution
+      { name: 'source', label: 'Source', type: 'select' },
+      { name: 'campaign_source', label: 'Campaign Source', type: 'text' },
+      { name: 'utm_source', label: 'UTM Source', type: 'text' },
+      { name: 'utm_medium', label: 'UTM Medium', type: 'text' },
+      { name: 'utm_campaign', label: 'UTM Campaign', type: 'text' },
+
+      // Consent & Privacy
+      { name: 'marketing_consent', label: 'Marketing Consent', type: 'boolean' },
+      { name: 'gdpr_consent', label: 'GDPR Consent', type: 'boolean' },
+      { name: 'email_verified', label: 'Email Verified', type: 'boolean' },
+      { name: 'phone_verified', label: 'Phone Verified', type: 'boolean' },
+
+      // Dates
       { name: 'created_at', label: 'Created Date', type: 'date' },
-      { name: 'total_orders', label: 'Total Orders', type: 'number' },
-      { name: 'total_spent', label: 'Total Spent', type: 'number' },
-      { name: 'last_order_date', label: 'Last Order Date', type: 'date' }
-    ]
-  },
-  {
-    name: 'events',
-    label: 'Activity',
-    icon: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>',
-    fields: [
-      { name: 'event_count', label: 'Total Events', type: 'number' },
-      { name: 'last_activity_date', label: 'Last Activity Date', type: 'date' }
+      { name: 'last_activity_at', label: 'Last Activity', type: 'date' }
     ]
   }
 ];
@@ -172,6 +197,57 @@ function capitalizeFirst(str) {
   return str.charAt(0).toUpperCase() + str.slice(1);
 }
 
+// Look up label and type for a rule from attribute definitions + custom objects
+function resolveRuleMetadata(rule) {
+  const allObjects = [...BASE_ATTRIBUTE_OBJECTS, ...(customObjectsCache || [])];
+  const entityDef = allObjects.find(obj => obj.name === rule.entity);
+  if (entityDef && entityDef.fields) {
+    const fieldDef = entityDef.fields.find(f => f.name === rule.attribute);
+    if (fieldDef) {
+      return { label: fieldDef.label, type: fieldDef.type };
+    }
+  }
+  // Fallback: generate a readable label and default to text type
+  const fallbackLabel = (rule.attribute || 'Unknown')
+    .replace(/_/g, ' ')
+    .replace(/\b\w/g, c => c.toUpperCase());
+  return { label: fallbackLabel, type: rule.type || 'text' };
+}
+
+// Convert old-format flat conditions to new rules-based format
+function convertLegacyConditions(conditions) {
+  const legacyKeyMap = {
+    loyalty_tier: { entity: 'customer', attribute: 'lifecycle_stage', type: 'select' },
+    subscription_status: { entity: 'customer', attribute: 'status', type: 'select' },
+    min_engagement_score: { entity: 'customer', attribute: 'lead_score', type: 'number' },
+    interest: { entity: 'customer', attribute: 'lifecycle_stage', type: 'select' }
+  };
+
+  const rules = [];
+  for (const [key, value] of Object.entries(conditions)) {
+    // Skip known new-format keys
+    if (['logic', 'rules', 'base_entity'].includes(key)) continue;
+
+    const mapping = legacyKeyMap[key] || { entity: 'customer', attribute: key, type: 'text' };
+    const operator = mapping.type === 'number' ? 'greater_than_or_equal' : 'equals';
+
+    rules.push({
+      id: Date.now() + Math.random(),
+      entity: mapping.entity,
+      attribute: mapping.attribute,
+      operator: operator,
+      value: String(value),
+      ...resolveRuleMetadata({ entity: mapping.entity, attribute: mapping.attribute, type: mapping.type })
+    });
+  }
+
+  return {
+    logic: 'AND',
+    base_entity: 'customer',
+    rules
+  };
+}
+
 // Load existing segment
 async function loadSegment(id) {
   try {
@@ -184,15 +260,37 @@ async function loadSegment(id) {
     document.getElementById('segment-type').value = segment.segment_type || 'dynamic';
     document.getElementById('segment-name-display').textContent = segment.name;
     
-    // Load rules from conditions
-    if (segment.conditions && segment.conditions.rules) {
-    if (segment.conditions.base_entity) {
-      baseEntity = segment.conditions.base_entity;
-      const baseSelect = document.getElementById('base-entity');
-      if (baseSelect) baseSelect.value = baseEntity;
+    // Determine conditions - handle both new and legacy formats
+    let conditions = segment.conditions;
+    if (conditions && !conditions.rules) {
+      // Legacy format: convert flat key-value conditions to rules
+      conditions = convertLegacyConditions(conditions);
     }
-      rules = segment.conditions.rules;
-      document.getElementById('logic-operator').value = segment.conditions.logic || 'AND';
+
+    // Load rules from conditions
+    if (conditions && conditions.rules) {
+      if (conditions.base_entity) {
+        baseEntity = conditions.base_entity;
+        const baseSelect = document.getElementById('base-entity');
+        if (baseSelect) baseSelect.value = baseEntity;
+      }
+
+      // Reconstruct missing properties (id, label, type) for each rule
+      rules = conditions.rules.map(r => {
+        const meta = resolveRuleMetadata(r);
+        return {
+          id: r.id || Date.now() + Math.random(),
+          entity: r.entity,
+          attribute: r.attribute,
+          label: r.label || meta.label,
+          type: r.type || meta.type,
+          operator: r.operator || getDefaultOperator(meta.type),
+          value: r.value != null ? r.value : '',
+          caseSensitive: r.case_sensitive === true
+        };
+      });
+
+      document.getElementById('logic-operator').value = conditions.logic || 'AND';
       renderRules();
       updatePreview();
     }
@@ -284,7 +382,8 @@ function buildCurrentConditions() {
       entity: r.entity,
       attribute: r.attribute,
       operator: r.operator,
-      value: r.value
+      value: r.value,
+      case_sensitive: !!r.caseSensitive
     }))
   };
 }
@@ -427,7 +526,8 @@ function addRule(attr) {
     label: attr.label,
     type: attr.type,
     operator: getDefaultOperator(attr.type),
-    value: ''
+    value: '',
+    caseSensitive: false
   };
   
   rules.push(rule);
@@ -445,6 +545,7 @@ function addEmptyRule() {
     type: null,
     operator: null,
     value: '',
+    caseSensitive: false,
     isNew: true  // Flag to show attribute selector
   };
   
@@ -503,6 +604,10 @@ function getOperatorsForType(type) {
         { value: 'equals', label: 'is' },
         { value: 'not_equals', label: 'is not' }
       ];
+    case 'boolean':
+      return [
+        { value: 'equals', label: 'is' }
+      ];
     default:
       return [
         { value: 'equals', label: 'equals' },
@@ -525,6 +630,48 @@ function getSelectOptions(entity, attribute) {
       { value: 'vip', label: 'VIP' },
       { value: 'at_risk', label: 'At Risk' },
       { value: 'churned', label: 'Churned' }
+    ];
+  } else if (entity === 'customer' && attribute === 'subscription_status') {
+    return [
+      { value: 'subscribed', label: 'Subscribed' },
+      { value: 'unsubscribed', label: 'Unsubscribed' },
+      { value: 'bounced', label: 'Bounced' },
+      { value: 'pending', label: 'Pending' }
+    ];
+  } else if (entity === 'customer' && attribute === 'gender') {
+    return [
+      { value: 'male', label: 'Male' },
+      { value: 'female', label: 'Female' },
+      { value: 'other', label: 'Other' },
+      { value: 'prefer_not_to_say', label: 'Prefer not to say' }
+    ];
+  } else if (entity === 'customer' && attribute === 'loyalty_tier') {
+    return [
+      { value: 'bronze', label: 'Bronze' },
+      { value: 'silver', label: 'Silver' },
+      { value: 'gold', label: 'Gold' },
+      { value: 'platinum', label: 'Platinum' }
+    ];
+  } else if (entity === 'customer' && attribute === 'preferred_channel') {
+    return [
+      { value: 'email', label: 'Email' },
+      { value: 'sms', label: 'SMS' },
+      { value: 'push', label: 'Push' },
+      { value: 'whatsapp', label: 'WhatsApp' }
+    ];
+  } else if (entity === 'customer' && attribute === 'communication_frequency') {
+    return [
+      { value: 'daily', label: 'Daily' },
+      { value: 'weekly', label: 'Weekly' },
+      { value: 'monthly', label: 'Monthly' }
+    ];
+  } else if (entity === 'customer' && attribute === 'source') {
+    return [
+      { value: 'organic', label: 'Organic' },
+      { value: 'paid', label: 'Paid' },
+      { value: 'social', label: 'Social' },
+      { value: 'referral', label: 'Referral' },
+      { value: 'email', label: 'Email' }
     ];
   }
   return [];
@@ -600,6 +747,13 @@ function renderRule(rule) {
                  onchange="updateRuleValue(${rule.id}, this.value)">
         `;
       }
+    } else if (rule.type === 'boolean') {
+      valueInput = `
+        <select class="rule-select" onchange="updateRuleValue(${rule.id}, this.value)">
+          <option value="true" ${rule.value === 'true' || rule.value === true ? 'selected' : ''}>Yes</option>
+          <option value="false" ${rule.value === 'false' || rule.value === false || !rule.value ? 'selected' : ''}>No</option>
+        </select>
+      `;
     } else {
       valueInput = `
         <input type="text" class="rule-input" 
@@ -609,6 +763,12 @@ function renderRule(rule) {
       `;
     }
   }
+
+  // Case-sensitive toggle for text conditions that have a value
+  const isTextWithValue = rule.type === 'text' && !noValueOperators.includes(rule.operator);
+  const caseToggleHtml = isTextWithValue
+    ? `<label class="rule-case-toggle"><input type="checkbox" ${rule.caseSensitive ? 'checked' : ''} onchange="updateRuleCaseSensitive(${rule.id}, this.checked)"> Case sensitive</label>`
+    : '';
   
   return `
     <div class="rule-item" data-rule-id="${rule.id}">
@@ -623,6 +783,7 @@ function renderRule(rule) {
           ${operatorOptions}
         </select>
         ${valueInput}
+        ${caseToggleHtml}
       </div>
       <button class="rule-delete" onclick="deleteRule(${rule.id})" title="Remove condition">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
@@ -813,6 +974,15 @@ function updateRuleOperator(ruleId, operator) {
   if (rule) {
     rule.operator = operator;
     renderRules();
+    updatePreviewDebounced();
+  }
+}
+
+// Update rule case-sensitive flag (for text conditions)
+function updateRuleCaseSensitive(ruleId, checked) {
+  const rule = rules.find(r => r.id === ruleId);
+  if (rule) {
+    rule.caseSensitive = !!checked;
     updatePreviewDebounced();
   }
 }
@@ -1066,6 +1236,8 @@ async function saveSegment(activate = false) {
       rules: rules.map(r => ({
         entity: r.entity,
         attribute: r.attribute,
+        label: r.label,
+        type: r.type,
         operator: r.operator,
         value: r.value
       }))
@@ -1190,24 +1362,25 @@ function generateSQL() {
     const columnName = rule.attribute;
     const value = rule.value;
     
+    const caseNote = rule.caseSensitive ? ' /* case sensitive */' : '';
     switch (rule.operator) {
       case 'equals':
-        condition = `${tableName}.${columnName} = '${value}'`;
+        condition = `${tableName}.${columnName} = '${value}'${caseNote}`;
         break;
       case 'not_equals':
-        condition = `${tableName}.${columnName} != '${value}'`;
+        condition = `${tableName}.${columnName} != '${value}'${caseNote}`;
         break;
       case 'contains':
-        condition = `${tableName}.${columnName} LIKE '%${value}%'`;
+        condition = `${tableName}.${columnName} LIKE '%${value}%'${caseNote}`;
         break;
       case 'not_contains':
-        condition = `${tableName}.${columnName} NOT LIKE '%${value}%'`;
+        condition = `${tableName}.${columnName} NOT LIKE '%${value}%'${caseNote}`;
         break;
       case 'starts_with':
-        condition = `${tableName}.${columnName} LIKE '${value}%'`;
+        condition = `${tableName}.${columnName} LIKE '${value}%'${caseNote}`;
         break;
       case 'ends_with':
-        condition = `${tableName}.${columnName} LIKE '%${value}'`;
+        condition = `${tableName}.${columnName} LIKE '%${value}'${caseNote}`;
         break;
       case 'greater_than':
         condition = `${tableName}.${columnName} > ${value}`;

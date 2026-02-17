@@ -304,6 +304,225 @@ router.post('/:id/ui/versions/:versionId/restore', (req, res) => {
   }
 });
 
+// ── DDL Import — parse SQL DDL and create custom objects ──────────────
+router.post('/import-ddl', upload.single('file'), (req, res) => {
+  try {
+    let ddlText = '';
+    if (req.file) {
+      ddlText = req.file.buffer.toString('utf-8');
+    } else if (req.body.ddl) {
+      ddlText = req.body.ddl;
+    }
+    if (!ddlText.trim()) {
+      return res.status(400).json({ error: 'No DDL content provided. Upload a file or pass a "ddl" field.' });
+    }
+
+    const created = [];
+    const errors = [];
+
+    // Built-in system entities that can be referenced in DDL relationships
+    const systemEntities = new Set([
+      'contacts', 'segments', 'audiences', 'workflows', 'deliveries',
+      'orders', 'products', 'events', 'templates', 'forms',
+      'content_templates', 'landing_pages', 'fragments', 'brands', 'assets',
+      'subscription_services', 'subscriptions', 'predefined_filters',
+      'loyalty_programs', 'enumerations'
+    ]);
+
+    // Track tables created during this import session for cross-referencing
+    const createdInSession = new Set();
+
+    // Extract CREATE TABLE statements (handles multi-line, various SQL dialects)
+    const tableRegex = /CREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?[`"']?(\w+)[`"']?\s*\(([\s\S]*?)\)\s*(?:ENGINE|;|$)/gi;
+    let match;
+
+    while ((match = tableRegex.exec(ddlText)) !== null) {
+      const rawName = match[1].toLowerCase();
+      const bodyText = match[2];
+
+      // Skip system/internal tables
+      if (['information_schema', 'pg_catalog', 'sys'].some(s => rawName.startsWith(s))) continue;
+
+      // Check for duplicate
+      const existing = query.all('custom_objects').find(o => o.name === rawName);
+      if (existing) {
+        errors.push(`Table "${rawName}" already exists — skipped.`);
+        continue;
+      }
+
+      // Validate name
+      if (!/^[a-z][a-z0-9_]*$/.test(rawName)) {
+        errors.push(`Table "${rawName}" has an invalid name — skipped.`);
+        continue;
+      }
+
+      // Parse columns
+      const fields = [];
+      const relationships = [];
+      const lines = bodyText.split(',').map(l => l.trim()).filter(Boolean);
+
+      for (const line of lines) {
+        // Skip constraints, indexes, keys (multi-word keywords)
+        if (/^\s*(PRIMARY\s+KEY|UNIQUE|INDEX|KEY|CONSTRAINT|CHECK|FOREIGN\s+KEY|ALTER)/i.test(line)) {
+          // Try to parse FOREIGN KEY for relationships
+          const fkMatch = line.match(/FOREIGN\s+KEY\s*\([`"']?(\w+)[`"']?\)\s*REFERENCES\s+[`"']?(\w+)[`"']?\s*\([`"']?(\w+)[`"']?\)/i);
+          if (fkMatch) {
+            relationships.push({
+              name: `${rawName}_to_${fkMatch[2].toLowerCase()}`,
+              to_table: fkMatch[2].toLowerCase(),
+              to_field: fkMatch[3].toLowerCase(),
+              type: 'N:1'
+            });
+          }
+          continue;
+        }
+
+        // Parse column: name type [modifiers...]
+        // Support ENUM_REF(enum_internal_name) to reference a defined enumeration
+        const enumRefMatch = line.match(/^[`"']?(\w+)[`"']?\s+ENUM_REF\s*\(\s*(\w+)\s*\)/i);
+        const colMatch = enumRefMatch || line.match(/^[`"']?(\w+)[`"']?\s+(\w+(?:\(\d+(?:,\s*\d+)?\))?)/i);
+        if (!colMatch) continue;
+
+        const colName = colMatch[1].toLowerCase();
+        const colTypeRaw = enumRefMatch ? 'enum_ref' : (colMatch[2] || '').toLowerCase();
+        const enumRef = enumRefMatch ? enumRefMatch[2].toLowerCase() : null;
+
+        // Skip auto-generated columns we handle ourselves
+        if (['created_at', 'updated_at'].includes(colName)) continue;
+
+        // Map SQL types to our field types
+        let fieldType = 'text';
+        if (colTypeRaw === 'enum_ref' && enumRef) {
+          fieldType = 'select';
+        } else if (/^(int|integer|bigint|smallint|tinyint|serial|bigserial)/.test(colTypeRaw)) fieldType = 'number';
+        else if (/^(decimal|numeric|float|double|real|money)/.test(colTypeRaw)) fieldType = 'number';
+        else if (/^(date)$/.test(colTypeRaw)) fieldType = 'date';
+        else if (/^(datetime|timestamp|timestamptz)/.test(colTypeRaw)) fieldType = 'datetime';
+        else if (/^(bool|boolean)/.test(colTypeRaw)) fieldType = 'boolean';
+        else if (/^(enum|set)/.test(colTypeRaw)) fieldType = 'select';
+
+        const isPrimary = /PRIMARY\s+KEY/i.test(line) || (colName === 'id' && /auto_increment|serial/i.test(line));
+        const isRequired = /NOT\s+NULL/i.test(line) || isPrimary;
+
+        // Detect FK references inline: column_name INT REFERENCES other_table(id)
+        const inlineFk = line.match(/REFERENCES\s+[`"']?(\w+)[`"']?\s*\([`"']?(\w+)[`"']?\)/i);
+        if (inlineFk) {
+          relationships.push({
+            name: `${rawName}_to_${inlineFk[1].toLowerCase()}`,
+            to_table: inlineFk[1].toLowerCase(),
+            to_field: inlineFk[2].toLowerCase(),
+            type: 'N:1'
+          });
+        }
+
+        // Auto-detect FK by naming convention (e.g. contact_id → contacts)
+        if (!inlineFk && colName.endsWith('_id') && colName !== 'id') {
+          const guessTable = colName.replace(/_id$/, '') + 's'; // naive pluralize
+          relationships.push({
+            name: `${rawName}_to_${guessTable}`,
+            to_table: guessTable,
+            to_field: 'id',
+            type: 'N:1'
+          });
+        }
+
+        // Generate a human-readable label
+        const label = colName.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+
+        const fieldDef = {
+          name: colName,
+          label,
+          type: fieldType,
+          is_primary: isPrimary,
+          is_required: isRequired
+        };
+        if (enumRef) fieldDef.enum_ref = enumRef;
+        fields.push(fieldDef);
+      }
+
+      if (fields.length === 0) {
+        errors.push(`Table "${rawName}" has no parseable columns — skipped.`);
+        continue;
+      }
+
+      // Create the custom object
+      const result = query.insert('custom_objects', {
+        name: rawName,
+        label: rawName.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase()),
+        description: `Imported from DDL`,
+        fields,
+        relationships,
+        record_count: 0,
+        is_active: true
+      });
+
+      if (!db.custom_object_data[rawName]) {
+        db.custom_object_data[rawName] = [];
+      }
+
+      createdInSession.add(rawName);
+
+      // Handle N:N relationships and reverse links
+      const linkedTables = [];
+      const systemLinked = [];
+      const missingTables = [];
+      relationships.forEach(rel => {
+        if (!rel.to_table) return;
+
+        // 1. Check if target is another custom object (existing or just created in this batch)
+        const existsAsCustomObj = query.all('custom_objects').find(o => o.name === rel.to_table);
+        if (existsAsCustomObj) {
+          linkedTables.push(rel.to_table);
+          if (rel.type === 'N:N') {
+            ensureJunctionObject(rawName, rel.to_table);
+          } else {
+            ensureReverseRelationship(result.record, rel);
+          }
+          return;
+        }
+
+        // 2. Check if target is a built-in system entity (contacts, orders, etc.)
+        if (systemEntities.has(rel.to_table)) {
+          systemLinked.push(rel.to_table);
+          return; // Relationship is saved in the object; reverse link doesn't apply to built-in entities
+        }
+
+        // 3. Check if target was created earlier in this same DDL import session
+        if (createdInSession.has(rel.to_table)) {
+          linkedTables.push(rel.to_table);
+          const batchObj = query.all('custom_objects').find(o => o.name === rel.to_table);
+          if (batchObj && rel.type !== 'N:N') {
+            ensureReverseRelationship(result.record, rel);
+          } else if (batchObj && rel.type === 'N:N') {
+            ensureJunctionObject(rawName, rel.to_table);
+          }
+          return;
+        }
+
+        // 4. Not found anywhere
+        missingTables.push(rel.to_table);
+      });
+
+      if (missingTables.length > 0) {
+        errors.push(`Table "${rawName}": referenced table(s) not found in system — ${missingTables.join(', ')}. Relationships saved but reverse links not created.`);
+      }
+
+      created.push({ id: result.record.id, name: rawName, fields: fields.length, relationships: relationships.length, linkedTables, systemLinked, missingTables });
+    }
+
+    if (created.length > 0) saveDatabase();
+
+    res.json({
+      success: true,
+      created,
+      errors,
+      summary: `Created ${created.length} object(s)${errors.length ? `, ${errors.length} skipped/error(s)` : ''}`
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // Create custom object
 router.post('/', (req, res) => {
   try {

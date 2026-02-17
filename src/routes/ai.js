@@ -91,6 +91,89 @@ router.post('/generate-subject', async (req, res) => {
   }
 });
 
+// Generate / refine SMS message
+router.post('/generate-sms', async (req, res) => {
+  try {
+    const { prompt, tone = 'professional', length = 'short', language = 'English', currentMessage = '', action = 'generate' } = req.body;
+    if (!prompt && action === 'generate') return res.status(400).json({ error: 'prompt is required' });
+
+    const toneGuide = { professional: 'professional and polished', friendly: 'warm and conversational', casual: 'casual and relaxed', urgent: 'urgent and action-oriented', playful: 'playful and fun', formal: 'formal and authoritative' };
+    const lengthGuide = { short: 'under 100 characters', medium: 'around 120-150 characters', long: 'up to 160 characters (one SMS segment)' };
+    const toneDesc = toneGuide[tone] || tone;
+    const lenDesc = lengthGuide[length] || length;
+
+    let aiPrompt;
+    if (action === 'refine' && currentMessage) {
+      aiPrompt = `Refine the following SMS marketing message. Keep the same intent but make it ${toneDesc}. Target length: ${lenDesc}. Language: ${language}.\n\nOriginal message:\n"${currentMessage}"\n\nAdditional instructions: ${prompt || 'Improve clarity and impact.'}\n\nReturn exactly 3 refined variations, one per line, without numbering or quotes.`;
+    } else {
+      aiPrompt = `Write an SMS marketing message about: "${prompt}". Tone: ${toneDesc}. Target length: ${lenDesc}. Language: ${language}. It should be compelling and include a clear call-to-action. Do not use hashtags. Return exactly 3 message variations, one per line, without numbering or quotes.`;
+    }
+
+    const result = await callOpenAI(aiPrompt, 'You are an expert SMS marketing copywriter. Write concise, high-converting SMS messages.');
+
+    if (result) {
+      const messages = result.split('\n').filter(s => s.trim()).slice(0, 3);
+      res.json({ messages, source: 'openai', action, tone, length });
+    } else {
+      const base = prompt || 'your product';
+      const mocks = {
+        professional: [`Hi {{first_name}}, ${base} is now available. Explore our latest collection and save 20%. Shop now: {{short_url}}`, `{{first_name}}, don't miss our exclusive ${base} offer. Limited availability. Details: {{short_url}}`, `Important update for you, {{first_name}}: ${base} just launched. Claim your early-access discount: {{short_url}}`],
+        friendly: [`Hey {{first_name}}! We thought you'd love ${base}. Check it out and grab 20% off today: {{short_url}}`, `{{first_name}}, guess what? ${base} is here! We saved one for you. Take a peek: {{short_url}}`, `Good news, {{first_name}}! ${base} just dropped and it's awesome. Don't miss out: {{short_url}}`],
+        casual: [`Yo {{first_name}}! ${base} just dropped. Check it out: {{short_url}}`, `{{first_name}} - ${base} is live. Pretty cool stuff: {{short_url}}`, `New drop alert: ${base}. Thought you should know: {{short_url}}`],
+        urgent: [`LAST CHANCE {{first_name}}! ${base} ends tonight. Act now: {{short_url}}`, `{{first_name}}, only hours left to get ${base} at 30% off. Don't wait: {{short_url}}`, `HURRY: ${base} is almost sold out. Secure yours: {{short_url}}`],
+        playful: [`Psst, {{first_name}}... ${base} is calling your name! Answer here: {{short_url}}`, `{{first_name}}, we made something you'll LOVE: ${base}. Spoil yourself: {{short_url}}`, `Plot twist: ${base} just got even better. The surprise: {{short_url}}`],
+        formal: [`Dear {{first_name}}, we are pleased to announce ${base}. Learn more: {{short_url}}`, `{{first_name}}, we invite you to discover our latest ${base} offering. Details: {{short_url}}`, `Please be advised: ${base} is now available for your consideration. Review: {{short_url}}`]
+      };
+      const msgs = mocks[tone] || mocks.professional;
+      res.json({ messages: msgs, source: 'mock', message: 'Using mock data. Add OPENAI_API_KEY for real AI.', action, tone, length });
+    }
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Generate / refine Push notification
+router.post('/generate-push', async (req, res) => {
+  try {
+    const { prompt, tone = 'professional', language = 'English', currentTitle = '', currentBody = '', action = 'generate' } = req.body;
+    if (!prompt && action === 'generate') return res.status(400).json({ error: 'prompt is required' });
+
+    const toneGuide = { professional: 'professional and polished', friendly: 'warm and conversational', casual: 'casual and relaxed', urgent: 'urgent and action-oriented', playful: 'playful and fun', formal: 'formal and authoritative' };
+    const toneDesc = toneGuide[tone] || tone;
+
+    let aiPrompt;
+    if (action === 'refine' && (currentTitle || currentBody)) {
+      aiPrompt = `Refine this push notification. Tone: ${toneDesc}. Language: ${language}.\n\nCurrent title: "${currentTitle}"\nCurrent body: "${currentBody}"\nInstructions: ${prompt || 'Improve engagement.'}\n\nReturn exactly 3 variations. Each variation on its own line in the format: TITLE | BODY\nTitle max 50 chars, body max 150 chars. No numbering.`;
+    } else {
+      aiPrompt = `Write a push notification about: "${prompt}". Tone: ${toneDesc}. Language: ${language}.\n\nReturn exactly 3 variations. Each variation on its own line in format: TITLE | BODY\nTitle max 50 chars, body max 150 chars. No numbering.`;
+    }
+
+    const result = await callOpenAI(aiPrompt, 'You are an expert mobile push notification copywriter.');
+
+    if (result) {
+      const notifications = result.split('\n').filter(s => s.trim() && s.includes('|')).slice(0, 3).map(line => {
+        const parts = line.split('|').map(p => p.trim());
+        return { title: parts[0] || '', body: parts[1] || '' };
+      });
+      res.json({ notifications, source: 'openai', action, tone });
+    } else {
+      const base = prompt || 'your product';
+      const mocks = {
+        professional: [{ title: 'New from us', body: `{{first_name}}, ${base} is now available. Explore and save 20% today.` }, { title: 'Exclusive offer', body: `${base} — limited-time pricing for valued customers like you.` }, { title: 'Just launched', body: `${base} is here. Be among the first to experience it.` }],
+        friendly: [{ title: 'Hey, check this out!', body: `{{first_name}}, we think you'll love ${base}. Come take a look!` }, { title: 'Something new for you', body: `${base} just landed and it's pretty great. Tap to see!` }, { title: "You're gonna love this", body: `${base} is live! We saved the best for you.` }],
+        urgent: [{ title: "Don't miss out!", body: `{{first_name}}, ${base} ends soon. Act now before it's gone!` }, { title: 'Last chance!', body: `Only hours left for ${base}. Don't wait — tap now.` }, { title: 'Hurry!', body: `${base} is almost sold out. Secure yours right now.` }],
+        casual: [{ title: 'New drop', body: `${base} is live. Check it out when you get a sec.` }, { title: 'FYI', body: `${base} just dropped. Thought you should know.` }, { title: 'Quick heads up', body: `${base} is here. Pretty cool stuff inside.` }],
+        playful: [{ title: 'Surprise!', body: `${base} is calling your name, {{first_name}}. Answer it!` }, { title: 'Plot twist', body: `${base} just got even better. Tap to see the surprise.` }, { title: 'Guess what?', body: `We made something you'll LOVE. Hint: it's ${base}.` }],
+        formal: [{ title: 'Important update', body: `We are pleased to announce ${base}. Tap for details.` }, { title: 'New announcement', body: `${base} is now available. Review the details at your convenience.` }, { title: 'Official notice', body: `${base} has launched. We invite you to explore.` }]
+      };
+      const notifs = mocks[tone] || mocks.professional;
+      res.json({ notifications: notifs, source: 'mock', message: 'Using mock data. Add OPENAI_API_KEY for real AI.', action, tone });
+    }
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // Predict customer churn
 router.post('/predict-churn', async (req, res) => {
   try {
@@ -523,6 +606,478 @@ router.post('/generate-content', async (req, res) => {
     }
   } catch (error) {
     console.error('Error generating content:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// ── AI-powered workflow flow suggestion ───────────────────────
+const VALID_NODE_TYPES = {
+  // Flow
+  entry: { category: 'flow', desc: 'Start of workflow' },
+  exit: { category: 'flow', desc: 'End of workflow' },
+  // Targeting
+  segment: { category: 'targeting', desc: 'Filter by segment' },
+  filter: { category: 'targeting', desc: 'Custom conditions' },
+  exclude: { category: 'targeting', desc: 'Exclude contacts' },
+  split: { category: 'targeting', desc: 'Segment population / A/B split' },
+  query: { category: 'targeting', desc: 'Build target query' },
+  build_audience: { category: 'targeting', desc: 'Use audience or query' },
+  deduplication: { category: 'targeting', desc: 'Remove duplicates' },
+  enrichment: { category: 'targeting', desc: 'Add data fields' },
+  save_audience: { category: 'targeting', desc: 'Save results' },
+  // Flow control
+  wait: { category: 'flow_control', desc: 'Delay execution' },
+  condition: { category: 'flow_control', desc: 'If/else branching' },
+  scheduler: { category: 'flow_control', desc: 'Run on schedule' },
+  fork: { category: 'flow_control', desc: 'Parallel branches' },
+  // Channels
+  email: { category: 'channels', desc: 'Send email' },
+  sms: { category: 'channels', desc: 'Send SMS' },
+  push: { category: 'channels', desc: 'Push notification' },
+  webhook: { category: 'channels', desc: 'HTTP callback' },
+  // Tracking
+  goal: { category: 'tracking', desc: 'Track conversion goal' }
+};
+
+router.post('/suggest-flow', async (req, res) => {
+  try {
+    const { name, description } = req.body;
+    if (!name) {
+      return res.status(400).json({ error: 'Workflow name is required' });
+    }
+
+    const nodeTypeList = Object.entries(VALID_NODE_TYPES)
+      .map(([type, info]) => `  ${type} (${info.category}) — ${info.desc}`)
+      .join('\n');
+
+    const prompt = `Design a marketing automation workflow based on this brief:
+
+Name: "${name}"
+${description ? `Description: "${description}"` : ''}
+
+Available node types:
+${nodeTypeList}
+
+Return a JSON array of workflow nodes. Each node must have:
+- "type": one of the listed node types above (use exact type key)
+- "name": a short descriptive label for this step (5 words max)
+- "config": an object with relevant settings, for example:
+  - wait nodes: { "wait_time": <number>, "wait_unit": "hours"|"days" }
+  - email nodes: { "subject": "<subject line>" }
+  - sms nodes: { "message": "<sms text>" }
+  - condition nodes: { "condition_type": "<what to check>", "time_window": <days> }
+  - segment/filter nodes: { "action": "include"|"exclude", "criteria": "<description>" }
+  - split nodes: { "split_ratio": 50 }
+  - goal nodes: { "goal_type": "<conversion event>" }
+
+Rules:
+- Always start with an "entry" node and end with an "exit" node
+- Use 5-12 nodes total for a practical flow
+- Include appropriate wait times between messages (hours or days)
+- Use conditions to branch based on user behavior
+- Pick channels (email, sms, push) that make sense for the use case
+- Nodes are connected sequentially (top to bottom) — the array order IS the flow order
+
+Return ONLY a valid JSON array, no explanation or markdown.`;
+
+    const result = await callOpenAI(prompt, 
+      'You are a marketing automation architect. You design highly effective customer journey workflows. Return only valid JSON arrays — no markdown, no explanation, no code fences.');
+
+    let flow = null;
+
+    if (result) {
+      try {
+        // Strip any markdown code fences the LLM might add
+        const cleaned = result.replace(/```(?:json)?\s*/gi, '').replace(/```/g, '').trim();
+        flow = JSON.parse(cleaned);
+      } catch (parseErr) {
+        console.error('[AI] Failed to parse flow JSON:', parseErr.message, '\nRaw:', result);
+      }
+    }
+
+    if (flow && Array.isArray(flow)) {
+      // Validate & sanitize each node
+      const sanitized = flow
+        .filter(n => n && n.type)
+        .map(n => {
+          const typeDef = VALID_NODE_TYPES[n.type];
+          if (!typeDef) {
+            // Try to map close matches
+            const lower = (n.type || '').toLowerCase().replace(/[^a-z_]/g, '');
+            const match = Object.keys(VALID_NODE_TYPES).find(k => k === lower);
+            if (match) {
+              n.type = match;
+            } else {
+              return null; // Unknown type, skip
+            }
+          }
+          return {
+            type: n.type,
+            category: VALID_NODE_TYPES[n.type]?.category || 'flow',
+            name: String(n.name || n.type).slice(0, 40),
+            config: n.config && typeof n.config === 'object' ? n.config : {}
+          };
+        })
+        .filter(Boolean);
+
+      // Ensure it starts with entry and ends with exit
+      if (sanitized.length > 0 && sanitized[0].type !== 'entry') {
+        sanitized.unshift({ type: 'entry', category: 'flow', name: 'Entry Point', config: {} });
+      }
+      if (sanitized.length > 0 && sanitized[sanitized.length - 1].type !== 'exit') {
+        sanitized.push({ type: 'exit', category: 'flow', name: 'Exit', config: {} });
+      }
+
+      return res.json({ flow: sanitized, source: 'openai' });
+    }
+
+    // ── Mock fallback: generate a sensible flow from keywords ──
+    const lowerName = (name + ' ' + (description || '')).toLowerCase();
+    let mockFlow;
+
+    if (/welcome|onboard|sign.?up|new.?sub/i.test(lowerName)) {
+      mockFlow = [
+        { type: 'entry', category: 'flow', name: 'New Subscriber', config: {} },
+        { type: 'email', category: 'channels', name: 'Welcome Email', config: { subject: `Welcome to ${name}!` } },
+        { type: 'wait', category: 'flow_control', name: 'Wait 1 Day', config: { wait_time: 1, wait_unit: 'days' } },
+        { type: 'email', category: 'channels', name: 'Getting Started Guide', config: { subject: 'Getting started — quick tips' } },
+        { type: 'wait', category: 'flow_control', name: 'Wait 3 Days', config: { wait_time: 3, wait_unit: 'days' } },
+        { type: 'condition', category: 'flow_control', name: 'Made Purchase?', config: { condition_type: 'purchased', time_window: 7 } },
+        { type: 'email', category: 'channels', name: 'First Purchase Offer', config: { subject: '20% off your first order' } },
+        { type: 'exit', category: 'flow', name: 'Exit', config: {} }
+      ];
+    } else if (/cart|abandon|recover/i.test(lowerName)) {
+      mockFlow = [
+        { type: 'entry', category: 'flow', name: 'Cart Abandoned', config: {} },
+        { type: 'wait', category: 'flow_control', name: 'Wait 1 Hour', config: { wait_time: 1, wait_unit: 'hours' } },
+        { type: 'email', category: 'channels', name: 'Cart Reminder', config: { subject: 'You left items in your cart!' } },
+        { type: 'wait', category: 'flow_control', name: 'Wait 24 Hours', config: { wait_time: 24, wait_unit: 'hours' } },
+        { type: 'condition', category: 'flow_control', name: 'Still No Purchase?', config: { condition_type: 'purchased', time_window: 1 } },
+        { type: 'email', category: 'channels', name: 'Discount Incentive', config: { subject: '10% off to complete your order' } },
+        { type: 'wait', category: 'flow_control', name: 'Wait 48 Hours', config: { wait_time: 48, wait_unit: 'hours' } },
+        { type: 'email', category: 'channels', name: 'Final Reminder', config: { subject: 'Last chance — cart expiring soon' } },
+        { type: 'exit', category: 'flow', name: 'Exit', config: {} }
+      ];
+    } else if (/win.?back|re.?engage|inactive|churn/i.test(lowerName)) {
+      mockFlow = [
+        { type: 'entry', category: 'flow', name: 'Inactive Customer', config: {} },
+        { type: 'filter', category: 'targeting', name: 'Filter Inactive 60d+', config: { filter_field: 'last_purchase_date', operator: 'greater_than', filter_value: '60' } },
+        { type: 'email', category: 'channels', name: 'We Miss You', config: { subject: 'We miss you — come back!' } },
+        { type: 'wait', category: 'flow_control', name: 'Wait 3 Days', config: { wait_time: 3, wait_unit: 'days' } },
+        { type: 'condition', category: 'flow_control', name: 'Opened Email?', config: { condition_type: 'email_opened', time_window: 3 } },
+        { type: 'email', category: 'channels', name: '25% Off Comeback', config: { subject: '25% off — welcome back!' } },
+        { type: 'wait', category: 'flow_control', name: 'Wait 7 Days', config: { wait_time: 7, wait_unit: 'days' } },
+        { type: 'condition', category: 'flow_control', name: 'Converted?', config: { condition_type: 'purchased', time_window: 7 } },
+        { type: 'exit', category: 'flow', name: 'Exit', config: {} }
+      ];
+    } else if (/vip|loyal|reward|exclusive/i.test(lowerName)) {
+      mockFlow = [
+        { type: 'entry', category: 'flow', name: 'VIP Campaign Start', config: {} },
+        { type: 'segment', category: 'targeting', name: 'VIP Segment', config: { action: 'include', criteria: 'VIP customers' } },
+        { type: 'email', category: 'channels', name: 'Exclusive VIP Offer', config: { subject: 'Exclusive offer just for you' } },
+        { type: 'wait', category: 'flow_control', name: 'Wait 2 Days', config: { wait_time: 2, wait_unit: 'days' } },
+        { type: 'condition', category: 'flow_control', name: 'Opened Email?', config: { condition_type: 'email_opened', time_window: 2 } },
+        { type: 'email', category: 'channels', name: 'Follow-up Reminder', config: { subject: 'Don\'t miss your VIP deal' } },
+        { type: 'exit', category: 'flow', name: 'Exit', config: {} }
+      ];
+    } else if (/sale|promo|discount|flash|black.?friday|holiday/i.test(lowerName)) {
+      mockFlow = [
+        { type: 'entry', category: 'flow', name: 'Campaign Start', config: {} },
+        { type: 'segment', category: 'targeting', name: 'Active Subscribers', config: { action: 'include', criteria: 'Engaged contacts' } },
+        { type: 'split', category: 'targeting', name: 'A/B Test', config: { split_ratio: 50 } },
+        { type: 'email', category: 'channels', name: 'Promo Email', config: { subject: `${name} — Don't miss out!` } },
+        { type: 'wait', category: 'flow_control', name: 'Wait 1 Day', config: { wait_time: 1, wait_unit: 'days' } },
+        { type: 'condition', category: 'flow_control', name: 'Opened?', config: { condition_type: 'email_opened', time_window: 1 } },
+        { type: 'sms', category: 'channels', name: 'SMS Reminder', config: { message: `Last chance! ${name} ends soon. Shop now.` } },
+        { type: 'exit', category: 'flow', name: 'Exit', config: {} }
+      ];
+    } else if (/birthday|anniversary|milestone/i.test(lowerName)) {
+      mockFlow = [
+        { type: 'entry', category: 'flow', name: 'Milestone Trigger', config: {} },
+        { type: 'email', category: 'channels', name: 'Happy Birthday Email', config: { subject: `Happy Birthday! Here's a gift for you` } },
+        { type: 'wait', category: 'flow_control', name: 'Wait 3 Days', config: { wait_time: 3, wait_unit: 'days' } },
+        { type: 'condition', category: 'flow_control', name: 'Used Gift?', config: { condition_type: 'purchased', time_window: 3 } },
+        { type: 'sms', category: 'channels', name: 'Reminder SMS', config: { message: 'Your birthday gift is waiting! Redeem before it expires.' } },
+        { type: 'exit', category: 'flow', name: 'Exit', config: {} }
+      ];
+    } else if (/nurture|drip|education|series/i.test(lowerName)) {
+      mockFlow = [
+        { type: 'entry', category: 'flow', name: 'Lead Enters Nurture', config: {} },
+        { type: 'email', category: 'channels', name: 'Intro Email', config: { subject: `Discover what ${name} can do` } },
+        { type: 'wait', category: 'flow_control', name: 'Wait 3 Days', config: { wait_time: 3, wait_unit: 'days' } },
+        { type: 'condition', category: 'flow_control', name: 'Opened Intro?', config: { condition_type: 'email_opened', time_window: 3 } },
+        { type: 'email', category: 'channels', name: 'Deep Dive Email', config: { subject: 'How customers succeed with us' } },
+        { type: 'wait', category: 'flow_control', name: 'Wait 4 Days', config: { wait_time: 4, wait_unit: 'days' } },
+        { type: 'email', category: 'channels', name: 'Social Proof Email', config: { subject: 'See what others are saying' } },
+        { type: 'wait', category: 'flow_control', name: 'Wait 3 Days', config: { wait_time: 3, wait_unit: 'days' } },
+        { type: 'email', category: 'channels', name: 'CTA Email', config: { subject: 'Ready to get started?' } },
+        { type: 'exit', category: 'flow', name: 'Exit', config: {} }
+      ];
+    } else {
+      // Generic flow based on name
+      mockFlow = [
+        { type: 'entry', category: 'flow', name: 'Campaign Start', config: {} },
+        { type: 'segment', category: 'targeting', name: 'Target Audience', config: { action: 'include', criteria: description || 'Matching contacts' } },
+        { type: 'email', category: 'channels', name: `${name} Email`, config: { subject: name } },
+        { type: 'wait', category: 'flow_control', name: 'Wait 2 Days', config: { wait_time: 2, wait_unit: 'days' } },
+        { type: 'condition', category: 'flow_control', name: 'Engaged?', config: { condition_type: 'email_opened', time_window: 2 } },
+        { type: 'email', category: 'channels', name: 'Follow-up Email', config: { subject: `Reminder: ${name}` } },
+        { type: 'exit', category: 'flow', name: 'Exit', config: {} }
+      ];
+    }
+
+    res.json({
+      flow: mockFlow,
+      source: 'mock',
+      message: 'Using intelligent mock. Add OPENAI_API_KEY for full AI generation.'
+    });
+  } catch (error) {
+    console.error('Error suggesting flow:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// ── AI-powered workflow optimization ──────────────────────────
+router.post('/optimize-flow', async (req, res) => {
+  try {
+    const { name, description, nodes: currentNodes, connections: currentConnections } = req.body;
+
+    if (!currentNodes || currentNodes.length === 0) {
+      return res.status(400).json({ error: 'No nodes on canvas to optimize' });
+    }
+
+    // Build a readable summary of the current flow
+    const nodesSummary = currentNodes.map((n, i) => {
+      const config = n.config || {};
+      let detail = '';
+      if (n.type === 'wait' && config.wait_time) detail = ` (${config.wait_time} ${config.wait_unit || 'hours'})`;
+      if (n.type === 'email' && config.subject) detail = ` (subject: "${config.subject}")`;
+      if (n.type === 'sms' && config.message) detail = ` (msg: "${config.message.slice(0, 40)}")`;
+      if (n.type === 'condition' && config.condition_type) detail = ` (check: ${config.condition_type})`;
+      if (n.type === 'split' && config.split_ratio) detail = ` (${config.split_ratio}/${100 - config.split_ratio})`;
+      return `  ${i + 1}. [${n.type}] "${n.name}"${detail}`;
+    }).join('\n');
+
+    const connectionsSummary = (currentConnections || []).map(c => {
+      const fromNode = currentNodes.find(n => n.id === c.from);
+      const toNode = currentNodes.find(n => n.id === c.to);
+      return `  ${fromNode?.name || c.from} → ${toNode?.name || c.to}`;
+    }).join('\n');
+
+    const prompt = `Analyze this marketing automation workflow and provide optimization recommendations.
+
+Workflow: "${name || 'Untitled'}"${description ? `\nDescription: "${description}"` : ''}
+
+Current nodes (${currentNodes.length}):
+${nodesSummary}
+
+Current connections:
+${connectionsSummary || '  (none)'}
+
+Provide your analysis as a JSON object with these fields:
+- "issues": array of objects, each with "severity" ("critical"|"warning"|"info"), "message" (short description), and "suggestion" (what to do)
+- "score": number 1-100 rating the flow quality
+- "improved_flow": an optimized version as a JSON array of nodes, each with "type", "name", "config" (same format as suggest-flow). Only include this if you have meaningful improvements. Keep existing good nodes but improve ordering, add missing nodes, fix timing, etc.
+
+Available node types: entry, exit, segment, filter, exclude, split, query, build_audience, deduplication, enrichment, save_audience, wait, condition, scheduler, fork, email, sms, push, webhook, goal, alert
+
+Best practices to check:
+- Must start with entry and end with exit
+- Wait nodes between consecutive channel sends (min 1h, recommended 24h for emails)
+- Conditions after channel sends to check engagement
+- A/B testing for message optimization
+- Goal tracking for conversion measurement
+- Exclude nodes to prevent over-messaging
+- Appropriate timing for the campaign type
+
+Return ONLY valid JSON, no markdown or explanation.`;
+
+    const result = await callOpenAI(prompt,
+      'You are a marketing automation optimization expert. Analyze workflows and provide actionable improvement suggestions. Return only valid JSON — no markdown, no code fences.');
+
+    let analysis = null;
+    if (result) {
+      try {
+        const cleaned = result.replace(/```(?:json)?\s*/gi, '').replace(/```/g, '').trim();
+        analysis = JSON.parse(cleaned);
+      } catch (parseErr) {
+        console.error('[AI] Failed to parse optimization JSON:', parseErr.message);
+      }
+    }
+
+    if (analysis) {
+      // Validate improved_flow if present
+      if (analysis.improved_flow && Array.isArray(analysis.improved_flow)) {
+        analysis.improved_flow = analysis.improved_flow
+          .filter(n => n && n.type && VALID_NODE_TYPES[n.type])
+          .map(n => ({
+            type: n.type,
+            category: VALID_NODE_TYPES[n.type]?.category || 'flow',
+            name: String(n.name || n.type).slice(0, 40),
+            config: n.config && typeof n.config === 'object' ? n.config : {}
+          }));
+        // Ensure entry/exit
+        if (analysis.improved_flow.length > 0 && analysis.improved_flow[0].type !== 'entry') {
+          analysis.improved_flow.unshift({ type: 'entry', category: 'flow', name: 'Entry Point', config: {} });
+        }
+        if (analysis.improved_flow.length > 0 && analysis.improved_flow[analysis.improved_flow.length - 1].type !== 'exit') {
+          analysis.improved_flow.push({ type: 'exit', category: 'flow', name: 'Exit', config: {} });
+        }
+      }
+      return res.json({ ...analysis, source: 'openai' });
+    }
+
+    // ── Mock fallback: rule-based analysis ──
+    const issues = [];
+    let score = 70;
+    const nodeTypes = currentNodes.map(n => n.type);
+
+    // Check for entry/exit
+    if (!nodeTypes.includes('entry')) {
+      issues.push({ severity: 'critical', message: 'Missing Entry node', suggestion: 'Add an Entry node at the start of your flow' });
+      score -= 15;
+    }
+    if (!nodeTypes.includes('exit')) {
+      issues.push({ severity: 'warning', message: 'Missing Exit node', suggestion: 'Add an Exit node to cleanly end the flow' });
+      score -= 5;
+    }
+
+    // Check for consecutive channel sends without waits
+    for (let i = 0; i < currentNodes.length - 1; i++) {
+      const curr = currentNodes[i];
+      const next = currentNodes[i + 1];
+      const channelTypes = ['email', 'sms', 'push', 'direct_mail'];
+      if (channelTypes.includes(curr.type) && channelTypes.includes(next.type)) {
+        issues.push({
+          severity: 'critical',
+          message: `Back-to-back sends: "${curr.name}" → "${next.name}"`,
+          suggestion: 'Add a Wait node (min 24h for email, 1h for SMS) between consecutive messages to avoid overwhelming recipients'
+        });
+        score -= 10;
+      }
+    }
+
+    // Check for missing conditions after sends
+    const channelNodes = currentNodes.filter(n => ['email', 'sms', 'push'].includes(n.type));
+    const conditionNodes = currentNodes.filter(n => n.type === 'condition');
+    if (channelNodes.length > 1 && conditionNodes.length === 0) {
+      issues.push({
+        severity: 'warning',
+        message: 'No engagement checks',
+        suggestion: 'Add Condition nodes after sends to check opens/clicks and branch accordingly'
+      });
+      score -= 10;
+    }
+
+    // Check for A/B testing
+    if (channelNodes.length >= 2 && !nodeTypes.includes('split') && !nodeTypes.includes('random')) {
+      issues.push({
+        severity: 'info',
+        message: 'No A/B testing',
+        suggestion: 'Add a Split node before your key message to test different versions and improve performance'
+      });
+      score -= 5;
+    }
+
+    // Check for goal tracking
+    if (!nodeTypes.includes('goal')) {
+      issues.push({
+        severity: 'info',
+        message: 'No goal tracking',
+        suggestion: 'Add a Goal node to measure conversion rates and ROI'
+      });
+      score -= 5;
+    }
+
+    // Check for targeting
+    if (!nodeTypes.includes('segment') && !nodeTypes.includes('filter') && !nodeTypes.includes('query')) {
+      issues.push({
+        severity: 'warning',
+        message: 'No audience targeting',
+        suggestion: 'Add a Segment or Filter node after Entry to target the right audience'
+      });
+      score -= 10;
+    }
+
+    // Check wait durations
+    const waitNodes = currentNodes.filter(n => n.type === 'wait');
+    waitNodes.forEach(w => {
+      const cfg = w.config || {};
+      const hours = cfg.wait_unit === 'days' ? (cfg.wait_time || 0) * 24 : (cfg.wait_time || 0);
+      if (hours < 1) {
+        issues.push({
+          severity: 'warning',
+          message: `Very short wait: "${w.name}"`,
+          suggestion: 'Wait times under 1 hour can trigger spam filters. Consider at least 1h for SMS, 24h for email.'
+        });
+      }
+    });
+
+    // Check for exclusion
+    if (channelNodes.length > 2 && !nodeTypes.includes('exclude')) {
+      issues.push({
+        severity: 'info',
+        message: 'No exclusion rules',
+        suggestion: 'Add an Exclude node to suppress contacts who have already converted or unsubscribed'
+      });
+    }
+
+    // Build improved flow if there are critical issues
+    let improved_flow = null;
+    if (issues.some(i => i.severity === 'critical') && currentNodes.length >= 2) {
+      improved_flow = [];
+      for (let i = 0; i < currentNodes.length; i++) {
+        const n = currentNodes[i];
+        improved_flow.push({
+          type: n.type,
+          category: VALID_NODE_TYPES[n.type]?.category || n.category || 'flow',
+          name: n.name,
+          config: n.config || {}
+        });
+        // Insert wait between consecutive channel sends
+        const next = currentNodes[i + 1];
+        const channelTypes = ['email', 'sms', 'push', 'direct_mail'];
+        if (next && channelTypes.includes(n.type) && channelTypes.includes(next.type)) {
+          improved_flow.push({
+            type: 'wait',
+            category: 'flow_control',
+            name: n.type === 'sms' ? 'Wait 2 Hours' : 'Wait 1 Day',
+            config: { wait_time: n.type === 'sms' ? 2 : 1, wait_unit: n.type === 'sms' ? 'hours' : 'days' }
+          });
+          // Add engagement check
+          improved_flow.push({
+            type: 'condition',
+            category: 'flow_control',
+            name: `Check ${n.type === 'email' ? 'Opened' : 'Engaged'}`,
+            config: { condition_type: n.type === 'email' ? 'email_opened' : 'engaged', time_window: 1 }
+          });
+        }
+      }
+      // Add goal if missing
+      if (!nodeTypes.includes('goal')) {
+        const exitIdx = improved_flow.findIndex(n => n.type === 'exit');
+        if (exitIdx > 0) {
+          improved_flow.splice(exitIdx, 0, { type: 'goal', category: 'tracking', name: 'Track Conversion', config: {} });
+        }
+      }
+    }
+
+    score = Math.max(10, Math.min(100, score));
+
+    if (issues.length === 0) {
+      issues.push({ severity: 'info', message: 'Flow looks good!', suggestion: 'No major issues found. Consider A/B testing your key messages for continuous improvement.' });
+      score = 85;
+    }
+
+    res.json({
+      issues,
+      score,
+      improved_flow,
+      source: 'mock',
+      message: 'Rule-based analysis. Add OPENAI_API_KEY for deeper AI optimization.'
+    });
+  } catch (error) {
+    console.error('Error optimizing flow:', error);
     res.status(500).json({ error: error.message });
   }
 });

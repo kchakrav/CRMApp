@@ -274,7 +274,8 @@ function calculateAudienceMembers(audienceConfig) {
     exclude_segments = [],
     include_contacts = [],
     exclude_contacts = [],
-    segment_id = null
+    segment_id = null,
+    filters = null
   } = audienceConfig;
   const normalizedIncludeSegments = include_segments.length
     ? include_segments
@@ -284,10 +285,10 @@ function calculateAudienceMembers(audienceConfig) {
   
   // Start with all contacts from included segments
   if (normalizedIncludeSegments.length > 0) {
-    normalizedIncludeSegments.forEach(segmentId => {
-      const segment = query.get('segments', segmentId);
-      if (segment && segment.status === 'active') {
-        // Get contacts matching segment conditions
+    normalizedIncludeSegments.forEach(segId => {
+      const segment = query.get('segments', segId);
+      if (segment) {
+        // Get contacts matching segment conditions (regardless of segment status for preview)
         const segmentMembers = getSegmentMembers(segment);
         segmentMembers.forEach(c => finalContacts.add(c.id));
       }
@@ -304,8 +305,8 @@ function calculateAudienceMembers(audienceConfig) {
   
   // Remove contacts from excluded segments
   if (exclude_segments.length > 0) {
-    exclude_segments.forEach(segmentId => {
-      const segment = query.get('segments', segmentId);
+    exclude_segments.forEach(segId => {
+      const segment = query.get('segments', segId);
       if (segment) {
         const segmentMembers = getSegmentMembers(segment);
         segmentMembers.forEach(c => finalContacts.delete(c.id));
@@ -318,14 +319,14 @@ function calculateAudienceMembers(audienceConfig) {
     finalContacts.delete(contactId);
   });
   
-  // If no includes specified, start with all active contacts
-  if (include_segments.length === 0 && include_contacts.length === 0) {
+  // If no includes specified at all, start with all active contacts
+  if (normalizedIncludeSegments.length === 0 && include_contacts.length === 0) {
     const allContacts = query.all('contacts', c => c.status === 'active');
     allContacts.forEach(c => finalContacts.add(c.id));
     
     // Then apply exclusions
-    exclude_segments.forEach(segmentId => {
-      const segment = query.get('segments', segmentId);
+    exclude_segments.forEach(segId => {
+      const segment = query.get('segments', segId);
       if (segment) {
         const segmentMembers = getSegmentMembers(segment);
         segmentMembers.forEach(c => finalContacts.delete(c.id));
@@ -338,19 +339,121 @@ function calculateAudienceMembers(audienceConfig) {
   }
   
   // Convert IDs back to contact objects
-  const contactIds = Array.from(finalContacts);
-  return contactIds.map(id => query.get('contacts', id)).filter(c => c);
+  let contactIds = Array.from(finalContacts);
+  let results = contactIds.map(id => query.get('contacts', id)).filter(c => c);
+  
+  // Apply custom JSON filters if provided
+  if (filters && typeof filters === 'object' && Object.keys(filters).length > 0) {
+    results = applyCustomFilters(results, filters);
+  }
+  
+  return results;
+}
+
+// Apply custom JSON filters to a list of contacts
+// Supports formats:
+//   { "field": "value" }              -- exact match
+//   { "field": { "$gte": 50 } }       -- comparison operators
+//   { "field": { "$contains": "x" } } -- string contains
+function applyCustomFilters(contacts, filters) {
+  return contacts.filter(contact => {
+    for (const [field, condition] of Object.entries(filters)) {
+      const contactValue = contact[field];
+      
+      if (condition && typeof condition === 'object' && !Array.isArray(condition)) {
+        // Operator-based condition: { "$gte": 50, "$lte": 100 }
+        for (const [op, val] of Object.entries(condition)) {
+          if (!applyFilterOperator(contactValue, op, val)) return false;
+        }
+      } else if (typeof condition === 'boolean') {
+        // Boolean match: { "email_opt_in": true }
+        if (Boolean(contactValue) !== condition) return false;
+      } else {
+        // Simple equality: { "status": "active" }
+        if (String(contactValue).toLowerCase() !== String(condition).toLowerCase()) return false;
+      }
+    }
+    return true;
+  });
+}
+
+// Apply a single filter operator
+function applyFilterOperator(contactValue, operator, value) {
+  switch (operator) {
+    case '$eq':
+      return String(contactValue).toLowerCase() === String(value).toLowerCase();
+    case '$ne':
+      return String(contactValue).toLowerCase() !== String(value).toLowerCase();
+    case '$gt':
+      return Number(contactValue) > Number(value);
+    case '$gte':
+      return Number(contactValue) >= Number(value);
+    case '$lt':
+      return Number(contactValue) < Number(value);
+    case '$lte':
+      return Number(contactValue) <= Number(value);
+    case '$contains':
+      return String(contactValue || '').toLowerCase().includes(String(value).toLowerCase());
+    case '$not_contains':
+      return !String(contactValue || '').toLowerCase().includes(String(value).toLowerCase());
+    case '$starts_with':
+      return String(contactValue || '').toLowerCase().startsWith(String(value).toLowerCase());
+    case '$ends_with':
+      return String(contactValue || '').toLowerCase().endsWith(String(value).toLowerCase());
+    case '$in':
+      return Array.isArray(value) && value.map(v => String(v).toLowerCase()).includes(String(contactValue).toLowerCase());
+    case '$nin':
+      return Array.isArray(value) && !value.map(v => String(v).toLowerCase()).includes(String(contactValue).toLowerCase());
+    case '$exists':
+      return value ? (contactValue !== undefined && contactValue !== null && contactValue !== '') 
+                    : (contactValue === undefined || contactValue === null || contactValue === '');
+    default:
+      return true; // Unknown operator, don't filter
+  }
+}
+
+// Convert legacy flat conditions (e.g. {"loyalty_tier":"platinum"}) into rules format
+function convertLegacySegmentConditions(conditions) {
+  // Map legacy keys to proper contact field names and operators
+  const legacyFieldMap = {
+    min_engagement_score: { field: 'engagement_score', operator: 'greater_than_or_equal' },
+    min_lead_score: { field: 'lead_score', operator: 'greater_than_or_equal' },
+  };
+
+  const rules = [];
+  for (const [key, value] of Object.entries(conditions)) {
+    if (['logic', 'rules', 'base_entity'].includes(key)) continue;
+
+    const mapping = legacyFieldMap[key];
+    if (mapping) {
+      rules.push({ entity: 'customer', attribute: mapping.field, operator: mapping.operator, value: String(value) });
+    } else {
+      // Direct field match: { "loyalty_tier": "platinum" } → equals
+      rules.push({ entity: 'customer', attribute: key, operator: 'equals', value: String(value) });
+    }
+  }
+  return { logic: 'AND', rules };
 }
 
 // Helper to get segment members (reuse from segments.js logic)
 function getSegmentMembers(segment) {
   const contacts = query.all('contacts', c => c.status === 'active');
   
-  if (!segment.conditions || !segment.conditions.rules) {
+  if (!segment.conditions) {
     return contacts;
   }
+
+  // Determine conditions - handle both new (rules-based) and legacy (flat) formats
+  let conditions = segment.conditions;
+  if (!conditions.rules) {
+    conditions = convertLegacySegmentConditions(conditions);
+  }
+
+  const { logic = 'AND', rules = [] } = conditions;
   
-  const { logic = 'AND', rules = [] } = segment.conditions;
+  if (rules.length === 0) {
+    return contacts;
+  }
   
   return contacts.filter(contact => {
     const results = rules.map(rule => evaluateRule(contact, rule));
@@ -364,9 +467,10 @@ function getSegmentMembers(segment) {
   });
 }
 
-// Evaluate rule (simplified version)
+// Evaluate rule against a contact
 function evaluateRule(contact, rule) {
-  const { entity, attribute, operator, value } = rule;
+  const { entity, attribute, operator, value, case_sensitive } = rule;
+  const cs = (s) => case_sensitive ? String(s ?? '') : String(s ?? '').toLowerCase();
   
   let contactValue;
   
@@ -378,21 +482,64 @@ function evaluateRule(contact, rule) {
       contactValue = orders.length;
     } else if (attribute === 'total_spent') {
       contactValue = orders.reduce((sum, o) => sum + (o.total || 0), 0);
+    } else if (attribute === 'total_amount') {
+      contactValue = orders.reduce((sum, o) => sum + (o.total || 0), 0);
+    } else if (attribute === 'last_order_date') {
+      const sorted = orders.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+      contactValue = sorted.length > 0 ? sorted[0].created_at : null;
+    }
+  } else if (entity === 'events') {
+    const events = query.all('contact_events', e => e.contact_id === contact.id);
+    if (attribute === 'event_count') {
+      contactValue = events.length;
+    } else if (attribute === 'last_activity_date') {
+      const sorted = events.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+      contactValue = sorted.length > 0 ? sorted[0].created_at : null;
     }
   }
   
   // Apply operator
   switch (operator) {
     case 'equals':
-      return contactValue == value;
+      return cs(contactValue) === cs(value);
     case 'not_equals':
-      return contactValue != value;
+      return cs(contactValue) !== cs(value);
     case 'greater_than':
       return Number(contactValue) > Number(value);
     case 'less_than':
       return Number(contactValue) < Number(value);
+    case 'greater_than_or_equal':
+      return Number(contactValue) >= Number(value);
+    case 'less_than_or_equal':
+      return Number(contactValue) <= Number(value);
     case 'contains':
-      return String(contactValue).toLowerCase().includes(String(value).toLowerCase());
+      return cs(contactValue).includes(cs(value));
+    case 'not_contains':
+      return !cs(contactValue).includes(cs(value));
+    case 'starts_with':
+      return cs(contactValue).startsWith(cs(value));
+    case 'ends_with':
+      return cs(contactValue).endsWith(cs(value));
+    case 'is_empty':
+      return contactValue === undefined || contactValue === null || contactValue === '';
+    case 'is_not_empty':
+      return contactValue !== undefined && contactValue !== null && contactValue !== '';
+    case 'is_set':
+      return contactValue !== undefined && contactValue !== null;
+    case 'is_not_set':
+      return contactValue === undefined || contactValue === null;
+    case 'in_last': {
+      if (!contactValue) return false;
+      const daysAgo = new Date();
+      daysAgo.setDate(daysAgo.getDate() - Number(value));
+      return new Date(contactValue) >= daysAgo;
+    }
+    case 'not_in_last': {
+      if (!contactValue) return true;
+      const daysAgo = new Date();
+      daysAgo.setDate(daysAgo.getDate() - Number(value));
+      return new Date(contactValue) < daysAgo;
+    }
     default:
       return false;
   }

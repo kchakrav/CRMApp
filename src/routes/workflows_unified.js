@@ -65,20 +65,14 @@ router.post('/', (req, res) => {
       return res.status(400).json({ error: 'Name is required' });
     }
     
-    // Validate workflow type
-    const validTypes = ['broadcast', 'automated', 'recurring'];
-    if (!validTypes.includes(workflow_type)) {
-      return res.status(400).json({ error: 'Invalid workflow_type. Must be: broadcast, automated, or recurring' });
-    }
-    
     // Create workflow record
     const now = new Date().toISOString();
     const result = query.insert('workflows', {
       name,
       description,
-      workflow_type,
+      workflow_type: workflow_type || 'broadcast',
       entry_trigger: {
-        type: entry_trigger.type || (workflow_type === 'automated' ? 'event' : 'scheduled'),
+        type: entry_trigger.type || 'manual',
         config: entry_trigger.config || {}
       },
       orchestration: orchestration || { nodes: [], connections: [] },
@@ -421,14 +415,105 @@ router.get('/:id/report', (req, res) => {
         };
       });
     
+    // Execution history (simulated)
+    const executionHistory = [];
+    if (workflow.last_run_at) {
+      const baseTime = new Date(workflow.last_run_at);
+      for (let i = 0; i < 5; i++) {
+        const startTime = new Date(baseTime.getTime() - i * 86400000 * 3);
+        const durationMs = Math.round(30000 + Math.random() * 120000);
+        executionHistory.push({
+          run_id: 1000 + i,
+          started_at: startTime.toISOString(),
+          completed_at: new Date(startTime.getTime() + durationMs).toISOString(),
+          duration_ms: durationMs,
+          status: i === 0 ? 'completed' : (Math.random() > 0.15 ? 'completed' : 'error'),
+          entries_processed: Math.round(totalSent * (0.8 + Math.random() * 0.4)),
+          errors: i === 3 ? 2 : 0
+        });
+      }
+    }
+
+    // Activity metrics from orchestration nodes
+    const orchestration = workflow.orchestration || {};
+    const nodes = orchestration.nodes || [];
+    const activityMetrics = nodes.map(n => {
+      const baseCount = totalSent || Math.round(500 + Math.random() * 2000);
+      let processed, transitioned, rejected;
+      if (n.type === 'entry' || n.type === 'entry_event') {
+        processed = baseCount;
+        transitioned = baseCount;
+        rejected = 0;
+      } else if (n.type === 'email' || n.type === 'sms' || n.type === 'push') {
+        processed = Math.round(baseCount * (0.85 + Math.random() * 0.15));
+        transitioned = Math.round(processed * 0.97);
+        rejected = processed - transitioned;
+      } else if (n.type === 'decision' || n.type === 'split') {
+        processed = Math.round(baseCount * 0.9);
+        transitioned = processed;
+        rejected = 0;
+      } else if (n.type === 'wait') {
+        processed = Math.round(baseCount * 0.88);
+        transitioned = processed;
+        rejected = 0;
+      } else {
+        processed = Math.round(baseCount * 0.85);
+        transitioned = processed;
+        rejected = 0;
+      }
+      return {
+        node_id: n.id,
+        label: n.label || n.type,
+        type: n.type,
+        processed,
+        transitioned,
+        rejected,
+        duration_ms: Math.round(1000 + Math.random() * 10000),
+        status: Math.random() > 0.1 ? 'completed' : 'warning'
+      };
+    });
+
+    // Delivery breakdown – find delivery nodes in orchestration
+    const deliveryNodes = nodes.filter(n => ['email', 'sms', 'push'].includes(n.type));
+    const deliveryBreakdown = deliveryNodes.map(n => {
+      const dsent = Math.round((totalSent || 1000) * (0.4 + Math.random() * 0.6));
+      const ddeliv = Math.round(dsent * 0.97);
+      const dop = n.type === 'email' ? Math.round(ddeliv * 0.32) : 0;
+      const dcl = n.type !== 'email' ? Math.round(ddeliv * 0.05) : Math.round(dop * 0.22);
+      return {
+        node_id: n.id,
+        label: n.label || n.type,
+        channel: n.type,
+        sent: dsent,
+        delivered: ddeliv,
+        opens: dop,
+        clicks: dcl,
+        delivery_rate: dsent > 0 ? ((ddeliv / dsent) * 100).toFixed(1) : '0',
+        open_rate: ddeliv > 0 ? ((dop / ddeliv) * 100).toFixed(1) : '0',
+        click_rate: ddeliv > 0 ? ((dcl / ddeliv) * 100).toFixed(1) : '0'
+      };
+    });
+
+    // Workflow-level aggregates
+    const wfEntryCount = workflow.entry_count || totalSent || 0;
+    const wfCompletionCount = workflow.completion_count || Math.round(wfEntryCount * 0.82);
+    const wfActiveCount = workflow.active_count || 0;
+    const wfErrorCount = executionHistory.reduce((s, e) => s + e.errors, 0);
+
     res.json({
       workflow: {
         id: workflow.id,
         name: workflow.name,
+        description: workflow.description || '',
         workflow_type: workflow.workflow_type,
         status: workflow.status,
         created_at: workflow.created_at,
-        last_run_at: workflow.last_run_at
+        activated_at: workflow.activated_at,
+        last_run_at: workflow.last_run_at,
+        next_run_at: workflow.next_run_at,
+        entry_count: wfEntryCount,
+        completion_count: wfCompletionCount,
+        active_count: wfActiveCount
       },
       metrics: {
         sent: totalSent,
@@ -454,6 +539,10 @@ router.get('/:id/report', (req, res) => {
       device_breakdown: deviceBreakdown,
       top_links: topLinks,
       geo_breakdown: geoBreakdown,
+      execution_history: executionHistory,
+      activity_metrics: activityMetrics,
+      delivery_breakdown: deliveryBreakdown,
+      workflow_errors: wfErrorCount,
       recipients: {
         engaged: topRecipients,
         non_engaged: nonEngaged,

@@ -2,59 +2,39 @@
 // ADOBE CAMPAIGN TABLE HELPERS
 // ============================================
 
-// Generate Adobe-style table toolbar with inline filters
+// Generate Adobe-style table toolbar — unified layout:
+//   [filter funnel] [search input] ... [result count (calculate)] [column selector]
 function createTableToolbar(options = {}) {
   const {
-    tabs = ['Browse'],
-    activeTab = 'Browse',
     resultCount = 0,
     totalCount = 0,
     showFilter = true,
-    showRefresh = true,
     showSearch = true,
     showColumnSelector = false,
     searchPlaceholder = 'Search...',
     searchValue = '',
     columns = [],
     viewKey = '',
-    filters = [], // Array of {type, label, options, value, onChange}
-    filterTags = [], // Array of {key, label, value}
+    filters = [],
+    filterTags = [],
     onClearTag = null,
-    onTabChange = null,
-    onRefresh = () => {},
     onSearch = () => {}
   } = options;
   const columnVisibility = showColumnSelector && viewKey ? getColumnVisibilityMap(viewKey, columns) : {};
+  const hasFilters = filters.length > 0;
+  const activeFilterCount = filterTags.length;
   
   return `
     <div class="table-toolbar">
       <div class="table-toolbar-top">
-        <div class="table-toolbar-left">
-          ${tabs.length > 1 ? `
-            <div class="table-tabs">
-              ${tabs.map(tab => typeof tab === 'string' ? `
-                <button class="table-tab ${tab === activeTab ? 'active' : ''}" 
-                        onclick='${typeof onTabChange === 'string' && onTabChange ? onTabChange : `changeTab("${tab}")`}'>
-                  ${tab}
-                </button>
-              ` : `
-                <button class="table-tab ${tab.active ? 'active' : ''}" 
-                        onclick='${tab.onclick}'>
-                  ${tab.label}
-                </button>
-              `).join('')}
-            </div>
+        <div class="toolbar-left">
+          ${hasFilters ? `
+            <button class="toolbar-filter-btn${activeFilterCount ? ' has-active' : ''}" onclick="toggleInlineFilters()" title="Filters">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>
+              ${activeFilterCount ? `<span class="toolbar-filter-badge">${activeFilterCount}</span>` : ''}
+            </button>
           ` : ''}
           
-          ${showFilter && filters.length > 0 ? `<button class="filter-icon-btn" onclick="toggleInlineFilters()" title="Filters">▼</button>` : ''}
-          
-          <div class="result-counter">
-            <strong>${resultCount}</strong>${totalCount ? ` of ${totalCount}` : ' of many'} 
-            ${!totalCount ? `<a href="#" class="result-counter-link" onclick="recalculateResults(); return false;">(calculate)</a>` : ''}
-          </div>
-        </div>
-        
-        <div class="table-toolbar-right">
           ${showSearch ? `
             <div class="inline-search">
               <input type="text" 
@@ -65,27 +45,31 @@ function createTableToolbar(options = {}) {
               <span class="search-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg></span>
             </div>
           ` : ''}
-          ${showColumnSelector && columns.length ? `
-            <div class="column-selector">
-              <button class="column-selector-btn" onclick="toggleColumnSelector(event, '${viewKey}')" title="Columns"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" x2="20" y1="12" y2="12"/><line x1="4" x2="20" y1="6" y2="6"/><line x1="4" x2="20" y1="18" y2="18"/></svg></button>
-              <div class="column-selector-dropdown" id="column-selector-${viewKey}" onclick="event.stopPropagation()">
-                ${columns.map(col => `
-                  <label class="column-selector-item">
-                    <input type="checkbox" id="column-toggle-${viewKey}-${col.id}" ${columnVisibility[col.id] !== false ? 'checked' : ''} onchange="toggleColumnVisibility('${viewKey}', '${col.id}')">
-                    <span>${col.label}</span>
-                  </label>
-                `).join('')}
-              </div>
-            </div>
-          ` : ''}
-          ${showRefresh ? `
-            <button class="refresh-icon-btn" onclick="${onRefresh || 'refreshCurrentView()'}" title="Refresh"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/></svg></button>
-          ` : ''}
+          
+          <div class="result-counter">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="opacity:0.5"><circle cx="12" cy="12" r="10"/><line x1="12" x2="12" y1="16" y2="12"/><line x1="12" x2="12.01" y1="8" y2="8"/></svg>
+            <strong>${resultCount}</strong>${totalCount ? ` of ${totalCount}` : ' of many'}
+            ${!totalCount ? `<a href="#" class="result-counter-link" onclick="recalculateResults(); return false;">(calculate)</a>` : ''}
+          </div>
         </div>
+        
+        ${showColumnSelector && columns.length ? `
+          <div class="column-selector">
+            <button class="column-selector-btn" onclick="toggleColumnSelector(event, '${viewKey}')" title="Columns"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg></button>
+            <div class="column-selector-dropdown" id="column-selector-${viewKey}" onclick="event.stopPropagation()">
+              ${columns.map(col => `
+                <label class="column-selector-item">
+                  <input type="checkbox" id="column-toggle-${viewKey}-${col.id}" ${columnVisibility[col.id] !== false ? 'checked' : ''} onchange="toggleColumnVisibility('${viewKey}', '${col.id}')">
+                  <span>${col.label}</span>
+                </label>
+              `).join('')}
+            </div>
+          </div>
+        ` : ''}
       </div>
       
-      ${filters.length > 0 ? `
-        <div class="table-toolbar-filters" id="inline-filters" style="display: none;">
+      ${hasFilters ? `
+        <div class="table-toolbar-filters" id="inline-filters" style="display: ${activeFilterCount ? 'flex' : 'none'};">
           ${filters.map(filter => `
             <div class="inline-filter-item">
               <label class="inline-filter-label">${filter.label}</label>
@@ -106,19 +90,7 @@ function createTableToolbar(options = {}) {
               ` : ''}
             </div>
           `).join('')}
-          <button class="btn btn-sm btn-secondary" onclick="clearAllFilters()">Clear</button>
-        </div>
-      ` : ''}
-
-      ${filterTags.length > 0 ? `
-        <div class="table-toolbar-tags">
-          ${filterTags.map(tag => `
-            <span class="filter-tag">
-              <span class="filter-tag-label">${tag.label}: ${tag.value}</span>
-              ${onClearTag ? `<button class="filter-tag-remove" onclick='${onClearTag}("${tag.key}")'><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></button>` : ''}
-            </span>
-          `).join('')}
-          <button class="btn btn-sm btn-secondary" onclick="clearAllFilters()">Clear all</button>
+          ${onClearTag ? `<button class="btn btn-sm btn-secondary" onclick="clearAllFilters()">Clear</button>` : ''}
         </div>
       ` : ''}
     </div>
@@ -327,7 +299,7 @@ function sortTable(column) {
   const view = currentRoute.view;
   switch(view) {
     case 'workflows':
-      loadWorkflows(currentWorkflowFilter);
+      loadWorkflows();
       break;
     case 'contacts':
       loadContacts();
@@ -335,7 +307,24 @@ function sortTable(column) {
     case 'segments':
       loadSegments();
       break;
-    // Add other cases as needed
+    case 'offers':
+      if (typeof window.loadOffers === 'function') window.loadOffers();
+      break;
+    case 'placements':
+      if (typeof window.loadPlacements === 'function') window.loadPlacements();
+      break;
+    case 'collections':
+      if (typeof window.loadOfferCollections === 'function') window.loadOfferCollections();
+      break;
+    case 'decisionRules':
+      if (typeof window.loadDecisionRules === 'function') window.loadDecisionRules();
+      break;
+    case 'strategies':
+      if (typeof window.loadStrategies === 'function') window.loadStrategies();
+      break;
+    case 'decisions':
+      if (typeof window.loadDecisions === 'function') window.loadDecisions();
+      break;
   }
 }
 
@@ -389,6 +378,37 @@ function clearAllFilters() {
         clearDeliveriesFilters();
       }
       break;
+    case 'custom-objects':
+      if (typeof updateCustomObjectSearch === 'function') {
+        customObjectSearch = '';
+        loadCustomObjects();
+      }
+      break;
+    case 'assets':
+      if (typeof clearAssetsFilterTag === 'function') {
+        assetsSearch = '';
+        assetsType = 'all';
+        loadAssets();
+      }
+      break;
+    case 'offers':
+      if (typeof clearOdOffersFilters === 'function') clearOdOffersFilters();
+      break;
+    case 'decisions':
+      if (typeof clearOdDecisionsFilters === 'function') clearOdDecisionsFilters();
+      break;
+    case 'placements':
+      if (typeof clearOdPlacementsFilters === 'function') clearOdPlacementsFilters();
+      break;
+    case 'collections':
+      if (typeof clearOdCollectionsFilters === 'function') clearOdCollectionsFilters();
+      break;
+    case 'decisionRules':
+      if (typeof clearOdRulesFilters === 'function') clearOdRulesFilters();
+      break;
+    case 'strategies':
+      if (typeof clearOdStrategiesFilters === 'function') clearOdStrategiesFilters();
+      break;
     default:
       showToast('No filters to clear', 'info');
   }
@@ -400,7 +420,7 @@ function refreshCurrentView() {
   
   switch(view) {
     case 'workflows':
-      loadWorkflows(currentWorkflowFilter);
+      loadWorkflows();
       break;
     case 'contacts':
       loadContacts();
@@ -414,6 +434,24 @@ function refreshCurrentView() {
     case 'deliveries':
       loadDeliveries();
       break;
+    case 'offers':
+      if (typeof window.loadOffers === 'function') window.loadOffers();
+      break;
+    case 'placements':
+      if (typeof window.loadPlacements === 'function') window.loadPlacements();
+      break;
+    case 'collections':
+      if (typeof window.loadOfferCollections === 'function') window.loadOfferCollections();
+      break;
+    case 'decisionRules':
+      if (typeof window.loadDecisionRules === 'function') window.loadDecisionRules();
+      break;
+    case 'strategies':
+      if (typeof window.loadStrategies === 'function') window.loadStrategies();
+      break;
+    case 'decisions':
+      if (typeof window.loadDecisions === 'function') window.loadDecisions();
+      break;
     default:
       location.reload();
   }
@@ -423,11 +461,6 @@ function refreshCurrentView() {
 function changeTab(tabLabel) {
   const view = currentRoute?.view;
   switch (view) {
-    case 'deliveries':
-      if (typeof setDeliveriesTab === 'function') {
-        setDeliveriesTab(tabLabel);
-      }
-      break;
     case 'segments':
       if (typeof setSegmentTab === 'function') {
         setSegmentTab(tabLabel);

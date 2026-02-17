@@ -2,23 +2,78 @@ const express = require('express');
 const router = express.Router();
 const { query, db, saveDatabase } = require('../database');
 
-// Get custom objects for segment builder
+// Get custom objects for segment builder — only those connected to contacts
 router.get('/for-segments', (req, res) => {
   try {
-    const objects = query.all('custom_objects', o => o.is_active);
-    
-    // Format for segment builder
-    const formatted = objects.map(obj => ({
-      name: obj.name,
-      label: obj.label,
-      icon: '🗂️',
-      fields: obj.fields.map(f => ({
-        name: f.name,
-        label: f.label,
-        type: f.type
-      }))
-    }));
-    
+    const allObjects = query.all('custom_objects', o => o.is_active);
+
+    // Identify junction table names (auto-generated link tables)
+    const junctionNames = new Set(
+      allObjects
+        .filter(o => o.name.endsWith('_link'))
+        .map(o => o.name)
+    );
+
+    // Find objects that are connected to contacts:
+    // 1) Direct relationship: object has a relationship where to_table === 'contacts'
+    // 2) Reverse relationship: contacts links to this object (object's relationships point to contacts)
+    // 3) N:N via junction: a junction table exists that references both 'contacts' and this object
+    const contactLinkedNames = new Set();
+
+    allObjects.forEach(obj => {
+      if (junctionNames.has(obj.name)) return; // skip junction tables themselves
+
+      const rels = obj.relationships || [];
+
+      // Check direct relationship to contacts
+      if (rels.some(r => r.to_table === 'contacts')) {
+        contactLinkedNames.add(obj.name);
+        return;
+      }
+
+      // Check if a junction table links contacts and this object
+      for (const jName of junctionNames) {
+        // Junction name pattern: sorted alphabetical, e.g. "contacts_store_visits_link"
+        if (jName.includes('contacts') && jName.includes(obj.name)) {
+          contactLinkedNames.add(obj.name);
+          return;
+        }
+      }
+
+      // Check if contacts has a reverse relationship to this object
+      // (Look at junction table relationships pointing to both contacts and this object)
+      allObjects.forEach(jObj => {
+        if (!junctionNames.has(jObj.name)) return;
+        const jRels = jObj.relationships || [];
+        const linksToContacts = jRels.some(r => r.to_table === 'contacts');
+        const linksToObj = jRels.some(r => r.to_table === obj.name);
+        if (linksToContacts && linksToObj) {
+          contactLinkedNames.add(obj.name);
+        }
+      });
+    });
+
+    // Format only contact-linked objects for segment builder
+    const formatted = allObjects
+      .filter(obj => contactLinkedNames.has(obj.name))
+      .map(obj => {
+        const rels = obj.relationships || [];
+        const relToContacts = rels.find(r => r.to_table === 'contacts');
+        const relType = relToContacts ? relToContacts.type : 'N:N';
+
+        return {
+          name: obj.name,
+          label: obj.label,
+          icon: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/></svg>',
+          relationship: relType,
+          fields: (obj.fields || []).map(f => ({
+            name: f.name,
+            label: f.label,
+            type: f.type
+          }))
+        };
+      });
+
     res.json(formatted);
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -140,11 +195,11 @@ function filterContactsByConditions(contacts, conditions) {
 
 // Evaluate a single rule
 function evaluateRule(contact, rule) {
-  const { entity, attribute, operator, value } = rule;
+  const { entity, attribute, operator, value, case_sensitive } = rule;
   const contactValue = getAttributeValue(contact, entity, attribute);
   
   // Apply operator
-  return applyOperator(contactValue, operator, value);
+  return applyOperator(contactValue, operator, value, case_sensitive);
 }
 
 function getAttributeValue(contact, entity, attribute) {
@@ -191,25 +246,39 @@ function getAttributeValue(contact, entity, attribute) {
 }
 
 // Apply comparison operator
-function applyOperator(contactValue, operator, value) {
+function applyOperator(contactValue, operator, value, caseSensitive) {
   // Handle null/undefined
   if (contactValue === null || contactValue === undefined) {
     return operator === 'is_empty' || operator === 'is_not_set';
   }
+
+  const str = (v) => String(v ?? '');
+  const cmp = caseSensitive
+    ? (a, b) => str(a) === str(b)
+    : (a, b) => str(a).toLowerCase() === str(b).toLowerCase();
+  const includes = caseSensitive
+    ? (haystack, needle) => str(haystack).includes(str(needle))
+    : (haystack, needle) => str(haystack).toLowerCase().includes(str(needle).toLowerCase());
+  const startsWith = caseSensitive
+    ? (s, prefix) => str(s).startsWith(str(prefix))
+    : (s, prefix) => str(s).toLowerCase().startsWith(str(prefix).toLowerCase());
+  const endsWith = caseSensitive
+    ? (s, suffix) => str(s).endsWith(str(suffix))
+    : (s, suffix) => str(s).toLowerCase().endsWith(str(suffix).toLowerCase());
   
   switch (operator) {
     case 'equals':
-      return contactValue == value;
+      return caseSensitive ? str(contactValue) === str(value) : cmp(contactValue, value);
     case 'not_equals':
-      return contactValue != value;
+      return caseSensitive ? str(contactValue) !== str(value) : !cmp(contactValue, value);
     case 'contains':
-      return String(contactValue).toLowerCase().includes(String(value).toLowerCase());
+      return includes(contactValue, value);
     case 'not_contains':
-      return !String(contactValue).toLowerCase().includes(String(value).toLowerCase());
+      return !includes(contactValue, value);
     case 'starts_with':
-      return String(contactValue).toLowerCase().startsWith(String(value).toLowerCase());
+      return startsWith(contactValue, value);
     case 'ends_with':
-      return String(contactValue).toLowerCase().endsWith(String(value).toLowerCase());
+      return endsWith(contactValue, value);
     case 'greater_than':
       return Number(contactValue) > Number(value);
     case 'less_than':

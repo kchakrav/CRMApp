@@ -111,7 +111,48 @@ function parseAggregateExpr(expr) {
 function parseWhereClause(whereText) {
   const clauses = splitByAnd(whereText);
   return clauses.map(clause => {
-    const match = clause.match(/^([\w\.]+)\s*(=|!=|>=|<=|>|<|contains)\s*(.+)$/i);
+    const trimmed = clause.trim();
+
+    // IS NOT NULL
+    const isNotNullMatch = trimmed.match(/^([\w\.]+)\s+is\s+not\s+null$/i);
+    if (isNotNullMatch) {
+      return { field: isNotNullMatch[1].trim(), operator: 'is not null', value: null };
+    }
+
+    // IS NULL
+    const isNullMatch = trimmed.match(/^([\w\.]+)\s+is\s+null$/i);
+    if (isNullMatch) {
+      return { field: isNullMatch[1].trim(), operator: 'is null', value: null };
+    }
+
+    // NOT LIKE
+    const notLikeMatch = trimmed.match(/^([\w\.]+)\s+not\s+like\s+(.+)$/i);
+    if (notLikeMatch) {
+      return { field: notLikeMatch[1].trim(), operator: 'not like', value: parseSqlValue(notLikeMatch[2]) };
+    }
+
+    // LIKE
+    const likeMatch = trimmed.match(/^([\w\.]+)\s+like\s+(.+)$/i);
+    if (likeMatch) {
+      return { field: likeMatch[1].trim(), operator: 'like', value: parseSqlValue(likeMatch[2]) };
+    }
+
+    // IN (val1, val2, ...)
+    const inMatch = trimmed.match(/^([\w\.]+)\s+in\s*\((.+)\)$/i);
+    if (inMatch) {
+      const values = inMatch[2].split(',').map(v => parseSqlValue(v.trim()));
+      return { field: inMatch[1].trim(), operator: 'in', value: values };
+    }
+
+    // NOT IN (val1, val2, ...)
+    const notInMatch = trimmed.match(/^([\w\.]+)\s+not\s+in\s*\((.+)\)$/i);
+    if (notInMatch) {
+      const values = notInMatch[2].split(',').map(v => parseSqlValue(v.trim()));
+      return { field: notInMatch[1].trim(), operator: 'not in', value: values };
+    }
+
+    // Standard operators: =, !=, >=, <=, >, <, contains
+    const match = trimmed.match(/^([\w\.]+)\s*(=|!=|>=|<=|>|<|contains)\s*(.+)$/i);
     if (!match) return null;
     return {
       field: match[1].trim(),
@@ -119,6 +160,16 @@ function parseWhereClause(whereText) {
       value: parseSqlValue(match[3])
     };
   }).filter(Boolean);
+}
+
+function sqlLikeMatch(text, pattern) {
+  const str = String(text || '').toLowerCase();
+  const pat = String(pattern || '').toLowerCase();
+  const regex = pat
+    .replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+    .replace(/%/g, '.*')
+    .replace(/_/g, '.');
+  return new RegExp('^' + regex + '$').test(str);
 }
 
 function applySqlWhere(record, whereClauses, tableOrder) {
@@ -133,6 +184,12 @@ function applySqlWhere(record, whereClauses, tableOrder) {
       case '>=': return Number(v) >= Number(value);
       case '<=': return Number(v) <= Number(value);
       case 'contains': return String(v || '').toLowerCase().includes(String(value).toLowerCase());
+      case 'like': return sqlLikeMatch(v, value);
+      case 'not like': return !sqlLikeMatch(v, value);
+      case 'in': return Array.isArray(value) && value.some(item => item == v);
+      case 'not in': return Array.isArray(value) && !value.some(item => item == v);
+      case 'is null': return v === null || v === undefined || v === '';
+      case 'is not null': return v !== null && v !== undefined && v !== '';
       default: return false;
     }
   });
@@ -157,12 +214,24 @@ function parseSqlQuery(sql) {
     .trim()
     .replace(/;$/, '');
   const normalized = cleaned.replace(/[\r\n\t]+/g, ' ');
+
+  // Check for common syntax errors: WHERE/LIMIT/ORDER before FROM
+  const fromPos = normalized.search(/\bfrom\b/i);
+  const wherePos = normalized.search(/\bwhere\b/i);
+  if (wherePos !== -1 && (fromPos === -1 || wherePos < fromPos)) {
+    throw new Error('SQL syntax error: WHERE clause must come after FROM. Correct syntax: SELECT ... FROM table WHERE ...');
+  }
+  const limitPos = normalized.search(/\blimit\b/i);
+  if (limitPos !== -1 && (fromPos === -1 || limitPos < fromPos)) {
+    throw new Error('SQL syntax error: LIMIT must come after FROM. Correct syntax: SELECT ... FROM table ... LIMIT n');
+  }
+
   let selectMatch = normalized.match(/^select\s+([\s\S]+?)\s+from\s+([\w_]+)([\s\S]*)$/i);
   if (!selectMatch) {
     selectMatch = normalized.replace(/\s+/g, ' ').trim()
       .match(/^select\s+([\s\S]+?)\s+from\s+([\w_]+)([\s\S]*)$/i);
   }
-  if (!selectMatch) throw new Error('Invalid SQL: missing SELECT/FROM');
+  if (!selectMatch) throw new Error('Invalid SQL: missing SELECT/FROM. Expected: SELECT columns FROM table [WHERE ...] [ORDER BY ...] [LIMIT n]');
   const selectText = selectMatch[1].trim();
   const baseTable = selectMatch[2].trim();
   let rest = selectMatch[3] || '';

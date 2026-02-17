@@ -20,7 +20,7 @@ function addBlock(type) {
   const id = `block-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
   const block = { id, type };
   if (type === 'text') block.content = 'Add your text here';
-  if (type === 'image') { block.src = 'https://via.placeholder.com/600x200'; block.alt = 'Image'; }
+  if (type === 'image') { block.src = ''; block.alt = 'Image'; }
   if (type === 'button') { block.text = 'Click me'; block.url = 'https://example.com'; }
   if (type === 'divider') block.thickness = 1;
   if (type === 'spacer') block.height = 20;

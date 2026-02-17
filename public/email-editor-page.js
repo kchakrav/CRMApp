@@ -5,6 +5,9 @@ const editorState = {
   landingPageId: null,
   landingPageMode: false,
   landingPage: null,
+  templateId: null,
+  templateMode: false,
+  template: null,
   fragmentId: null,
   fragmentMode: false,
   fragment: null,
@@ -25,6 +28,8 @@ const editorState = {
   previewDevice: 'desktop',
   rightPanelOpen: true,
   previewMode: false,
+  previewTestProfile: null,
+  previewTestProfileResults: [],
   aiPanelOpen: false,
   aiTarget: 'body',
   aiTargetManual: false,
@@ -43,10 +48,14 @@ const editorState = {
   importAssets: null,
   canvasInitialized: false,
   dropIndicator: null,
+  currentDragType: null,
   fragments: [],
   fragmentSearch: '',
   assets: [],
-  assetSearch: ''
+  assetSearch: '',
+  offerPlacements: [],
+  offerDecisions: [],
+  offerDecisionCache: {}
 };
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -54,9 +63,14 @@ document.addEventListener('DOMContentLoaded', () => {
   editorState.deliveryId = parseInt(params.get('deliveryId'), 10);
   editorState.landingPageId = parseInt(params.get('landingPageId'), 10);
   editorState.landingPageMode = params.get('landingPageMode') === '1' || !Number.isNaN(editorState.landingPageId);
+  editorState.templateId = parseInt(params.get('templateId'), 10);
+  editorState.templateMode = !Number.isNaN(editorState.templateId);
   editorState.fragmentId = parseInt(params.get('fragmentId'), 10);
   editorState.fragmentMode = params.get('fragmentMode') === '1' || !Number.isNaN(editorState.fragmentId);
   editorState.fragmentType = params.get('fragmentType') || (editorState.landingPageMode ? 'landing' : 'email');
+  editorState.offerRepMode = params.get('offerRepMode') === '1';
+  editorState.offerId = parseInt(params.get('offerId'), 10);
+  editorState.repId = parseInt(params.get('repId'), 10);
   initRail();
   setDevicePreview(editorState.previewDevice, { silent: true });
   loadEditorData();
@@ -152,11 +166,13 @@ async function loadEditorData() {
   try {
     showLoading();
     const fragmentType = editorState.fragmentType || (editorState.landingPageMode ? 'landing' : 'email');
-    const [fragmentsRes, segmentsRes, audiencesRes, assetsRes] = await Promise.all([
+    const [fragmentsRes, segmentsRes, audiencesRes, assetsRes, placementsRes, decisionsRes] = await Promise.all([
       fetchWithTimeout(`${API_BASE}/fragments?type=${encodeURIComponent(fragmentType)}`),
       fetchWithTimeout(`${API_BASE}/segments`),
       fetchWithTimeout(`${API_BASE}/audiences`),
-      fetchWithTimeout(`${API_BASE}/assets`)
+      fetchWithTimeout(`${API_BASE}/assets`),
+      fetchWithTimeout(`${API_BASE}/placements`).catch(() => null),
+      fetchWithTimeout(`${API_BASE}/decisions`).catch(() => null)
     ]);
     const fragmentsPayload = await fragmentsRes.json();
     editorState.fragments = fragmentsPayload.fragments || fragmentsPayload || [];
@@ -164,8 +180,41 @@ async function loadEditorData() {
     editorState.audiences = (await audiencesRes.json()).audiences || [];
     const assetsPayload = await assetsRes.json();
     editorState.assets = assetsPayload.assets || [];
+    if (placementsRes && placementsRes.ok) {
+      const p = await placementsRes.json();
+      // Sort: email placements first, then by name
+      const allPlacements = p.placements || [];
+      allPlacements.sort((a, b) => {
+        const aEmail = a.channel === 'email' ? 0 : 1;
+        const bEmail = b.channel === 'email' ? 0 : 1;
+        if (aEmail !== bEmail) return aEmail - bEmail;
+        return (a.name || '').localeCompare(b.name || '');
+      });
+      editorState.offerPlacements = allPlacements;
+    }
+    if (decisionsRes && decisionsRes.ok) {
+      const d = await decisionsRes.json();
+      // Only show live decisions in the email editor; drafts/archived are not usable
+      const allDecisions = d.decisions || [];
+      editorState.offerDecisions = allDecisions.filter(dec => dec.status === 'live');
+      editorState._allOfferDecisions = allDecisions; // keep full list for diagnostics
+    }
 
-    if (editorState.fragmentMode) {
+    if (editorState.templateMode) {
+      // Content template editing mode
+      const tmplRes = await fetchWithTimeout(`${API_BASE}/email-templates/${editorState.templateId}`);
+      const tmpl = await tmplRes.json();
+      if (!tmplRes.ok) throw new Error(tmpl.error || 'Failed to load template');
+      editorState.template = tmpl;
+      editorState.blocks = Array.isArray(tmpl.blocks) ? tmpl.blocks : [];
+      refreshFragmentReferences();
+      document.getElementById('email-editor-delivery-name').textContent = tmpl.name || 'Content Template';
+      setValue('delivery-subject-input', tmpl.subject || '');
+      setValue('delivery-preheader-input', '');
+      setValue('delivery-document-title-input', '');
+      setValue('delivery-document-language-input', '');
+      applyTemplateUI();
+    } else if (editorState.fragmentMode) {
       if (Number.isNaN(editorState.fragmentId)) {
         editorState.fragment = {
           id: null,
@@ -188,6 +237,34 @@ async function loadEditorData() {
       setValue('delivery-document-title-input', '');
       setValue('delivery-document-language-input', '');
       applyFragmentUI();
+    } else if (editorState.offerRepMode) {
+      // Offer representation editing mode
+      if (!Number.isNaN(editorState.repId)) {
+        // Editing existing representation
+        const repsRes = await fetchWithTimeout(`${API_BASE}/offers/${editorState.offerId}/representations`);
+        const repsData = await repsRes.json();
+        const allReps = repsData.representations || repsData || [];
+        const rep = allReps.find(r => r.id === editorState.repId);
+        if (!rep) throw new Error('Representation not found');
+        editorState.offerRep = rep;
+        editorState.blocks = Array.isArray(rep.blocks) ? rep.blocks : [];
+      } else {
+        // New representation — start with empty blocks
+        editorState.offerRep = { offer_id: editorState.offerId, blocks: [] };
+        editorState.blocks = [];
+      }
+      // Load offer name for the header
+      try {
+        const offerRes = await fetchWithTimeout(`${API_BASE}/offers/${editorState.offerId}`);
+        const offerData = await offerRes.json();
+        editorState.offerName = offerData.name || 'Offer';
+      } catch (_e) { editorState.offerName = 'Offer'; }
+      document.getElementById('email-editor-delivery-name').textContent = `Offer: ${editorState.offerName}`;
+      setValue('delivery-subject-input', '');
+      setValue('delivery-preheader-input', '');
+      setValue('delivery-document-title-input', '');
+      setValue('delivery-document-language-input', '');
+      applyOfferRepUI();
     } else if (editorState.landingPageMode) {
       if (Number.isNaN(editorState.landingPageId)) {
         editorState.landingPage = {
@@ -305,6 +382,10 @@ function renderLeftPanel(mode) {
           variant: item.dataset.variant || ''
         };
         e.dataTransfer.setData('text/plain', JSON.stringify(payload));
+        editorState.currentDragType = item.dataset.block || null;
+      });
+      item.addEventListener('dragend', () => {
+        editorState.currentDragType = null;
       });
     });
     panel.querySelectorAll('.component-list-item').forEach(item => {
@@ -637,7 +718,8 @@ function renderContentList() {
     { label: 'Spacer', type: 'spacer', icon: '↕' },
     { label: 'HTML', type: 'html', icon: '</>' },
     { label: 'Image', type: 'image', icon: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="3" rx="2" ry="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/></svg>' },
-    { label: 'Social', type: 'social', icon: '⤴' }
+    { label: 'Social', type: 'social', icon: '⤴' },
+    { label: 'Offer decision', type: 'offer', icon: '☆' }
   ];
   return items.map(item => `
     <div class="email-block-item component-list-item" draggable="true" data-block="${item.type}">
@@ -709,7 +791,8 @@ function initEmailDesigner() {
   }
   editorState.canvasInitialized = true;
   canvas.addEventListener('dragover', (e) => {
-    if (e.target.closest('.structure-drop, .container-drop')) return;
+    const isStructureDrag = editorState.currentDragType === 'structure';
+    if (!isStructureDrag && e.target.closest('.structure-drop, .container-drop')) return;
     e.preventDefault();
     const container = getCanvasContainer();
     if (!container) return;
@@ -717,7 +800,8 @@ function initEmailDesigner() {
     showDropIndicator(container, index);
   });
   canvas.addEventListener('drop', (e) => {
-    if (e.target.closest('.structure-drop, .container-drop')) return;
+    const isStructureDrag = editorState.currentDragType === 'structure';
+    if (!isStructureDrag && e.target.closest('.structure-drop, .container-drop')) return;
     e.preventDefault();
     const container = getCanvasContainer();
     if (!container) return;
@@ -739,7 +823,7 @@ function createBlock(type, variant = '') {
   const base = { id, type };
   if (type === 'text') base.content = 'Add your text here';
   if (type === 'image') {
-    base.src = 'https://via.placeholder.com/600x200';
+    base.src = '';
     base.alt = 'Image';
   }
   if (type === 'button') {
@@ -780,6 +864,12 @@ function createBlock(type, variant = '') {
       twitter: '',
       linkedin: ''
     };
+  }
+  if (type === 'offer') {
+    base.decisionId = null;
+    base.placementId = null;
+    base.offerLabel = '';
+    base.offerFallbackHtml = '<div style="padding:24px;text-align:center;color:#616E7C;border:1px dashed #CBD2D9;border-radius:6px;">No offer available</div>';
   }
   return base;
 }
@@ -881,6 +971,26 @@ function deleteEmailBlock(id) {
   pushHistory();
 }
 
+function duplicateEmailBlock(id) {
+  const context = findBlockContext(id);
+  if (!context) return;
+  const clone = JSON.parse(JSON.stringify(context.block));
+  clone.id = `block-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+  clone.name = (clone.name || clone.type) + ' (copy)';
+  // Deep-clone nested block ids for structures
+  if (clone.columns) {
+    clone.columns.forEach(col => {
+      (col.blocks || []).forEach(b => {
+        b.id = `block-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+      });
+    });
+  }
+  const idx = context.container.indexOf(context.block);
+  context.container.splice(idx + 1, 0, clone);
+  renderEmailBlocks();
+  pushHistory();
+}
+
 function detachFragment(blockId) {
   const context = findBlockContext(blockId);
   if (!context || context.block?.type !== 'fragment') return;
@@ -974,12 +1084,19 @@ function renderEmailBlocks(options = {}) {
     </div>
   `;
   actualCanvas.innerHTML = bodyWrapperStart + editorState.blocks.map(block => renderBlock(block)).join('') + bodyWrapperEnd;
+  const rawSimulatedHtml = generateEmailHtml(editorState.blocks);
+  const personalizedHtml = _editorMergePersonalization(rawSimulatedHtml);
+  const tp = editorState.previewTestProfile;
+  const previewLabel = tp
+    ? `Preview — ${tp.first_name || ''} ${tp.last_name || ''}`
+    : 'Preview (simulated)';
   simulatedCanvas.innerHTML = `
     <div class="email-live-preview">
-      <div class="email-live-preview-header">Preview (simulated)</div>
-      <div class="email-live-preview-body">${generateEmailHtml(editorState.blocks)}</div>
+      <div class="email-live-preview-header">${previewLabel}</div>
+      <div class="email-live-preview-body">${personalizedHtml}</div>
     </div>
   `;
+  _resolveOfferBlocksInPreview(simulatedCanvas, tp);
   attachStructureDropzones();
   attachBlockDragHandlers();
   attachBlockSelectionHandlers();
@@ -1047,7 +1164,19 @@ function generateEmailHtml(blocks) {
     if (block.type === 'social') {
       return renderSocialHtml(block);
     }
-    return '';
+    if (block.type === 'offer') {
+      return renderBlockHtml(block);
+    }
+    if (block.type === 'fragment') {
+      return renderFragmentHtml(block);
+    }
+    if (block.type === 'form') {
+      return renderBlockHtml(block);
+    }
+    if (block.type === 'embed') {
+      return renderBlockHtml(block);
+    }
+    return renderBlockHtml(block);
   }).join('');
   return `
     <div style="background:${bodyStyle.backgroundColor}; background-image:${bodyStyle.backgroundImage ? `url(${bodyStyle.backgroundImage})` : 'none'}; border:${bodyStyle.border || 'none'}; padding:${bodyStyle.padding}; display:flex; justify-content:${bodyAlign};">
@@ -1106,6 +1235,32 @@ function renderStructureHtml(block) {
 }
 
 function renderBlockContent(block) {
+  if (block.type === 'offer') {
+    const decision = block.decisionId ? editorState.offerDecisions.find(d => d.id === block.decisionId) : null;
+    const placement = block.placementId ? editorState.offerPlacements.find(p => p.id === block.placementId) : null;
+    const decisionName = decision ? decision.name : 'Not selected';
+    const placementName = placement ? placement.name : 'Not selected';
+    const channelBadge = placement ? `<span class="offer-block-badge">${(placement.channel || '').toUpperCase()}</span>` : '';
+    if (!block.decisionId || !block.placementId) {
+      return `
+        <div class="email-block-preview offer-decision-preview offer-unconfigured">
+          <div class="offer-block-icon-lg">&#9734;</div>
+          <div class="offer-block-title">Offer Decision</div>
+          <div class="offer-block-subtitle">Select a decision and placement in the settings panel to configure this block.</div>
+        </div>`;
+    }
+    return `
+      <div class="email-block-preview offer-decision-preview">
+        <div class="offer-block-header">
+          <span class="offer-block-icon">&#9734;</span> Offer Decision ${channelBadge}
+        </div>
+        <div class="offer-block-config">
+          <div><strong>Decision:</strong> ${decisionName}</div>
+          <div><strong>Placement:</strong> ${placementName}</div>
+          <div class="offer-block-hint">Offers will be resolved per-contact at send time.</div>
+        </div>
+      </div>`;
+  }
   if (block.type === 'fragment') {
     const typeLabel = block.fragmentType ? block.fragmentType.toUpperCase() : 'FRAGMENT';
     return `
@@ -1190,8 +1345,8 @@ function renderBlockHtml(block) {
     return `<p style="${styleAttr}">${displayText}</p>`;
   }
   if (block.type === 'image') {
-    const displaySrc = getSimulatedImage(block.src || '');
-    const displayAlt = block.alt || (editorState.simulateContent ? 'Lifestyle image' : '');
+    const displaySrc = block.src || _PLACEHOLDER_IMAGE;
+    const displayAlt = block.alt || 'Image';
     const align = block.style?.textAlign || 'left';
     const img = `<img src="${displaySrc}" alt="${displayAlt}" style="max-width: 100%; display: inline-block;">`;
     const linked = block.link ? `<a href="${block.link}" style="text-decoration:none;">${img}</a>` : img;
@@ -1248,6 +1403,12 @@ function renderBlockHtml(block) {
   if (block.type === 'social') {
     return renderSocialHtml(block);
   }
+  if (block.type === 'offer') {
+    if (block.decisionId && block.placementId) {
+      return `<!-- OFFER_BLOCK:decision=${block.decisionId}&placement=${block.placementId} -->${block.offerFallbackHtml || ''}<!-- /OFFER_BLOCK -->`;
+    }
+    return block.offerFallbackHtml || '';
+  }
   return '';
 }
 
@@ -1260,7 +1421,9 @@ function renderFragmentHtml(block) {
 function attachStructureDropzones() {
   document.querySelectorAll('.structure-drop, .container-drop').forEach(zone => {
     zone.addEventListener('dragover', (e) => e.preventDefault());
-    zone.addEventListener('dragenter', () => zone.classList.add('drop-active'));
+    zone.addEventListener('dragenter', () => {
+      if (editorState.currentDragType !== 'structure') zone.classList.add('drop-active');
+    });
     zone.addEventListener('dragleave', () => zone.classList.remove('drop-active'));
     zone.addEventListener('drop', (e) => {
       e.preventDefault();
@@ -1270,7 +1433,24 @@ function attachStructureDropzones() {
       if (!raw) return;
       const payload = parseDragPayload(e);
       if (!payload) return;
-      if (payload.kind === 'new' && payload.type === 'structure') return;
+      if (payload.kind === 'new' && payload.type === 'structure') {
+        // Structures cannot nest inside other structures, so drop it
+        // before or after the parent structure on the main canvas instead
+        const structureId = zone.dataset.structureId;
+        const context = findBlockContext(structureId);
+        if (context) {
+          const parentBlock = document.querySelector(`.email-block[data-block-id="${structureId}"]`);
+          const idx = context.container.indexOf(context.block);
+          let insertIdx = idx + 1;
+          if (parentBlock) {
+            const rect = parentBlock.getBoundingClientRect();
+            if (e.clientY < rect.top + rect.height / 2) insertIdx = idx;
+          }
+          clearDropIndicator();
+          handleDropToContainer(context.container, insertIdx, payload);
+        }
+        return;
+      }
       const structureId = zone.dataset.structureId;
       const columnIndex = parseInt(zone.dataset.columnIndex, 10);
       const container = getStructureColumnContainer(structureId, columnIndex);
@@ -1280,6 +1460,7 @@ function attachStructureDropzones() {
       handleDropToContainer(container, index, payload);
     });
     zone.addEventListener('dragover', (e) => {
+      if (editorState.currentDragType === 'structure') return;
       e.preventDefault();
       const index = getDropIndex(zone, e.clientY);
       showDropIndicator(zone, index);
@@ -1443,9 +1624,24 @@ function getSimulatedText(value) {
     : value;
 }
 
+// Inline SVG placeholder encoded as a data URI — always renders, no external dependency
+const _PLACEHOLDER_IMAGE = (() => {
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="640" height="360" viewBox="0 0 640 360">
+    <rect fill="#f3f4f6" width="640" height="360"/>
+    <g fill="#9ca3af">
+      <rect x="280" y="130" width="80" height="60" rx="6"/>
+      <circle cx="300" cy="148" r="8" fill="#d1d5db"/>
+      <polygon points="285,185 320,155 355,185" fill="#d1d5db"/>
+      <polygon points="310,185 335,165 360,185" fill="#e5e7eb"/>
+      <text x="320" y="215" font-family="Arial,sans-serif" font-size="14" text-anchor="middle" fill="#9ca3af">Image placeholder</text>
+    </g>
+  </svg>`;
+  return 'data:image/svg+xml,' + encodeURIComponent(svg);
+})();
+
 function getSimulatedImage(value) {
   if (value) return value;
-  return editorState.simulateContent ? 'https://via.placeholder.com/640x360?text=Image' : value;
+  return editorState.simulateContent ? _PLACEHOLDER_IMAGE : value;
 }
 
 function findBlockById(id) {
@@ -1468,12 +1664,20 @@ function findBlockContext(id, blocks = editorState.blocks, parentColumn = null) 
 }
 
 async function saveDeliveryContent() {
+  if (editorState.templateMode) {
+    await saveTemplateContent();
+    return;
+  }
   if (editorState.fragmentMode) {
     await saveFragmentContent();
     return;
   }
   if (editorState.landingPageMode) {
     await saveLandingPageContent();
+    return;
+  }
+  if (editorState.offerRepMode) {
+    await saveOfferRepContent();
     return;
   }
   if (!editorState.delivery) return;
@@ -1502,6 +1706,87 @@ async function saveDeliveryContent() {
     showToast(error.message, 'error');
   } finally {
     hideLoading();
+  }
+}
+
+async function saveTemplateContent() {
+  if (!editorState.template) return;
+  const payload = {
+    name: editorState.template.name,
+    subject: getValue('delivery-subject-input'),
+    blocks: editorState.blocks,
+    html: editorState.htmlOverride || generateEmailHtml(editorState.blocks),
+    status: editorState.template.status || 'draft'
+  };
+  try {
+    showLoading();
+    const response = await fetch(`${API_BASE}/email-templates/${editorState.templateId}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || 'Failed to save template');
+    editorState.template = data;
+    showToast('Template saved', 'success');
+  } catch (error) {
+    showToast(error.message, 'error');
+  } finally {
+    hideLoading();
+  }
+}
+
+function applyTemplateUI() {
+  // Hide delivery-specific fields, show template label
+  const preheaderGroup = document.getElementById('delivery-preheader-input')?.closest('.form-group');
+  if (preheaderGroup) preheaderGroup.style.display = 'none';
+  const docTitleGroup = document.getElementById('delivery-document-title-input')?.closest('.form-group');
+  if (docTitleGroup) docTitleGroup.style.display = 'none';
+  const docLangGroup = document.getElementById('delivery-document-language-input')?.closest('.form-group');
+  if (docLangGroup) docLangGroup.style.display = 'none';
+
+  // Update the page title
+  const delivName = document.getElementById('email-editor-delivery-name');
+  if (delivName) {
+    delivName.contentEditable = 'true';
+    delivName.addEventListener('blur', () => {
+      if (editorState.template) {
+        editorState.template.name = delivName.textContent.trim() || editorState.template.name;
+      }
+    });
+  }
+
+  // Add a "Publish" button to the toolbar if not already present
+  const toolbar = document.querySelector('.email-editor-actions');
+  if (toolbar && !document.getElementById('ct-publish-btn')) {
+    const pubBtn = document.createElement('button');
+    pubBtn.id = 'ct-publish-btn';
+    pubBtn.className = 'btn btn-primary btn-sm';
+    pubBtn.style.marginRight = '8px';
+    pubBtn.innerHTML = editorState.template?.status === 'published' ? 'Published' : 'Publish';
+    pubBtn.onclick = async () => {
+      try {
+        const resp = await fetch(`${API_BASE}/email-templates/${editorState.templateId}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            status: 'published',
+            blocks: editorState.blocks,
+            html: editorState.htmlOverride || generateEmailHtml(editorState.blocks),
+            subject: getValue('delivery-subject-input')
+          })
+        });
+        const data = await resp.json();
+        if (!resp.ok) throw new Error(data.error || 'Failed to publish');
+        editorState.template = data;
+        pubBtn.textContent = 'Published';
+        showToast('Template published!', 'success');
+      } catch (err) {
+        showToast(err.message, 'error');
+      }
+    };
+    const saveBtn = toolbar.querySelector('button');
+    if (saveBtn) toolbar.insertBefore(pubBtn, saveBtn);
   }
 }
 
@@ -1590,6 +1875,52 @@ function applyLandingPageUI(isLanding) {
   if (landingSettings) landingSettings.classList.toggle('hidden', !isLanding);
   if (title) title.textContent = isLanding ? 'Landing Page Designer' : 'Email Designer';
   if (backBtn) backBtn.title = isLanding ? 'Back to Landing Pages' : 'Back to Delivery';
+}
+
+// ── Offer Representation Mode ──
+
+async function saveOfferRepContent() {
+  try {
+    showLoading();
+    const htmlOutput = editorState.htmlOverride || generateEmailHtml(editorState.blocks);
+    const payload = {
+      content: htmlOutput,
+      blocks: editorState.blocks
+    };
+
+    if (!Number.isNaN(editorState.repId) && editorState.repId) {
+      // Update existing representation
+      const response = await fetch(`${API_BASE}/offers/${editorState.offerId}/representations/${editorState.repId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Failed to save representation');
+      editorState.offerRep = data;
+      showToast('Representation content saved', 'success');
+    } else {
+      showToast('Content ready — close to continue', 'success');
+    }
+  } catch (error) {
+    showToast(error.message, 'error');
+  } finally {
+    hideLoading();
+  }
+}
+
+function applyOfferRepUI() {
+  const deliverySettings = document.getElementById('email-delivery-settings');
+  const landingSettings = document.getElementById('landing-page-settings');
+  const title = document.querySelector('.email-editor-title span');
+  const backBtn = document.querySelector('.email-editor-toolbar .btn-back.preview-keep');
+  if (deliverySettings) deliverySettings.classList.add('hidden');
+  if (landingSettings) landingSettings.classList.add('hidden');
+  if (title) title.textContent = 'Offer Content Designer';
+  if (backBtn) backBtn.title = 'Back to Offer';
+  // Hide the simulate content button since offers don't have delivery-level simulation
+  const simulateBtn = document.getElementById('simulate-content-btn');
+  if (simulateBtn) simulateBtn.style.display = 'none';
 }
 
 function setupLandingPageNameListener() {
@@ -1935,33 +2266,106 @@ function applyCodeEditor() {
   closeCodeEditor();
 }
 
+let _designPickerTemplates = [];
+let _designPickerTab = 'sample'; // 'sample' | 'saved'
+let _designPickerSearch = '';
+
 async function openDesignPicker() {
   const modal = document.getElementById('email-design-modal');
   const list = document.getElementById('email-template-list');
   if (!modal || !list) return;
   modal.classList.remove('hidden');
-  list.innerHTML = '<div>Loading templates...</div>';
+  list.innerHTML = '<div style="padding:24px;text-align:center;color:#9ca3af;">Loading templates...</div>';
   try {
     const response = await fetch(`${API_BASE}/email-templates`);
     const data = await response.json();
     if (!response.ok) throw new Error(data.error || 'Failed to load templates');
-    const templates = data.templates || [];
-    if (!templates.length) {
-      list.innerHTML = '<div>No templates available.</div>';
-      return;
-    }
-    list.innerHTML = templates.map(t => `
-      <div class="email-template-item">
-        <div>
-          <div><strong>${t.name}</strong></div>
-          <div class="email-template-meta">Updated: ${t.updated_at ? new Date(t.updated_at).toLocaleDateString() : '—'}</div>
-        </div>
-        <button class="btn btn-secondary" onclick="applyTemplateFromPicker(${t.id})">Use</button>
-      </div>
-    `).join('');
+    _designPickerTemplates = data.templates || [];
+    _designPickerTab = 'sample';
+    _designPickerSearch = '';
+    _renderDesignPickerList();
   } catch (error) {
-    list.innerHTML = `<div>${error.message}</div>`;
+    list.innerHTML = `<div style="padding:24px;color:#ef4444;">${error.message}</div>`;
   }
+}
+
+function _renderDesignPickerList() {
+  const list = document.getElementById('email-template-list');
+  if (!list) return;
+
+  let templates = _designPickerTemplates;
+  if (_designPickerTab === 'sample') templates = templates.filter(t => t.sample);
+  else templates = templates.filter(t => !t.sample);
+
+  if (_designPickerSearch) {
+    const q = _designPickerSearch.toLowerCase();
+    templates = templates.filter(t =>
+      (t.name || '').toLowerCase().includes(q) ||
+      (t.description || '').toLowerCase().includes(q) ||
+      (t.category || '').toLowerCase().includes(q)
+    );
+  }
+
+  const catColors = { onboarding: '#2563EB', promotional: '#DC2626', newsletter: '#7C3AED', transactional: '#059669', event: '#D97706', retention: '#0891B2', custom: '#6B7280' };
+  const catLabels = { onboarding: 'Onboarding', promotional: 'Promotional', newsletter: 'Newsletter', transactional: 'Transactional', event: 'Event', retention: 'Retention', custom: 'Custom' };
+
+  const sampleCount = _designPickerTemplates.filter(t => t.sample).length;
+  const savedCount = _designPickerTemplates.filter(t => !t.sample).length;
+
+  const tabs = `
+    <div class="dp-tabs">
+      <button class="dp-tab ${_designPickerTab === 'sample' ? 'active' : ''}" onclick="_designPickerTab='sample';_renderDesignPickerList()">Sample templates <span class="dp-tab-count">${sampleCount}</span></button>
+      <button class="dp-tab ${_designPickerTab === 'saved' ? 'active' : ''}" onclick="_designPickerTab='saved';_renderDesignPickerList()">Saved templates <span class="dp-tab-count">${savedCount}</span></button>
+    </div>
+    <div style="padding:8px 16px;">
+      <input type="text" class="form-input" placeholder="Search templates..." value="${_designPickerSearch}" oninput="_designPickerSearch=this.value;_renderDesignPickerList()" style="font-size:13px;">
+    </div>
+  `;
+
+  let body;
+  if (!templates.length) {
+    body = `<div style="padding:48px;text-align:center;color:#9ca3af;">
+      <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#d1d5db" stroke-width="1.5"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/></svg>
+      <p style="margin-top:12px;">${_designPickerTab === 'saved' ? 'No saved templates yet. Save a design as template from the editor.' : 'No sample templates available.'}</p>
+    </div>`;
+  } else {
+    body = `<div class="dp-grid">${templates.map(t => {
+      const color = catColors[t.category] || '#6B7280';
+      const label = catLabels[t.category] || t.category || 'Custom';
+      const previewHtml = t.html
+        ? `<iframe class="dp-card-iframe" scrolling="no" sandbox="allow-same-origin" data-html="${encodeURIComponent(t.html)}"></iframe>`
+        : `<svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#d1d5db" stroke-width="1.5"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>`;
+      return `
+        <div class="dp-card" onclick="applyTemplateFromPicker(${t.id})">
+          <div class="dp-card-preview">${previewHtml}</div>
+          <div class="dp-card-body">
+            <span class="dp-card-cat" style="color:${color};">${label}</span>
+            <div class="dp-card-name">${t.name || 'Untitled'}</div>
+            <div class="dp-card-desc">${t.description || ''}</div>
+          </div>
+          <div class="dp-card-foot">
+            <button class="btn btn-primary btn-sm" onclick="event.stopPropagation();applyTemplateFromPicker(${t.id})">Use this template</button>
+          </div>
+        </div>
+      `;
+    }).join('')}</div>`;
+  }
+
+  list.innerHTML = tabs + body;
+
+  // Populate iframe previews
+  requestAnimationFrame(() => {
+    list.querySelectorAll('.dp-card-iframe').forEach(iframe => {
+      const html = decodeURIComponent(iframe.dataset.html || '');
+      if (!html) return;
+      try {
+        const doc = iframe.contentDocument || iframe.contentWindow.document;
+        doc.open();
+        doc.write(`<!DOCTYPE html><html><head><style>body{margin:0;padding:0;overflow:hidden;pointer-events:none;transform-origin:top left;transform:scale(0.3);width:333%;font-family:Arial,sans-serif;}</style></head><body>${html}</body></html>`);
+        doc.close();
+      } catch (e) { /* cross-origin safety */ }
+    });
+  });
 }
 
 function closeDesignPicker() {
@@ -1991,13 +2395,65 @@ async function applyTemplateFromPicker(id) {
 }
 
 async function saveAsTemplate() {
-  const name = prompt('Template name?');
-  if (!name) return;
+  // Show a modal to collect template name, description, and category
+  const overlay = document.createElement('div');
+  overlay.className = 'email-modal';
+  overlay.id = 'save-template-modal';
+  overlay.style.zIndex = '10001';
+  overlay.innerHTML = `
+    <div class="email-modal-content" style="max-width:440px;">
+      <div class="email-modal-header">
+        <h3>Save as content template</h3>
+        <button class="email-modal-close" onclick="document.getElementById('save-template-modal').remove()">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+        </button>
+      </div>
+      <div class="email-modal-body" style="padding:16px 20px;">
+        <div class="form-group">
+          <label class="form-label form-label-required">Template name</label>
+          <input class="form-input" id="save-tmpl-name" placeholder="e.g. Welcome Email v2">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Description</label>
+          <input class="form-input" id="save-tmpl-desc" placeholder="Brief description">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Category</label>
+          <select class="form-input" id="save-tmpl-cat">
+            <option value="custom">Custom</option>
+            <option value="onboarding">Onboarding</option>
+            <option value="promotional">Promotional</option>
+            <option value="newsletter">Newsletter</option>
+            <option value="transactional">Transactional</option>
+            <option value="event">Event</option>
+            <option value="retention">Retention</option>
+          </select>
+        </div>
+      </div>
+      <div class="email-modal-footer">
+        <button class="btn btn-secondary" onclick="document.getElementById('save-template-modal').remove()">Cancel</button>
+        <button class="btn btn-primary" onclick="_doSaveAsTemplate()">Save template</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(overlay);
+  document.getElementById('save-tmpl-name').focus();
+}
+
+async function _doSaveAsTemplate() {
+  const name = document.getElementById('save-tmpl-name')?.value?.trim();
+  if (!name) { showToast('Please enter a template name', 'warning'); return; }
+  const description = document.getElementById('save-tmpl-desc')?.value?.trim() || '';
+  const category = document.getElementById('save-tmpl-cat')?.value || 'custom';
+
   const payload = {
     name,
+    description,
+    category,
     subject: getValue('delivery-subject-input'),
     blocks: editorState.blocks,
-    html: generateEmailHtml(editorState.blocks)
+    html: generateEmailHtml(editorState.blocks),
+    status: 'published'
   };
   try {
     showLoading();
@@ -2008,7 +2464,8 @@ async function saveAsTemplate() {
     });
     const data = await response.json();
     if (!response.ok) throw new Error(data.error || 'Failed to save template');
-    showToast('Template saved', 'success');
+    document.getElementById('save-template-modal')?.remove();
+    showToast(`Template "${name}" saved!`, 'success');
   } catch (error) {
     showToast(error.message, 'error');
   } finally {
@@ -2234,14 +2691,16 @@ function attachBlockDragHandlers() {
       clearDropIndicator();
     });
     block.addEventListener('dragover', (e) => {
-      if (e.target.closest('.structure-drop, .container-drop')) return;
+      const isStructureDrag = editorState.currentDragType === 'structure';
+      if (!isStructureDrag && e.target.closest('.structure-drop, .container-drop')) return;
       e.preventDefault();
       const rect = block.getBoundingClientRect();
       const before = e.clientY < rect.top + rect.height / 2;
       showDropIndicator(block.parentElement, before ? getBlockIndex(block) : getBlockIndex(block) + 1);
     });
     block.addEventListener('drop', (e) => {
-      if (e.target.closest('.structure-drop, .container-drop')) return;
+      const isStructureDrag = editorState.currentDragType === 'structure';
+      if (!isStructureDrag && e.target.closest('.structure-drop, .container-drop')) return;
       e.preventDefault();
       const container = block.parentElement;
       const rect = block.getBoundingClientRect();
@@ -2504,7 +2963,271 @@ function togglePreviewMode() {
   const btn = document.getElementById('toggle-preview-btn');
   if (root) root.classList.toggle('preview-mode', editorState.previewMode);
   if (btn) btn.textContent = editorState.previewMode ? 'Exit preview' : 'Preview';
-  if (editorState.previewMode) hideInlineToolbar();
+  if (editorState.previewMode) {
+    hideInlineToolbar();
+    // Switch to simulated (rendered HTML) view for a clean preview
+    switchPreviewTab('simulated');
+    renderPreviewTestProfilePanel();
+    renderEmailBlocks(); // Ensure the simulated canvas is up to date
+  } else {
+    // Switch back to the design (actual) view when exiting preview
+    switchPreviewTab('actual');
+    // Restore the left panel to its previous mode
+    renderLeftPanel(editorState.activeMode);
+  }
+}
+
+// ── Preview Test Profile Panel ──────────────────────────────────
+function renderPreviewTestProfilePanel() {
+  const panel = document.getElementById('email-left-panel');
+  if (!panel) return;
+  const tp = editorState.previewTestProfile;
+  const selectedHtml = tp
+    ? `<div class="preview-tp-selected">
+         <div class="preview-tp-selected-info">
+           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+           <div>
+             <div class="preview-tp-name">${tp.first_name || ''} ${tp.last_name || ''}</div>
+             <div class="preview-tp-email">${tp.email || ''}</div>
+           </div>
+         </div>
+         <button class="preview-tp-clear" onclick="clearPreviewTestProfile()" title="Clear profile">&times;</button>
+       </div>`
+    : '';
+
+  const fieldPreview = tp ? `
+    <div class="preview-tp-fields">
+      <div class="preview-tp-fields-title">Profile data</div>
+      ${_renderProfileFields(tp)}
+    </div>` : '';
+
+  panel.innerHTML = `
+    <div class="preview-tp-panel">
+      <div class="preview-tp-header">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+        <span>Test Profile</span>
+      </div>
+      <p class="preview-tp-hint">Select a contact to preview personalization tokens with real data.</p>
+      ${selectedHtml}
+      ${!tp ? `
+        <div class="preview-tp-search-wrap">
+          <input type="text" class="form-input preview-tp-search" placeholder="Search by name or email..."
+                 oninput="searchPreviewTestProfile(this.value)" id="preview-tp-search-input">
+          <div class="preview-tp-results" id="preview-tp-results"></div>
+        </div>` : ''}
+      ${fieldPreview}
+    </div>
+  `;
+}
+
+function _renderProfileFields(profile) {
+  const displayFields = [
+    ['first_name', 'First name'],
+    ['last_name', 'Last name'],
+    ['email', 'Email'],
+    ['phone', 'Phone'],
+    ['city', 'City'],
+    ['state', 'State'],
+    ['country', 'Country'],
+    ['gender', 'Gender'],
+    ['loyalty_tier', 'Loyalty tier'],
+    ['language', 'Language'],
+    ['source', 'Source']
+  ];
+  return displayFields
+    .filter(([key]) => profile[key])
+    .map(([key, label]) => `
+      <div class="preview-tp-field">
+        <span class="preview-tp-field-label">${label}</span>
+        <span class="preview-tp-field-value">${profile[key]}</span>
+      </div>`)
+    .join('');
+}
+
+let _previewTpDebounce = null;
+function searchPreviewTestProfile(query) {
+  clearTimeout(_previewTpDebounce);
+  if (!query || query.length < 2) {
+    editorState.previewTestProfileResults = [];
+    _renderPreviewTpResults();
+    return;
+  }
+  _previewTpDebounce = setTimeout(async () => {
+    try {
+      const resp = await fetch(`${API_BASE}/contacts?search=${encodeURIComponent(query)}&limit=10`);
+      const data = await resp.json();
+      editorState.previewTestProfileResults = data.contacts || data || [];
+      _renderPreviewTpResults();
+    } catch (e) {
+      editorState.previewTestProfileResults = [];
+      _renderPreviewTpResults();
+    }
+  }, 300);
+}
+
+function _renderPreviewTpResults() {
+  const list = document.getElementById('preview-tp-results');
+  if (!list) return;
+  const results = editorState.previewTestProfileResults;
+  if (!results.length) {
+    list.innerHTML = '';
+    list.classList.remove('open');
+    return;
+  }
+  list.innerHTML = results.map(c => `
+    <div class="preview-tp-result-item" onclick="selectPreviewTestProfile(${c.id})">
+      <span class="preview-tp-result-name">${c.first_name || ''} ${c.last_name || ''}</span>
+      <span class="preview-tp-result-email">${c.email || ''}</span>
+    </div>
+  `).join('');
+  list.classList.add('open');
+}
+
+function selectPreviewTestProfile(contactId) {
+  const contact = editorState.previewTestProfileResults.find(c => c.id === contactId);
+  if (!contact) return;
+  editorState.previewTestProfile = contact;
+  editorState.previewTestProfileResults = [];
+  renderPreviewTestProfilePanel();
+  renderEmailBlocks(); // Re-render with personalization
+}
+
+function clearPreviewTestProfile() {
+  editorState.previewTestProfile = null;
+  editorState.previewTestProfileResults = [];
+  renderPreviewTestProfilePanel();
+  renderEmailBlocks(); // Re-render without personalization
+}
+
+// Client-side merge of personalization tokens for the email editor preview
+function _editorMergePersonalization(html) {
+  const tp = editorState.previewTestProfile;
+  if (!tp || !html) return html;
+  return html.replace(/\{\{(\w+)\.(\w+)\}\}/g, (match, entity, field) => {
+    if (tp[field] !== undefined && tp[field] !== null) return String(tp[field]);
+    return match;
+  });
+}
+
+// Resolve offer block markers in the simulated preview canvas via decision engine
+let _offerResolveVersion = 0;
+async function _resolveOfferBlocksInPreview(canvas, testProfile) {
+  const body = canvas.querySelector('.email-live-preview-body');
+  if (!body) return;
+  const html = body.innerHTML;
+  const offerPattern = /<!-- OFFER_BLOCK:decision=(\d+)&placement=(\d+) -->([\s\S]*?)<!-- \/OFFER_BLOCK -->/g;
+  const matches = [...html.matchAll(offerPattern)];
+  if (!matches.length) return;
+
+  const contactId = testProfile ? testProfile.id : null;
+  const version = ++_offerResolveVersion;
+
+  // Build diagnostic overlay HTML for a failed/empty resolution
+  function buildDiagnosticHtml(reason, details) {
+    return `<div style="border:2px dashed #e0e0e0;border-radius:8px;padding:16px 20px;margin:8px 0;background:#fafafa;text-align:center">
+      <div style="font-size:13px;color:#616161;font-weight:600;margin-bottom:4px">${reason}</div>
+      <div style="font-size:11px;color:#9e9e9e;line-height:1.4">${details}</div>
+    </div>`;
+  }
+
+  const decisionIds = [...new Set(matches.map(m => parseInt(m[1])))];
+  const results = {};
+  const errors = {};
+  await Promise.all(decisionIds.map(async (decId) => {
+    try {
+      if (!contactId) {
+        errors[decId] = 'no_profile';
+        return;
+      }
+      const payload = { context: {}, contact_id: contactId };
+      const resp = await fetchWithTimeout(`${API_BASE}/decisions/${decId}/simulate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      if (resp.ok) {
+        results[decId] = await resp.json();
+      } else {
+        const errBody = await resp.json().catch(() => ({}));
+        errors[decId] = errBody.error || `HTTP ${resp.status}`;
+      }
+    } catch (e) {
+      errors[decId] = e.message || 'Network error';
+    }
+  }));
+
+  if (_offerResolveVersion !== version) return;
+
+  let resolvedHtml = html;
+  for (const match of matches) {
+    const [fullMatch, decIdStr, plIdStr, fallback] = match;
+    const decId = parseInt(decIdStr);
+    const plId = parseInt(plIdStr);
+    const simData = results[decId];
+    let replacement = null;
+
+    if (errors[decId] === 'no_profile') {
+      replacement = buildDiagnosticHtml(
+        'Select a test profile to preview offers',
+        'Use the "Test profile" dropdown above to choose a contact. Offers are personalized per-contact.'
+      );
+    } else if (errors[decId]) {
+      replacement = buildDiagnosticHtml(
+        'Offer resolution failed',
+        `Error: ${errors[decId]}<br>Check the readiness panel in the offer block settings.`
+      );
+    } else if (simData) {
+      const placementResult = (simData.placements || []).find(p => p.placement_id === plId);
+      if (placementResult?.offers?.length) {
+        const topOffer = placementResult.offers[0];
+        if (topOffer.content) {
+          const c = topOffer.content;
+          if (c.content_type === 'html' && c.content) {
+            replacement = c.content;
+          } else if (c.content_type === 'image' && c.image_url) {
+            const link = c.link_url || '#';
+            replacement = `<a href="${link}"><img src="${c.image_url}" alt="${topOffer.offer_name || 'Offer'}" style="max-width:100%;height:auto;display:block;"></a>`;
+          } else if (c.content_type === 'text' && c.content) {
+            replacement = `<div>${c.content}</div>`;
+          } else if (c.content_type === 'json') {
+            replacement = `<pre style="background:#f5f5f5;padding:12px;border-radius:4px;font-size:12px;overflow:auto">${JSON.stringify(c, null, 2)}</pre>`;
+          } else {
+            replacement = buildDiagnosticHtml(
+              `Offer "${topOffer.offer_name}" resolved but has no renderable content`,
+              'The representation for this placement may be empty. Edit the offer and check its representations.'
+            );
+          }
+        } else {
+          replacement = buildDiagnosticHtml(
+            `Offer "${topOffer.offer_name}" has no content for this placement`,
+            'Add a Representation with HTML content for this placement in the Offers section.'
+          );
+        }
+      } else if (placementResult) {
+        replacement = buildDiagnosticHtml(
+          'No offers qualified for this contact',
+          placementResult.fallback_used
+            ? 'The fallback offer was used but has no content for this placement.'
+            : 'No offers matched the eligibility/constraint rules. Check the offer status and representations.'
+        );
+      } else {
+        replacement = buildDiagnosticHtml(
+          'Placement not found in decision response',
+          'This placement may not be configured in the selected decision. Check the readiness panel.'
+        );
+      }
+    } else {
+      replacement = buildDiagnosticHtml(
+        'Could not resolve offers',
+        'The decision engine did not return a result. Check the readiness panel for configuration issues.'
+      );
+    }
+
+    resolvedHtml = resolvedHtml.replace(fullMatch, replacement || fallback);
+  }
+
+  if (_offerResolveVersion !== version) return;
+  body.innerHTML = resolvedHtml;
 }
 
 function toggleRightPanel() {
@@ -2703,8 +3426,165 @@ function applyAiContent(target, text) {
   return false;
 }
 
+// ── Email editor helper functions ──
+
+const _webSafeFonts = [
+  'Arial, sans-serif',
+  'Helvetica, sans-serif',
+  'Georgia, serif',
+  'Times New Roman, serif',
+  'Courier New, monospace',
+  'Verdana, sans-serif',
+  'Trebuchet MS, sans-serif',
+  'Tahoma, sans-serif',
+  'Lucida Sans, sans-serif',
+  'Palatino, serif'
+];
+
+function _fontFamilyOptions(currentValue) {
+  const cv = (currentValue || '').trim();
+  const matched = _webSafeFonts.some(f => f === cv);
+  return _webSafeFonts.map(f =>
+    `<option value="${f}" ${f === cv ? 'selected' : ''}>${f.split(',')[0]}</option>`
+  ).join('') + (!matched && cv ? `<option value="${cv}" selected>${cv}</option>` : '');
+}
+
+function syncColorHex(colorInput) {
+  const hex = colorInput.nextElementSibling;
+  if (hex) hex.value = colorInput.value;
+}
+
+// SVG icon fragments for alignment buttons
+const _alignSVG = {
+  left:   '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="17" y1="10" x2="3" y2="10"/><line x1="21" y1="6" x2="3" y2="6"/><line x1="21" y1="14" x2="3" y2="14"/><line x1="17" y1="18" x2="3" y2="18"/></svg>',
+  center: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="10" x2="6" y2="10"/><line x1="21" y1="6" x2="3" y2="6"/><line x1="21" y1="14" x2="3" y2="14"/><line x1="18" y1="18" x2="6" y2="18"/></svg>',
+  right:  '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="21" y1="10" x2="7" y2="10"/><line x1="21" y1="6" x2="3" y2="6"/><line x1="21" y1="14" x2="3" y2="14"/><line x1="21" y1="18" x2="7" y2="18"/></svg>'
+};
+const _actionSVG = {
+  moveUp:   '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 15-6-6-6 6"/></svg>',
+  moveDown: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>',
+  trash:    '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg>',
+  duplicate:'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>'
+};
+
+function _colorInputRow(blockId, field, value, defaultVal, fnLP, fnCommit) {
+  const v = value || defaultVal;
+  return `<div class="color-input-row">
+    <input type="color" class="form-input form-color" value="${v}" oninput="${fnLP}('${blockId}','${field}', this.value); syncColorHex(this)" onchange="${fnCommit}('${blockId}','${field}', this.value)">
+    <input type="text" class="form-input form-color-hex" value="${v}" maxlength="7" oninput="if(/^#[0-9a-fA-F]{6}$/.test(this.value)){this.previousElementSibling.value=this.value; ${fnLP}('${blockId}','${field}',this.value)}" onblur="if(/^#[0-9a-fA-F]{6}$/.test(this.value)){${fnCommit}('${blockId}','${field}',this.value)}">
+  </div>`;
+}
+
+function _columnPresetButtons(block) {
+  const cols = (block.columns || []).length;
+  const presets = {
+    1: [['100%']],
+    2: [['50%','50%'], ['33%','67%'], ['67%','33%'], ['25%','75%'], ['75%','25%']],
+    3: [['33%','33%','34%'], ['25%','50%','25%'], ['50%','25%','25%'], ['25%','25%','50%']],
+    4: [['25%','25%','25%','25%']]
+  };
+  const options = presets[cols] || [];
+  if (!options.length) return '<span class="form-helper">N/A</span>';
+  const current = (block.columns || []).map(c => c.style?.width || `${Math.round(100/cols)}%`).join(',');
+  return options.map(widths => {
+    const key = widths.join(',');
+    const isActive = key === current;
+    const label = widths.map(w => parseInt(w)).join('/');
+    return `<button class="btn btn-icon column-preset-btn ${isActive ? 'active' : ''}" type="button" title="${label}" onclick="applyColumnPreset('${block.id}', '${key}')">${label}</button>`;
+  }).join('');
+}
+
+function applyColumnPreset(blockId, presetKey) {
+  const context = findBlockContext(blockId);
+  if (!context?.block || context.block.type !== 'structure') return;
+  const widths = presetKey.split(',');
+  (context.block.columns || []).forEach((col, i) => {
+    col.style = col.style || {};
+    col.style.width = widths[i] || `${Math.round(100 / widths.length)}%`;
+  });
+  renderEmailBlocks();
+  pushHistory();
+}
+
 function renderBlockContentPanel(block) {
   if (!block) return '';
+  if (block.type === 'offer') {
+    const decisions = editorState.offerDecisions || [];
+    const allDecisions = editorState._allOfferDecisions || decisions;
+    const placements = editorState.offerPlacements || [];
+    const selectedDecision = block.decisionId ? decisions.find(d => d.id === block.decisionId) : null;
+    const decisionPlacements = selectedDecision
+      ? (selectedDecision.placement_configs || []).map(pc => placements.find(p => p.id === pc.placement_id)).filter(Boolean)
+      : placements.filter(p => p.channel === 'email');
+
+    // Check if there are draft decisions but no live ones (guidance)
+    const draftCount = allDecisions.filter(d => d.status !== 'live').length;
+    const noneAvailableHint = decisions.length === 0 && draftCount > 0
+      ? `<div class="offer-diag-hint" style="margin-top:6px;padding:8px 10px;background:#fff3e0;border-radius:6px;font-size:12px;color:#e65100;line-height:1.4">
+           <strong>${draftCount} decision(s) exist but are not live.</strong><br>
+           Go to <em>Offer Decisioning &gt; Decisions</em> and click <strong>Activate</strong> to make them available here.
+         </div>`
+      : decisions.length === 0
+        ? `<div class="offer-diag-hint" style="margin-top:6px;padding:8px 10px;background:#e3f2fd;border-radius:6px;font-size:12px;color:#1565c0;line-height:1.4">
+             No decisions found. Create one in <em>Offer Decisioning &gt; Decisions</em>.<br>
+             A decision connects placements, strategies, and offers together.
+           </div>`
+        : '';
+
+    return `
+      <details class="inspector-section" open>
+        <summary>Offer Decision</summary>
+        <div class="inspector-fields">
+          <div class="form-group">
+            <label class="form-label">Decision policy</label>
+            <select class="form-input" onchange="onOfferDecisionChange('${block.id}', this.value)">
+              <option value="">-- Select a decision --</option>
+              ${decisions.map(d => `<option value="${d.id}" ${block.decisionId === d.id ? 'selected' : ''}>${d.name}</option>`).join('')}
+            </select>
+            <div class="form-helper">Only live (activated) decisions are shown.</div>
+            ${noneAvailableHint}
+          </div>
+          <div class="form-group">
+            <label class="form-label">Placement</label>
+            <select class="form-input" onchange="onOfferPlacementChange('${block.id}', this.value)">
+              <option value="">-- Select a placement --</option>
+              ${decisionPlacements.map(p => {
+                const isEmail = p.channel === 'email';
+                const isHtml = p.content_type === 'html' || p.content_type === 'image';
+                const recommended = isEmail && isHtml;
+                const label = p.name + (recommended ? ' (recommended)' : ' (' + p.channel + ' / ' + p.content_type + ')');
+                return `<option value="${p.id}" ${block.placementId === p.id ? 'selected' : ''}>${label}</option>`;
+              }).join('')}
+            </select>
+            ${(() => {
+              if (!selectedDecision) return '<div class="form-helper">Select a decision first to see its placements.</div>';
+              const selPl = block.placementId ? decisionPlacements.find(p => p.id === block.placementId) : null;
+              if (selPl && selPl.channel !== 'email') {
+                return '<div class="form-helper" style="color:#e65100;font-weight:500">This is a ' + selPl.channel + ' placement. For email, choose an email-channel placement.</div>';
+              }
+              if (selPl && selPl.content_type !== 'html' && selPl.content_type !== 'image') {
+                return '<div class="form-helper" style="color:#e65100;font-weight:500">Content type "' + selPl.content_type + '" may not render well in email. Use html or image.</div>';
+              }
+              return '<div class="form-helper">Showing placements configured in this decision.</div>';
+            })()}
+          </div>
+          <div class="form-group">
+            <label class="form-label">Fallback HTML</label>
+            <textarea class="form-input email-code-textarea" rows="3" placeholder="Shown when no offer qualifies" oninput="updateEmailBlockLivePreview('${block.id}','offerFallbackHtml', this.value)" onblur="updateEmailBlockCommit('${block.id}','offerFallbackHtml', this.value)">${block.offerFallbackHtml || ''}</textarea>
+            <div class="form-helper">Displayed when no offers qualify for this contact.</div>
+          </div>
+        </div>
+      </details>
+      <details class="inspector-section" open>
+        <summary>Readiness Check</summary>
+        <div id="offer-readiness-panel-${block.id}" class="inspector-fields" style="min-height:32px">
+          ${block.decisionId && block.placementId
+            ? '<div style="color:var(--text-secondary);font-size:12px;padding:4px 0">Checking...</div>'
+            : '<div style="color:var(--text-secondary);font-size:12px;padding:4px 0">Select a decision and placement to run a readiness check.</div>'}
+        </div>
+      </details>
+    `;
+  }
   if (block.type === 'fragment') {
     return `
       <details class="inspector-section" open>
@@ -2754,9 +3634,10 @@ function renderBlockContentPanel(block) {
         <summary>HTML</summary>
         <div class="inspector-fields">
           <div class="form-group">
-            <label class="form-label">HTML</label>
-            <textarea class="form-input" rows="6" oninput="updateEmailBlockLivePreview('${block.id}','html', this.value)" onblur="updateEmailBlockCommit('${block.id}','html', this.value)">${block.html || ''}</textarea>
+            <label class="form-label">HTML code</label>
+            <textarea class="form-input email-code-textarea" rows="6" placeholder="<div>Your HTML here…</div>" oninput="updateEmailBlockLivePreview('${block.id}','html', this.value)" onblur="updateEmailBlockCommit('${block.id}','html', this.value)">${block.html || ''}</textarea>
           </div>
+          <div class="form-helper">Raw HTML will be rendered inside the email body.</div>
         </div>
       </details>
     `;
@@ -2769,17 +3650,24 @@ function renderBlockContentPanel(block) {
           <div class="form-group">
             <label class="form-label">Image URL</label>
             <div class="form-inline-actions">
-              <input class="form-input" type="text" value="${block.src || ''}" oninput="updateEmailBlockLivePreview('${block.id}','src', this.value)" onblur="updateEmailBlockCommit('${block.id}','src', this.value)">
+              <input class="form-input" type="text" value="${block.src || ''}" placeholder="https://… or choose from assets" oninput="updateEmailBlockLivePreview('${block.id}','src', this.value)" onblur="updateEmailBlockCommit('${block.id}','src', this.value)">
               <button class="btn btn-icon" type="button" title="Choose from assets" onclick="openAssetPickerForImage('${block.id}')"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg></button>
             </div>
           </div>
           <div class="form-group">
             <label class="form-label">Alt text</label>
-            <input class="form-input" type="text" value="${block.alt || ''}" oninput="updateEmailBlockLivePreview('${block.id}','alt', this.value)" onblur="updateEmailBlockCommit('${block.id}','alt', this.value)">
+            <input class="form-input" type="text" value="${block.alt || ''}" placeholder="Describe the image for accessibility" oninput="updateEmailBlockLivePreview('${block.id}','alt', this.value)" onblur="updateEmailBlockCommit('${block.id}','alt', this.value)">
           </div>
           <div class="form-group">
             <label class="form-label">Link URL</label>
-            <input class="form-input" type="text" value="${block.link || ''}" oninput="updateEmailBlockLivePreview('${block.id}','link', this.value)" onblur="updateEmailBlockCommit('${block.id}','link', this.value)">
+            <input class="form-input" type="text" value="${block.link || ''}" placeholder="https://…" oninput="updateEmailBlockLivePreview('${block.id}','link', this.value)" onblur="updateEmailBlockCommit('${block.id}','link', this.value)">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Link target</label>
+            <select class="form-input" oninput="updateEmailBlockLivePreview('${block.id}','linkTarget', this.value)" onblur="updateEmailBlockCommit('${block.id}','linkTarget', this.value)">
+              <option value="_blank" ${(block.linkTarget || '_blank') === '_blank' ? 'selected' : ''}>New tab</option>
+              <option value="_self" ${block.linkTarget === '_self' ? 'selected' : ''}>Same tab</option>
+            </select>
           </div>
         </div>
       </details>
@@ -2796,7 +3684,14 @@ function renderBlockContentPanel(block) {
           </div>
           <div class="form-group">
             <label class="form-label">URL</label>
-            <input class="form-input" type="text" value="${block.url || ''}" oninput="updateEmailBlockLivePreview('${block.id}','url', this.value)" onblur="updateEmailBlockCommit('${block.id}','url', this.value)">
+            <input class="form-input" type="text" value="${block.url || ''}" placeholder="https://…" oninput="updateEmailBlockLivePreview('${block.id}','url', this.value)" onblur="updateEmailBlockCommit('${block.id}','url', this.value)">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Link target</label>
+            <select class="form-input" oninput="updateEmailBlockLivePreview('${block.id}','target', this.value)" onblur="updateEmailBlockCommit('${block.id}','target', this.value)">
+              <option value="_blank" ${(block.target || '_blank') === '_blank' ? 'selected' : ''}>New tab</option>
+              <option value="_self" ${block.target === '_self' ? 'selected' : ''}>Same tab</option>
+            </select>
           </div>
         </div>
       </details>
@@ -2809,15 +3704,22 @@ function renderBlockContentPanel(block) {
         <div class="inspector-fields">
           <div class="form-group">
             <label class="form-label">Title</label>
-            <input class="form-input" type="text" value="${block.formTitle || ''}" oninput="updateEmailBlockLivePreview('${block.id}','formTitle', this.value)" onblur="updateEmailBlockCommit('${block.id}','formTitle', this.value)">
+            <input class="form-input" type="text" value="${block.formTitle || ''}" placeholder="Form title" oninput="updateEmailBlockLivePreview('${block.id}','formTitle', this.value)" onblur="updateEmailBlockCommit('${block.id}','formTitle', this.value)">
           </div>
           <div class="form-group">
             <label class="form-label">Action URL</label>
-            <input class="form-input" type="text" value="${block.actionUrl || ''}" oninput="updateEmailBlockLivePreview('${block.id}','actionUrl', this.value)" onblur="updateEmailBlockCommit('${block.id}','actionUrl', this.value)">
+            <input class="form-input" type="text" value="${block.actionUrl || ''}" placeholder="https://…/submit" oninput="updateEmailBlockLivePreview('${block.id}','actionUrl', this.value)" onblur="updateEmailBlockCommit('${block.id}','actionUrl', this.value)">
           </div>
           <div class="form-group">
             <label class="form-label">Submit label</label>
-            <input class="form-input" type="text" value="${block.submitLabel || ''}" oninput="updateEmailBlockLivePreview('${block.id}','submitLabel', this.value)" onblur="updateEmailBlockCommit('${block.id}','submitLabel', this.value)">
+            <input class="form-input" type="text" value="${block.submitLabel || ''}" placeholder="Submit" oninput="updateEmailBlockLivePreview('${block.id}','submitLabel', this.value)" onblur="updateEmailBlockCommit('${block.id}','submitLabel', this.value)">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Method</label>
+            <select class="form-input" oninput="updateEmailBlockLivePreview('${block.id}','formMethod', this.value)" onblur="updateEmailBlockCommit('${block.id}','formMethod', this.value)">
+              <option value="POST" ${(block.formMethod || 'POST') === 'POST' ? 'selected' : ''}>POST</option>
+              <option value="GET" ${block.formMethod === 'GET' ? 'selected' : ''}>GET</option>
+            </select>
           </div>
         </div>
       </details>
@@ -2830,11 +3732,20 @@ function renderBlockContentPanel(block) {
         <div class="inspector-fields">
           <div class="form-group">
             <label class="form-label">Embed URL</label>
-            <input class="form-input" type="text" value="${block.embedUrl || ''}" oninput="updateEmailBlockLivePreview('${block.id}','embedUrl', this.value)" onblur="updateEmailBlockCommit('${block.id}','embedUrl', this.value)">
+            <input class="form-input" type="text" value="${block.embedUrl || ''}" placeholder="https://youtube.com/embed/…" oninput="updateEmailBlockLivePreview('${block.id}','embedUrl', this.value)" onblur="updateEmailBlockCommit('${block.id}','embedUrl', this.value)">
           </div>
           <div class="form-group">
             <label class="form-label">Embed code</label>
-            <textarea class="form-input" rows="5" oninput="updateEmailBlockLivePreview('${block.id}','embedCode', this.value)" onblur="updateEmailBlockCommit('${block.id}','embedCode', this.value)">${block.embedCode || ''}</textarea>
+            <textarea class="form-input" rows="5" placeholder="<iframe src=&quot;…&quot;></iframe>" oninput="updateEmailBlockLivePreview('${block.id}','embedCode', this.value)" onblur="updateEmailBlockCommit('${block.id}','embedCode', this.value)">${block.embedCode || ''}</textarea>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Aspect ratio</label>
+            <select class="form-input" oninput="updateEmailBlockLivePreview('${block.id}','aspectRatio', this.value)" onblur="updateEmailBlockCommit('${block.id}','aspectRatio', this.value)">
+              <option value="16:9" ${(block.aspectRatio || '16:9') === '16:9' ? 'selected' : ''}>16:9</option>
+              <option value="4:3" ${block.aspectRatio === '4:3' ? 'selected' : ''}>4:3</option>
+              <option value="1:1" ${block.aspectRatio === '1:1' ? 'selected' : ''}>1:1</option>
+              <option value="auto" ${block.aspectRatio === 'auto' ? 'selected' : ''}>Auto</option>
+            </select>
           </div>
         </div>
       </details>
@@ -2845,9 +3756,22 @@ function renderBlockContentPanel(block) {
       <details class="inspector-section" open>
         <summary>Divider</summary>
         <div class="inspector-fields">
-          <div class="form-group">
+          <div class="form-group inline">
             <label class="form-label">Thickness</label>
             <input class="form-input" type="number" min="1" value="${block.thickness || 1}" oninput="updateEmailBlockLivePreview('${block.id}','thickness', this.value)" onblur="updateEmailBlockCommit('${block.id}','thickness', this.value)">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Style</label>
+            <select class="form-input" oninput="updateEmailBlockLivePreview('${block.id}','dividerStyle', this.value)" onblur="updateEmailBlockCommit('${block.id}','dividerStyle', this.value)">
+              <option value="solid" ${(block.dividerStyle || 'solid') === 'solid' ? 'selected' : ''}>Solid</option>
+              <option value="dashed" ${block.dividerStyle === 'dashed' ? 'selected' : ''}>Dashed</option>
+              <option value="dotted" ${block.dividerStyle === 'dotted' ? 'selected' : ''}>Dotted</option>
+              <option value="double" ${block.dividerStyle === 'double' ? 'selected' : ''}>Double</option>
+            </select>
+          </div>
+          <div class="form-group inline">
+            <label class="form-label">Width %</label>
+            <input class="form-input" type="number" min="10" max="100" value="${block.dividerWidth || 100}" oninput="updateEmailBlockLivePreview('${block.id}','dividerWidth', this.value)" onblur="updateEmailBlockCommit('${block.id}','dividerWidth', this.value)">
           </div>
         </div>
       </details>
@@ -2869,19 +3793,27 @@ function renderBlockContentPanel(block) {
   if (block.type === 'social') {
     return `
       <details class="inspector-section" open>
-        <summary>Social</summary>
+        <summary>Social links</summary>
         <div class="inspector-fields">
           <div class="form-group">
-            <label class="form-label">Facebook URL</label>
-            <input class="form-input" type="text" value="${block.links?.facebook || ''}" oninput="updateSocialLinkLivePreview('${block.id}','facebook', this.value)" onblur="updateSocialLinkCommit('${block.id}','facebook', this.value)">
+            <label class="form-label">Facebook</label>
+            <input class="form-input" type="text" placeholder="https://facebook.com/…" value="${block.links?.facebook || ''}" oninput="updateSocialLinkLivePreview('${block.id}','facebook', this.value)" onblur="updateSocialLinkCommit('${block.id}','facebook', this.value)">
           </div>
           <div class="form-group">
-            <label class="form-label">Twitter URL</label>
-            <input class="form-input" type="text" value="${block.links?.twitter || ''}" oninput="updateSocialLinkLivePreview('${block.id}','twitter', this.value)" onblur="updateSocialLinkCommit('${block.id}','twitter', this.value)">
+            <label class="form-label">Twitter / X</label>
+            <input class="form-input" type="text" placeholder="https://x.com/…" value="${block.links?.twitter || ''}" oninput="updateSocialLinkLivePreview('${block.id}','twitter', this.value)" onblur="updateSocialLinkCommit('${block.id}','twitter', this.value)">
           </div>
           <div class="form-group">
-            <label class="form-label">LinkedIn URL</label>
-            <input class="form-input" type="text" value="${block.links?.linkedin || ''}" oninput="updateSocialLinkLivePreview('${block.id}','linkedin', this.value)" onblur="updateSocialLinkCommit('${block.id}','linkedin', this.value)">
+            <label class="form-label">LinkedIn</label>
+            <input class="form-input" type="text" placeholder="https://linkedin.com/…" value="${block.links?.linkedin || ''}" oninput="updateSocialLinkLivePreview('${block.id}','linkedin', this.value)" onblur="updateSocialLinkCommit('${block.id}','linkedin', this.value)">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Instagram</label>
+            <input class="form-input" type="text" placeholder="https://instagram.com/…" value="${block.links?.instagram || ''}" oninput="updateSocialLinkLivePreview('${block.id}','instagram', this.value)" onblur="updateSocialLinkCommit('${block.id}','instagram', this.value)">
+          </div>
+          <div class="form-group">
+            <label class="form-label">YouTube</label>
+            <input class="form-input" type="text" placeholder="https://youtube.com/…" value="${block.links?.youtube || ''}" oninput="updateSocialLinkLivePreview('${block.id}','youtube', this.value)" onblur="updateSocialLinkCommit('${block.id}','youtube', this.value)">
           </div>
         </div>
       </details>
@@ -2904,9 +3836,10 @@ function renderBlockActions(block) {
   if (!block) return '';
   return `
     <div class="inspector-actions">
-      <button class="btn btn-icon" type="button" title="Move up" onclick="moveEmailBlock('${block.id}','up')">↑</button>
-      <button class="btn btn-icon" type="button" title="Move down" onclick="moveEmailBlock('${block.id}','down')">↓</button>
-      <button class="btn btn-icon" type="button" title="Delete" onclick="deleteEmailBlock('${block.id}')"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg></button>
+      <button class="btn btn-icon" type="button" title="Move up" onclick="moveEmailBlock('${block.id}','up')">${_actionSVG.moveUp}</button>
+      <button class="btn btn-icon" type="button" title="Move down" onclick="moveEmailBlock('${block.id}','down')">${_actionSVG.moveDown}</button>
+      <button class="btn btn-icon" type="button" title="Duplicate" onclick="duplicateEmailBlock('${block.id}')">${_actionSVG.duplicate}</button>
+      <button class="btn btn-icon btn-icon-danger" type="button" title="Delete" onclick="deleteEmailBlock('${block.id}')">${_actionSVG.trash}</button>
     </div>
   `;
 }
@@ -2932,17 +3865,35 @@ function renderStylesPanel() {
     `;
     return;
   }
+  if (block?.type === 'offer') {
+    const offerContentSection = renderBlockContentPanel(block);
+    container.innerHTML = `
+      ${offerContentSection}
+      ${actionSection}
+    `;
+    // Auto-run readiness check if decision+placement are already selected
+    if (block.decisionId && block.placementId) {
+      runOfferReadinessCheck(block.id);
+    }
+    return;
+  }
   const bodySection = `
     <details class="inspector-section" open>
       <summary>Background</summary>
       <div class="inspector-fields">
         <div class="form-group">
           <label class="form-label">Background color</label>
-          <input type="color" class="form-input" value="${body.backgroundColor}" oninput="updateBodyStyleLivePreview('backgroundColor', this.value)" onchange="updateBodyStyle('backgroundColor', this.value)">
+          <div class="color-input-row">
+            <input type="color" class="form-input form-color" value="${body.backgroundColor || '#ffffff'}" oninput="updateBodyStyleLivePreview('backgroundColor', this.value); syncColorHex(this)" onchange="updateBodyStyle('backgroundColor', this.value)">
+            <input type="text" class="form-input form-color-hex" value="${body.backgroundColor || '#ffffff'}" maxlength="7" oninput="if(/^#[0-9a-fA-F]{6}$/.test(this.value)){this.previousElementSibling.value=this.value; updateBodyStyleLivePreview('backgroundColor',this.value)}" onblur="if(/^#[0-9a-fA-F]{6}$/.test(this.value)){updateBodyStyle('backgroundColor',this.value)}">
+          </div>
         </div>
         <div class="form-group">
           <label class="form-label">Viewport color</label>
-          <input type="color" class="form-input" value="${body.viewportColor || '#f0f0f0'}" oninput="updateBodyStyleLivePreview('viewportColor', this.value)" onchange="updateBodyStyle('viewportColor', this.value)">
+          <div class="color-input-row">
+            <input type="color" class="form-input form-color" value="${body.viewportColor || '#f0f0f0'}" oninput="updateBodyStyleLivePreview('viewportColor', this.value); syncColorHex(this)" onchange="updateBodyStyle('viewportColor', this.value)">
+            <input type="text" class="form-input form-color-hex" value="${body.viewportColor || '#f0f0f0'}" maxlength="7" oninput="if(/^#[0-9a-fA-F]{6}$/.test(this.value)){this.previousElementSibling.value=this.value; updateBodyStyleLivePreview('viewportColor',this.value)}" onblur="if(/^#[0-9a-fA-F]{6}$/.test(this.value)){updateBodyStyle('viewportColor',this.value)}">
+          </div>
         </div>
       </div>
     </details>
@@ -2951,7 +3902,9 @@ function renderStylesPanel() {
       <div class="inspector-fields">
         <div class="form-group">
           <label class="form-label">Font family</label>
-          <input type="text" class="form-input" value="${body.fontFamily || 'Arial'}" oninput="updateBodyStyleLivePreview('fontFamily', this.value)" onchange="updateBodyStyle('fontFamily', this.value)">
+          <select class="form-input" oninput="updateBodyStyleLivePreview('fontFamily', this.value)" onchange="updateBodyStyle('fontFamily', this.value)">
+            ${_fontFamilyOptions(body.fontFamily || 'Arial, sans-serif')}
+          </select>
         </div>
       </div>
     </details>
@@ -2975,9 +3928,9 @@ function renderStylesPanel() {
       <summary>Alignment</summary>
       <div class="inspector-fields">
         <div class="inline-buttons">
-          <button class="btn btn-icon ${body.align === 'left' ? 'active' : ''}" type="button" title="Left" onclick="updateBodyStyleLivePreview('align', 'left'); updateBodyStyle('align', 'left')">⟸</button>
-          <button class="btn btn-icon ${body.align === 'center' ? 'active' : ''}" type="button" title="Center" onclick="updateBodyStyleLivePreview('align', 'center'); updateBodyStyle('align', 'center')">≡</button>
-          <button class="btn btn-icon ${body.align === 'right' ? 'active' : ''}" type="button" title="Right" onclick="updateBodyStyleLivePreview('align', 'right'); updateBodyStyle('align', 'right')">⟹</button>
+          <button class="btn btn-icon ${body.align === 'left' ? 'active' : ''}" type="button" title="Left" onclick="updateBodyStyleLivePreview('align', 'left'); updateBodyStyle('align', 'left')">${_alignSVG.left}</button>
+          <button class="btn btn-icon ${(body.align || 'center') === 'center' ? 'active' : ''}" type="button" title="Center" onclick="updateBodyStyleLivePreview('align', 'center'); updateBodyStyle('align', 'center')">${_alignSVG.center}</button>
+          <button class="btn btn-icon ${body.align === 'right' ? 'active' : ''}" type="button" title="Right" onclick="updateBodyStyleLivePreview('align', 'right'); updateBodyStyle('align', 'right')">${_alignSVG.right}</button>
         </div>
       </div>
     </details>
@@ -3008,7 +3961,7 @@ function renderStylesPanel() {
       <div class="inspector-fields">
         <div class="form-group">
           <label class="form-label">Background color</label>
-          <input type="color" class="form-input" value="${style.backgroundColor || '#ffffff'}" oninput="updateBlockStyleLivePreview('${block.id}','backgroundColor', this.value)" onchange="updateBlockStyle('${block.id}','backgroundColor', this.value)">
+          ${_colorInputRow(block.id, 'backgroundColor', style.backgroundColor, '#ffffff', 'updateBlockStyleLivePreview', 'updateBlockStyle')}
         </div>
       </div>
     </details>
@@ -3114,7 +4067,7 @@ function renderStylesPanel() {
           <div class="form-group">
             <label class="form-label">Text type</label>
             <select class="form-input" oninput="updateBlockStyleLivePreview('${block.id}','textType', this.value)" onchange="updateBlockStyle('${block.id}','textType', this.value)">
-              <option value="paragraph" ${style.textType === 'paragraph' ? 'selected' : ''}>Paragraph</option>
+              <option value="paragraph" ${(style.textType || 'paragraph') === 'paragraph' ? 'selected' : ''}>Paragraph</option>
               <option value="heading1" ${style.textType === 'heading1' ? 'selected' : ''}>Heading 1</option>
               <option value="heading2" ${style.textType === 'heading2' ? 'selected' : ''}>Heading 2</option>
               <option value="heading3" ${style.textType === 'heading3' ? 'selected' : ''}>Heading 3</option>
@@ -3122,132 +4075,277 @@ function renderStylesPanel() {
           </div>
           <div class="form-group">
             <label class="form-label">Font family</label>
-            <input type="text" class="form-input" value="${style.fontFamily || 'Arial'}" oninput="updateBlockStyleLivePreview('${block.id}','fontFamily', this.value)" onchange="updateBlockStyle('${block.id}','fontFamily', this.value)">
+            <select class="form-input" oninput="updateBlockStyleLivePreview('${block.id}','fontFamily', this.value)" onchange="updateBlockStyle('${block.id}','fontFamily', this.value)">
+              ${_fontFamilyOptions(style.fontFamily || 'Arial, sans-serif')}
+            </select>
           </div>
           <div class="form-group inline">
             <label class="form-label">Font size</label>
-            <input type="number" class="form-input" value="${parseInt(style.fontSize || '14', 10)}" oninput="updateBlockStyleLivePreview('${block.id}','fontSize', this.value + 'px')" onchange="updateBlockStyle('${block.id}','fontSize', this.value + 'px')">
+            <input type="number" class="form-input" value="${parseInt(style.fontSize || '14', 10)}" min="8" oninput="updateBlockStyleLivePreview('${block.id}','fontSize', this.value + 'px')" onchange="updateBlockStyle('${block.id}','fontSize', this.value + 'px')" placeholder="14">
           </div>
           <div class="form-group inline">
             <label class="form-label">Line height</label>
-            <input type="text" class="form-input" value="${style.lineHeight || '1.5'}" oninput="updateBlockStyleLivePreview('${block.id}','lineHeight', this.value)" onchange="updateBlockStyle('${block.id}','lineHeight', this.value)">
+            <input type="text" class="form-input" value="${style.lineHeight || '1.5'}" oninput="updateBlockStyleLivePreview('${block.id}','lineHeight', this.value)" onchange="updateBlockStyle('${block.id}','lineHeight', this.value)" placeholder="1.5">
+          </div>
+          <div class="form-group inline">
+            <label class="form-label">Letter spacing</label>
+            <input type="text" class="form-input" value="${style.letterSpacing || 'normal'}" oninput="updateBlockStyleLivePreview('${block.id}','letterSpacing', this.value)" onchange="updateBlockStyle('${block.id}','letterSpacing', this.value)" placeholder="normal">
           </div>
           <div class="form-group">
             <label class="form-label">Text styles</label>
             <div class="inline-buttons">
-              <button class="btn btn-icon ${style.fontWeight === '700' ? 'active' : ''}" type="button" title="Bold" onclick="toggleTextStyle('bold')">B</button>
-              <button class="btn btn-icon ${style.fontStyle === 'italic' ? 'active' : ''}" type="button" title="Italic" onclick="toggleTextStyle('italic')">I</button>
-              <button class="btn btn-icon ${style.textDecoration === 'underline' ? 'active' : ''}" type="button" title="Underline" onclick="toggleTextStyle('underline')">U</button>
+              <button class="btn btn-icon text-style-btn ${style.fontWeight === '700' ? 'active' : ''}" type="button" title="Bold" onclick="toggleTextStyle('bold')"><strong>B</strong></button>
+              <button class="btn btn-icon text-style-btn ${style.fontStyle === 'italic' ? 'active' : ''}" type="button" title="Italic" onclick="toggleTextStyle('italic')"><em>I</em></button>
+              <button class="btn btn-icon text-style-btn ${style.textDecoration === 'underline' ? 'active' : ''}" type="button" title="Underline" onclick="toggleTextStyle('underline')"><u>U</u></button>
             </div>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Text transform</label>
+            <select class="form-input" oninput="updateBlockStyleLivePreview('${block.id}','textTransform', this.value)" onchange="updateBlockStyle('${block.id}','textTransform', this.value)">
+              <option value="none" ${(style.textTransform || 'none') === 'none' ? 'selected' : ''}>None</option>
+              <option value="uppercase" ${style.textTransform === 'uppercase' ? 'selected' : ''}>UPPERCASE</option>
+              <option value="lowercase" ${style.textTransform === 'lowercase' ? 'selected' : ''}>lowercase</option>
+              <option value="capitalize" ${style.textTransform === 'capitalize' ? 'selected' : ''}>Capitalize</option>
+            </select>
           </div>
           <div class="form-group">
             <label class="form-label">Text alignment</label>
             <div class="inline-buttons">
-              <button class="btn btn-icon ${style.textAlign === 'left' ? 'active' : ''}" type="button" title="Left" onclick="updateBlockStyleLivePreview('${block.id}','textAlign', 'left'); updateBlockStyle('${block.id}','textAlign', 'left')">⟸</button>
-              <button class="btn btn-icon ${style.textAlign === 'center' ? 'active' : ''}" type="button" title="Center" onclick="updateBlockStyleLivePreview('${block.id}','textAlign', 'center'); updateBlockStyle('${block.id}','textAlign', 'center')">≡</button>
-              <button class="btn btn-icon ${style.textAlign === 'right' ? 'active' : ''}" type="button" title="Right" onclick="updateBlockStyleLivePreview('${block.id}','textAlign', 'right'); updateBlockStyle('${block.id}','textAlign', 'right')">⟹</button>
+              <button class="btn btn-icon ${(style.textAlign || 'left') === 'left' ? 'active' : ''}" type="button" title="Left" onclick="updateBlockStyleLivePreview('${block.id}','textAlign', 'left'); updateBlockStyle('${block.id}','textAlign', 'left')">${_alignSVG.left}</button>
+              <button class="btn btn-icon ${style.textAlign === 'center' ? 'active' : ''}" type="button" title="Center" onclick="updateBlockStyleLivePreview('${block.id}','textAlign', 'center'); updateBlockStyle('${block.id}','textAlign', 'center')">${_alignSVG.center}</button>
+              <button class="btn btn-icon ${style.textAlign === 'right' ? 'active' : ''}" type="button" title="Right" onclick="updateBlockStyleLivePreview('${block.id}','textAlign', 'right'); updateBlockStyle('${block.id}','textAlign', 'right')">${_alignSVG.right}</button>
             </div>
           </div>
           <div class="form-group inline">
             <label class="form-label">Indentation</label>
-            <input type="number" class="form-input" value="${parseInt(style.indent || '0', 10)}" oninput="updateBlockStyleLivePreview('${block.id}','indent', this.value + 'px')" onchange="updateBlockStyle('${block.id}','indent', this.value + 'px')">
+            <input type="number" class="form-input" value="${parseInt(style.indent || '0', 10)}" min="0" oninput="updateBlockStyleLivePreview('${block.id}','indent', this.value + 'px')" onchange="updateBlockStyle('${block.id}','indent', this.value + 'px')" placeholder="0">
           </div>
           <div class="form-group">
             <label class="form-label">Font color</label>
-            <input type="color" class="form-input" value="${style.color || '#1f2933'}" oninput="updateBlockStyleLivePreview('${block.id}','color', this.value)" onchange="updateBlockStyle('${block.id}','color', this.value)">
+            ${_colorInputRow(block.id, 'color', style.color, '#1f2933', 'updateBlockStyleLivePreview', 'updateBlockStyle')}
           </div>
         </div>
       </details>
     ` : ''}
     ${block.type === 'image' ? `
-      <details class="inspector-section">
+      <details class="inspector-section" open>
         <summary>Image</summary>
         <div class="inspector-fields">
           <div class="form-group inline">
-            <label class="form-label">Width</label>
-            <input type="number" class="form-input" value="${parseInt(style.width || '100', 10)}" oninput="updateBlockStyleLivePreview('${block.id}','width', this.value + '%')" onchange="updateBlockStyle('${block.id}','width', this.value + '%')">
+            <label class="form-label">Width %</label>
+            <input type="number" class="form-input" value="${parseInt(style.width || '100', 10)}" min="10" max="100" oninput="updateBlockStyleLivePreview('${block.id}','width', this.value + '%')" onchange="updateBlockStyle('${block.id}','width', this.value + '%')" placeholder="100">
+          </div>
+          <div class="form-group inline">
+            <label class="form-label">Max height</label>
+            <input type="number" class="form-input" value="${parseInt(style.maxHeight || '', 10) || ''}" min="0" oninput="updateBlockStyleLivePreview('${block.id}','maxHeight', this.value ? this.value + 'px' : '')" onchange="updateBlockStyle('${block.id}','maxHeight', this.value ? this.value + 'px' : '')" placeholder="Auto">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Object fit</label>
+            <select class="form-input" oninput="updateBlockStyleLivePreview('${block.id}','objectFit', this.value)" onchange="updateBlockStyle('${block.id}','objectFit', this.value)">
+              <option value="contain" ${(style.objectFit || 'contain') === 'contain' ? 'selected' : ''}>Contain</option>
+              <option value="cover" ${style.objectFit === 'cover' ? 'selected' : ''}>Cover</option>
+              <option value="fill" ${style.objectFit === 'fill' ? 'selected' : ''}>Fill</option>
+              <option value="none" ${style.objectFit === 'none' ? 'selected' : ''}>None (original)</option>
+            </select>
           </div>
           <div class="form-group">
             <label class="form-label">Alignment</label>
             <div class="inline-buttons">
-              <button class="btn btn-icon ${style.textAlign === 'left' ? 'active' : ''}" type="button" title="Left" onclick="updateBlockStyleLivePreview('${block.id}','textAlign', 'left'); updateBlockStyle('${block.id}','textAlign', 'left')">⟸</button>
-              <button class="btn btn-icon ${style.textAlign === 'center' ? 'active' : ''}" type="button" title="Center" onclick="updateBlockStyleLivePreview('${block.id}','textAlign', 'center'); updateBlockStyle('${block.id}','textAlign', 'center')">≡</button>
-              <button class="btn btn-icon ${style.textAlign === 'right' ? 'active' : ''}" type="button" title="Right" onclick="updateBlockStyleLivePreview('${block.id}','textAlign', 'right'); updateBlockStyle('${block.id}','textAlign', 'right')">⟹</button>
+              <button class="btn btn-icon ${style.textAlign === 'left' ? 'active' : ''}" type="button" title="Left" onclick="updateBlockStyleLivePreview('${block.id}','textAlign', 'left'); updateBlockStyle('${block.id}','textAlign', 'left')">${_alignSVG.left}</button>
+              <button class="btn btn-icon ${(style.textAlign || 'center') === 'center' ? 'active' : ''}" type="button" title="Center" onclick="updateBlockStyleLivePreview('${block.id}','textAlign', 'center'); updateBlockStyle('${block.id}','textAlign', 'center')">${_alignSVG.center}</button>
+              <button class="btn btn-icon ${style.textAlign === 'right' ? 'active' : ''}" type="button" title="Right" onclick="updateBlockStyleLivePreview('${block.id}','textAlign', 'right'); updateBlockStyle('${block.id}','textAlign', 'right')">${_alignSVG.right}</button>
             </div>
           </div>
         </div>
       </details>
     ` : ''}
     ${block.type === 'button' ? `
-      <details class="inspector-section">
+      <details class="inspector-section" open>
         <summary>Button</summary>
         <div class="inspector-fields">
           <div class="form-group">
             <label class="form-label">Button color</label>
-            <input type="color" class="form-input" value="${style.buttonColor || '#1473E6'}" oninput="updateBlockStyleLivePreview('${block.id}','buttonColor', this.value)" onchange="updateBlockStyle('${block.id}','buttonColor', this.value)">
+            <div class="color-input-row">
+              <input type="color" class="form-input form-color" value="${style.buttonColor || '#1473E6'}" oninput="updateBlockStyleLivePreview('${block.id}','buttonColor', this.value); syncColorHex(this)" onchange="updateBlockStyle('${block.id}','buttonColor', this.value)">
+              <input type="text" class="form-input form-color-hex" value="${style.buttonColor || '#1473E6'}" maxlength="7" oninput="if(/^#[0-9a-fA-F]{6}$/.test(this.value)){this.previousElementSibling.value=this.value; updateBlockStyleLivePreview('${block.id}','buttonColor',this.value)}" onblur="if(/^#[0-9a-fA-F]{6}$/.test(this.value)){updateBlockStyle('${block.id}','buttonColor',this.value)}">
+            </div>
           </div>
           <div class="form-group">
             <label class="form-label">Text color</label>
-            <input type="color" class="form-input" value="${style.color || '#ffffff'}" oninput="updateBlockStyleLivePreview('${block.id}','color', this.value)" onchange="updateBlockStyle('${block.id}','color', this.value)">
+            <div class="color-input-row">
+              <input type="color" class="form-input form-color" value="${style.color || '#ffffff'}" oninput="updateBlockStyleLivePreview('${block.id}','color', this.value); syncColorHex(this)" onchange="updateBlockStyle('${block.id}','color', this.value)">
+              <input type="text" class="form-input form-color-hex" value="${style.color || '#ffffff'}" maxlength="7" oninput="if(/^#[0-9a-fA-F]{6}$/.test(this.value)){this.previousElementSibling.value=this.value; updateBlockStyleLivePreview('${block.id}','color',this.value)}" onblur="if(/^#[0-9a-fA-F]{6}$/.test(this.value)){updateBlockStyle('${block.id}','color',this.value)}">
+            </div>
+          </div>
+          <div class="form-group inline">
+            <label class="form-label">Font size</label>
+            <input type="number" class="form-input" value="${parseInt(style.fontSize || '16', 10)}" min="8" oninput="updateBlockStyleLivePreview('${block.id}','fontSize', this.value + 'px')" onchange="updateBlockStyle('${block.id}','fontSize', this.value + 'px')" placeholder="16">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Font family</label>
+            <select class="form-input" oninput="updateBlockStyleLivePreview('${block.id}','fontFamily', this.value)" onchange="updateBlockStyle('${block.id}','fontFamily', this.value)">
+              ${_fontFamilyOptions(style.fontFamily || 'Arial, sans-serif')}
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Font weight</label>
+            <select class="form-input" oninput="updateBlockStyleLivePreview('${block.id}','fontWeight', this.value)" onchange="updateBlockStyle('${block.id}','fontWeight', this.value)">
+              <option value="400" ${(style.fontWeight || '700') === '400' ? 'selected' : ''}>Normal</option>
+              <option value="600" ${style.fontWeight === '600' ? 'selected' : ''}>Semi-bold</option>
+              <option value="700" ${(style.fontWeight || '700') === '700' ? 'selected' : ''}>Bold</option>
+            </select>
+          </div>
+          <div class="form-group inline">
+            <label class="form-label">Border radius</label>
+            <input type="number" class="form-input" value="${parseInt(style.btnBorderRadius || '4', 10)}" min="0" oninput="updateBlockStyleLivePreview('${block.id}','btnBorderRadius', this.value + 'px')" onchange="updateBlockStyle('${block.id}','btnBorderRadius', this.value + 'px')" placeholder="4">
+          </div>
+          <div class="form-group inline">
+            <label class="form-label">Padding H</label>
+            <input type="number" class="form-input" value="${parseInt(style.btnPaddingH || '24', 10)}" min="0" oninput="updateBlockStyleLivePreview('${block.id}','btnPaddingH', this.value + 'px')" onchange="updateBlockStyle('${block.id}','btnPaddingH', this.value + 'px')" placeholder="24">
+          </div>
+          <div class="form-group inline">
+            <label class="form-label">Padding V</label>
+            <input type="number" class="form-input" value="${parseInt(style.btnPaddingV || '12', 10)}" min="0" oninput="updateBlockStyleLivePreview('${block.id}','btnPaddingV', this.value + 'px')" onchange="updateBlockStyle('${block.id}','btnPaddingV', this.value + 'px')" placeholder="12">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Width</label>
+            <select class="form-input" oninput="updateBlockStyleLivePreview('${block.id}','btnWidth', this.value)" onchange="updateBlockStyle('${block.id}','btnWidth', this.value)">
+              <option value="auto" ${(style.btnWidth || 'auto') === 'auto' ? 'selected' : ''}>Auto</option>
+              <option value="100%" ${style.btnWidth === '100%' ? 'selected' : ''}>Full width</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Alignment</label>
+            <div class="inline-buttons">
+              <button class="btn btn-icon ${style.textAlign === 'left' ? 'active' : ''}" type="button" title="Left" onclick="updateBlockStyleLivePreview('${block.id}','textAlign','left'); updateBlockStyle('${block.id}','textAlign','left')"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="17" y1="10" x2="3" y2="10"/><line x1="21" y1="6" x2="3" y2="6"/><line x1="21" y1="14" x2="3" y2="14"/><line x1="17" y1="18" x2="3" y2="18"/></svg></button>
+              <button class="btn btn-icon ${(style.textAlign || 'center') === 'center' ? 'active' : ''}" type="button" title="Center" onclick="updateBlockStyleLivePreview('${block.id}','textAlign','center'); updateBlockStyle('${block.id}','textAlign','center')"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="10" x2="6" y2="10"/><line x1="21" y1="6" x2="3" y2="6"/><line x1="21" y1="14" x2="3" y2="14"/><line x1="18" y1="18" x2="6" y2="18"/></svg></button>
+              <button class="btn btn-icon ${style.textAlign === 'right' ? 'active' : ''}" type="button" title="Right" onclick="updateBlockStyleLivePreview('${block.id}','textAlign','right'); updateBlockStyle('${block.id}','textAlign','right')"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="21" y1="10" x2="7" y2="10"/><line x1="21" y1="6" x2="3" y2="6"/><line x1="21" y1="14" x2="3" y2="14"/><line x1="21" y1="18" x2="7" y2="18"/></svg></button>
+            </div>
           </div>
         </div>
       </details>
     ` : ''}
     ${block.type === 'divider' ? `
-      <details class="inspector-section">
+      <details class="inspector-section" open>
         <summary>Divider</summary>
         <div class="inspector-fields">
           <div class="form-group inline">
             <label class="form-label">Thickness</label>
-            <input type="number" class="form-input" value="${parseInt(style.thickness || '1', 10)}" oninput="updateBlockStyleLivePreview('${block.id}','thickness', this.value)" onchange="updateBlockStyle('${block.id}','thickness', this.value)">
+            <input type="number" class="form-input" value="${parseInt(style.thickness || '1', 10)}" min="1" oninput="updateBlockStyleLivePreview('${block.id}','thickness', this.value)" onchange="updateBlockStyle('${block.id}','thickness', this.value)" placeholder="1">
           </div>
           <div class="form-group">
             <label class="form-label">Color</label>
-            <input type="color" class="form-input" value="${style.borderColor || '#E5E7EB'}" oninput="updateBlockStyleLivePreview('${block.id}','borderColor', this.value)" onchange="updateBlockStyle('${block.id}','borderColor', this.value)">
+            ${_colorInputRow(block.id, 'borderColor', style.borderColor, '#E5E7EB', 'updateBlockStyleLivePreview', 'updateBlockStyle')}
+          </div>
+          <div class="form-group">
+            <label class="form-label">Alignment</label>
+            <div class="inline-buttons">
+              <button class="btn btn-icon ${style.dividerAlign === 'left' ? 'active' : ''}" type="button" title="Left" onclick="updateBlockStyleLivePreview('${block.id}','dividerAlign','left'); updateBlockStyle('${block.id}','dividerAlign','left')">${_alignSVG.left}</button>
+              <button class="btn btn-icon ${(style.dividerAlign || 'center') === 'center' ? 'active' : ''}" type="button" title="Center" onclick="updateBlockStyleLivePreview('${block.id}','dividerAlign','center'); updateBlockStyle('${block.id}','dividerAlign','center')">${_alignSVG.center}</button>
+              <button class="btn btn-icon ${style.dividerAlign === 'right' ? 'active' : ''}" type="button" title="Right" onclick="updateBlockStyleLivePreview('${block.id}','dividerAlign','right'); updateBlockStyle('${block.id}','dividerAlign','right')">${_alignSVG.right}</button>
+            </div>
           </div>
         </div>
       </details>
     ` : ''}
     ${block.type === 'spacer' ? `
-      <details class="inspector-section">
+      <details class="inspector-section" open>
         <summary>Spacer</summary>
         <div class="inspector-fields">
           <div class="form-group inline">
             <label class="form-label">Height</label>
-            <input type="number" class="form-input" value="${parseInt(style.height || block.height || '20', 10)}" oninput="updateBlockStyleLivePreview('${block.id}','height', this.value)" onchange="updateBlockStyle('${block.id}','height', this.value)">
+            <input type="number" class="form-input" value="${parseInt(style.height || block.height || '20', 10)}" min="4" max="200" oninput="updateBlockStyleLivePreview('${block.id}','height', this.value)" onchange="updateBlockStyle('${block.id}','height', this.value)" placeholder="20">
           </div>
+          <div class="form-helper">Vertical spacing between blocks (${parseInt(style.height || block.height || '20', 10)}px)</div>
         </div>
       </details>
     ` : ''}
     ${block.type === 'structure' ? `
-      <details class="inspector-section">
+      <details class="inspector-section" open>
         <summary>Structure</summary>
         <div class="inspector-fields">
+          <div class="form-group">
+            <label class="form-label">Column layout</label>
+            <div class="inline-buttons column-presets">
+              ${_columnPresetButtons(block)}
+            </div>
+          </div>
           <div class="form-group inline">
             <label class="form-label">Column gap</label>
-            <input type="number" class="form-input" value="${parseInt(style.columnGap || '8', 10)}" oninput="updateBlockStyleLivePreview('${block.id}','columnGap', this.value)" onchange="updateBlockStyle('${block.id}','columnGap', this.value)">
+            <input type="number" class="form-input" value="${parseInt(style.columnGap || '8', 10)}" min="0" oninput="updateBlockStyleLivePreview('${block.id}','columnGap', this.value)" onchange="updateBlockStyle('${block.id}','columnGap', this.value)" placeholder="8">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Vertical align</label>
+            <select class="form-input" oninput="updateBlockStyleLivePreview('${block.id}','verticalAlign', this.value)" onchange="updateBlockStyle('${block.id}','verticalAlign', this.value)">
+              <option value="top" ${(style.verticalAlign || 'top') === 'top' ? 'selected' : ''}>Top</option>
+              <option value="middle" ${style.verticalAlign === 'middle' ? 'selected' : ''}>Middle</option>
+              <option value="bottom" ${style.verticalAlign === 'bottom' ? 'selected' : ''}>Bottom</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Stack on mobile</label>
+            <select class="form-input" oninput="updateBlockStyleLivePreview('${block.id}','stackOnMobile', this.value)" onchange="updateBlockStyle('${block.id}','stackOnMobile', this.value)">
+              <option value="yes" ${(style.stackOnMobile || 'yes') === 'yes' ? 'selected' : ''}>Yes</option>
+              <option value="no" ${style.stackOnMobile === 'no' ? 'selected' : ''}>No</option>
+            </select>
           </div>
         </div>
       </details>
     ` : ''}
     ${block.type === 'container' ? `
-      <details class="inspector-section">
+      <details class="inspector-section" open>
         <summary>Container</summary>
         <div class="inspector-fields">
           <div class="form-group inline">
-            <label class="form-label">Container padding</label>
-            <input type="number" class="form-input" value="${parseInt(style.padding || '12', 10)}" oninput="updateBlockStyleLivePreview('${block.id}','padding', this.value + 'px')" onchange="updateBlockStyle('${block.id}','padding', this.value + 'px')">
+            <label class="form-label">Padding</label>
+            <input type="number" class="form-input" value="${parseInt(style.padding || '12', 10)}" min="0" oninput="updateBlockStyleLivePreview('${block.id}','padding', this.value + 'px')" onchange="updateBlockStyle('${block.id}','padding', this.value + 'px')" placeholder="12">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Content align</label>
+            <div class="inline-buttons">
+              <button class="btn btn-icon ${(style.textAlign || 'left') === 'left' ? 'active' : ''}" type="button" title="Left" onclick="updateBlockStyleLivePreview('${block.id}','textAlign','left'); updateBlockStyle('${block.id}','textAlign','left')">${_alignSVG.left}</button>
+              <button class="btn btn-icon ${style.textAlign === 'center' ? 'active' : ''}" type="button" title="Center" onclick="updateBlockStyleLivePreview('${block.id}','textAlign','center'); updateBlockStyle('${block.id}','textAlign','center')">${_alignSVG.center}</button>
+              <button class="btn btn-icon ${style.textAlign === 'right' ? 'active' : ''}" type="button" title="Right" onclick="updateBlockStyleLivePreview('${block.id}','textAlign','right'); updateBlockStyle('${block.id}','textAlign','right')">${_alignSVG.right}</button>
+            </div>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Overflow</label>
+            <select class="form-input" oninput="updateBlockStyleLivePreview('${block.id}','overflow', this.value)" onchange="updateBlockStyle('${block.id}','overflow', this.value)">
+              <option value="visible" ${(style.overflow || 'visible') === 'visible' ? 'selected' : ''}>Visible</option>
+              <option value="hidden" ${style.overflow === 'hidden' ? 'selected' : ''}>Hidden</option>
+              <option value="auto" ${style.overflow === 'auto' ? 'selected' : ''}>Auto</option>
+            </select>
           </div>
         </div>
       </details>
     ` : ''}
     ${block.type === 'social' ? `
-      <details class="inspector-section">
+      <details class="inspector-section" open>
         <summary>Social</summary>
         <div class="inspector-fields">
           <div class="form-group inline">
             <label class="form-label">Icon size</label>
-            <input type="number" class="form-input" value="${parseInt(style.iconSize || '16', 10)}" oninput="updateBlockStyleLivePreview('${block.id}','iconSize', this.value)" onchange="updateBlockStyle('${block.id}','iconSize', this.value)">
+            <input type="number" class="form-input" value="${parseInt(style.iconSize || '24', 10)}" min="12" max="64" oninput="updateBlockStyleLivePreview('${block.id}','iconSize', this.value)" onchange="updateBlockStyle('${block.id}','iconSize', this.value)" placeholder="24">
+          </div>
+          <div class="form-group inline">
+            <label class="form-label">Spacing</label>
+            <input type="number" class="form-input" value="${parseInt(style.iconSpacing || '8', 10)}" min="0" max="32" oninput="updateBlockStyleLivePreview('${block.id}','iconSpacing', this.value)" onchange="updateBlockStyle('${block.id}','iconSpacing', this.value)" placeholder="8">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Icon style</label>
+            <select class="form-input" oninput="updateBlockStyleLivePreview('${block.id}','iconStyle', this.value)" onchange="updateBlockStyle('${block.id}','iconStyle', this.value)">
+              <option value="colored" ${(style.iconStyle || 'colored') === 'colored' ? 'selected' : ''}>Colored</option>
+              <option value="mono-dark" ${style.iconStyle === 'mono-dark' ? 'selected' : ''}>Mono dark</option>
+              <option value="mono-light" ${style.iconStyle === 'mono-light' ? 'selected' : ''}>Mono light</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Alignment</label>
+            <div class="inline-buttons">
+              <button class="btn btn-icon ${style.textAlign === 'left' ? 'active' : ''}" type="button" title="Left" onclick="updateBlockStyleLivePreview('${block.id}','textAlign','left'); updateBlockStyle('${block.id}','textAlign','left')">${_alignSVG.left}</button>
+              <button class="btn btn-icon ${(style.textAlign || 'center') === 'center' ? 'active' : ''}" type="button" title="Center" onclick="updateBlockStyleLivePreview('${block.id}','textAlign','center'); updateBlockStyle('${block.id}','textAlign','center')">${_alignSVG.center}</button>
+              <button class="btn btn-icon ${style.textAlign === 'right' ? 'active' : ''}" type="button" title="Right" onclick="updateBlockStyleLivePreview('${block.id}','textAlign','right'); updateBlockStyle('${block.id}','textAlign','right')">${_alignSVG.right}</button>
+            </div>
           </div>
         </div>
       </details>
@@ -3317,23 +4415,35 @@ function renderStructureColumnStyles(block) {
           const style = col.style || {};
           return `
             <details class="inspector-subsection">
-              <summary>Column ${idx + 1}</summary>
+              <summary>Column ${idx + 1} ${style.width ? '(' + style.width + ')' : ''}</summary>
               <div class="inspector-fields">
+                <div class="form-group inline">
+                  <label class="form-label">Width</label>
+                  <input type="text" class="form-input" value="${style.width || ''}" placeholder="auto" oninput="updateColumnStyleLivePreview('${block.id}', ${idx}, 'width', this.value)" onchange="updateColumnStyle('${block.id}', ${idx}, 'width', this.value)">
+                </div>
                 <div class="form-group">
                   <label class="form-label">Background</label>
-                  <input type="color" class="form-input" value="${style.backgroundColor || '#ffffff'}" oninput="updateColumnStyleLivePreview('${block.id}', ${idx}, 'backgroundColor', this.value)" onchange="updateColumnStyle('${block.id}', ${idx}, 'backgroundColor', this.value)">
+                  ${_colorInputRow(block.id + ',' + idx, 'backgroundColor', style.backgroundColor, '#ffffff', 'updateColumnStyleLivePreviewWrap', 'updateColumnStyleWrap')}
+                </div>
+                <div class="form-group">
+                  <label class="form-label">Vertical align</label>
+                  <select class="form-input" oninput="updateColumnStyleLivePreview('${block.id}', ${idx}, 'verticalAlign', this.value)" onchange="updateColumnStyle('${block.id}', ${idx}, 'verticalAlign', this.value)">
+                    <option value="top" ${(style.verticalAlign || 'top') === 'top' ? 'selected' : ''}>Top</option>
+                    <option value="middle" ${style.verticalAlign === 'middle' ? 'selected' : ''}>Middle</option>
+                    <option value="bottom" ${style.verticalAlign === 'bottom' ? 'selected' : ''}>Bottom</option>
+                  </select>
                 </div>
                 <div class="form-group">
                   <label class="form-label">Border</label>
-                  <input type="text" class="form-input" value="${style.border || ''}" oninput="updateColumnStyleLivePreview('${block.id}', ${idx}, 'border', this.value)" onchange="updateColumnStyle('${block.id}', ${idx}, 'border', this.value)" placeholder="1px dashed #E5E7EB">
+                  <input type="text" class="form-input" value="${style.border || ''}" oninput="updateColumnStyleLivePreview('${block.id}', ${idx}, 'border', this.value)" onchange="updateColumnStyle('${block.id}', ${idx}, 'border', this.value)" placeholder="1px solid #E5E7EB">
                 </div>
-                <div class="form-group">
-                  <label class="form-label">Border radius</label>
-                  <input type="number" class="form-input" value="${parseInt(style.borderRadius || '0', 10)}" oninput="updateColumnStyleLivePreview('${block.id}', ${idx}, 'borderRadius', this.value + 'px')" onchange="updateColumnStyle('${block.id}', ${idx}, 'borderRadius', this.value + 'px')">
+                <div class="form-group inline">
+                  <label class="form-label">Radius</label>
+                  <input type="number" class="form-input" value="${parseInt(style.borderRadius || '0', 10)}" min="0" oninput="updateColumnStyleLivePreview('${block.id}', ${idx}, 'borderRadius', this.value + 'px')" onchange="updateColumnStyle('${block.id}', ${idx}, 'borderRadius', this.value + 'px')" placeholder="0">
                 </div>
                 <div class="form-group inline">
                   <label class="form-label">Padding</label>
-                  <input type="number" class="form-input" value="${parseInt(style.padding || '8', 10)}" oninput="updateColumnStyleLivePreview('${block.id}', ${idx}, 'padding', this.value + 'px')" onchange="updateColumnStyle('${block.id}', ${idx}, 'padding', this.value + 'px')">
+                  <input type="number" class="form-input" value="${parseInt(style.padding || '8', 10)}" min="0" oninput="updateColumnStyleLivePreview('${block.id}', ${idx}, 'padding', this.value + 'px')" onchange="updateColumnStyle('${block.id}', ${idx}, 'padding', this.value + 'px')" placeholder="8">
                 </div>
               </div>
             </details>
@@ -3342,6 +4452,16 @@ function renderStructureColumnStyles(block) {
       </div>
     </details>
   `;
+}
+
+// Wrapper for color-input-row which passes 'blockId,colIdx' as first arg
+function updateColumnStyleWrap(compositeId, field, value) {
+  const [blockId, colIdx] = compositeId.split(',');
+  updateColumnStyle(blockId, parseInt(colIdx, 10), field, value);
+}
+function updateColumnStyleLivePreviewWrap(compositeId, field, value) {
+  const [blockId, colIdx] = compositeId.split(',');
+  updateColumnStyleLivePreview(blockId, parseInt(colIdx, 10), field, value);
 }
 
 function updateColumnStyle(blockId, columnIndex, field, value) {
@@ -3516,7 +4636,7 @@ function openPreviewFromValidation() {
 function collectValidationIssues() {
   const issues = [];
   const blocks = Array.isArray(editorState.blocks) ? editorState.blocks : [];
-  const allowed = new Set(['text', 'image', 'button', 'form', 'embed', 'container', 'structure', 'divider', 'spacer', 'html', 'social', 'fragment']);
+  const allowed = new Set(['text', 'image', 'button', 'form', 'embed', 'container', 'structure', 'divider', 'spacer', 'html', 'social', 'fragment', 'offer']);
   if (!blocks.length) {
     issues.push({ severity: 'warning', message: 'Canvas is empty.' });
   }
@@ -3553,6 +4673,27 @@ function collectValidationIssues() {
     if (block.type === 'embed' && block.embedUrl && !isValidUrl(block.embedUrl)) {
       issues.push({ severity: 'error', message: `Embed URL looks invalid: ${block.embedUrl}` });
     }
+    if (block.type === 'offer') {
+      if (!block.decisionId) {
+        issues.push({ severity: 'error', message: 'Offer block has no decision selected. It will not show any offers.' });
+      } else {
+        const dec = (editorState.offerDecisions || []).find(d => d.id === block.decisionId);
+        if (!dec) {
+          const allDec = (editorState._allOfferDecisions || []).find(d => d.id === block.decisionId);
+          if (allDec) {
+            issues.push({ severity: 'error', message: `Offer decision "${allDec.name}" is ${allDec.status} (not live). Activate it first.` });
+          } else {
+            issues.push({ severity: 'error', message: 'Selected offer decision no longer exists.' });
+          }
+        }
+      }
+      if (!block.placementId) {
+        issues.push({ severity: 'warning', message: 'Offer block has no placement selected.' });
+      }
+      if (!block.offerFallbackHtml) {
+        issues.push({ severity: 'warning', message: 'Offer block has no fallback HTML. If no offers qualify, the block will be empty.' });
+      }
+    }
     if (block.type === 'fragment' && block.fragmentStatus !== 'published') {
       issues.push({ severity: 'warning', message: `Fragment "${block.fragmentName || 'Untitled'}" is not published.` });
     }
@@ -3575,19 +4716,42 @@ function collectValidationIssues() {
 
 function goBackToDelivery() {
   const params = new URLSearchParams(window.location.search);
-  const returnMode = params.get('return') || 'deliveries';
+  const returnMode = params.get('return') || '';
   const step = params.get('step') || '3';
+
+  // Modal / iframe mode — send postMessage to parent
   if (returnMode === 'modal' && window.parent && window.parent !== window) {
-    if (editorState.fragmentMode) {
+    if (editorState.offerRepMode) {
+      const htmlOutput = editorState.htmlOverride || generateEmailHtml(editorState.blocks);
+      window.parent.postMessage({
+        type: 'closeOfferRepEditor',
+        offerId: editorState.offerId,
+        repId: editorState.repId,
+        content: htmlOutput,
+        blocks: editorState.blocks
+      }, '*');
+    } else if (editorState.fragmentMode) {
       window.parent.postMessage({ type: 'closeFragmentEditor' }, '*');
     } else if (editorState.landingPageMode) {
       window.parent.postMessage({ type: 'closeLandingPageEditor', landingPageId: editorState.landingPageId }, '*');
+    } else if (editorState.templateMode) {
+      window.parent.postMessage({ type: 'closeTemplateEditor', templateId: editorState.templateId }, '*');
     } else {
       window.parent.postMessage({ type: 'closeEmailEditor', deliveryId: editorState.deliveryId, step: 3 }, '*');
     }
     return;
   }
-  if (returnMode === 'fragments') {
+
+  // Route back based on editor mode — each mode goes to its own listing page
+  if (editorState.offerRepMode) {
+    window.location.href = '/?view=offers';
+    return;
+  }
+  if (editorState.templateMode) {
+    window.location.href = '/?view=content-templates';
+    return;
+  }
+  if (editorState.fragmentMode || returnMode === 'fragments') {
     window.location.href = '/?view=fragments';
     return;
   }
@@ -3595,7 +4759,10 @@ function goBackToDelivery() {
     window.location.href = '/?view=landing-pages';
     return;
   }
-  const url = `/?view=${encodeURIComponent(returnMode)}&deliveryId=${encodeURIComponent(editorState.deliveryId)}&step=${encodeURIComponent(step)}`;
+
+  // Default: back to deliveries
+  const view = returnMode || 'deliveries';
+  const url = `/?view=${encodeURIComponent(view)}&deliveryId=${encodeURIComponent(editorState.deliveryId)}&step=${encodeURIComponent(step)}`;
   window.location.href = url;
 }
 
@@ -3625,3 +4792,94 @@ function showToast(message, type = 'success') {
     setTimeout(() => toast.remove(), 300);
   }, 3000);
 }
+
+// ── Offer Decision Block helpers ──
+
+let _readinessCheckVersion = 0;
+async function runOfferReadinessCheck(blockId) {
+  const context = findBlockContext(blockId);
+  if (!context?.block) return;
+  const block = context.block;
+  const panel = document.getElementById(`offer-readiness-panel-${blockId}`);
+  if (!panel) return;
+
+  if (!block.decisionId || !block.placementId) {
+    panel.innerHTML = '<div style="color:var(--text-secondary);font-size:12px;padding:4px 0">Select a decision and placement to run a readiness check.</div>';
+    return;
+  }
+
+  const version = ++_readinessCheckVersion;
+  panel.innerHTML = '<div style="color:var(--text-secondary);font-size:12px;padding:4px 0">Checking configuration...</div>';
+
+  try {
+    const resp = await fetchWithTimeout(`${API_BASE}/decisions/${block.decisionId}/readiness?placement_id=${block.placementId}`);
+    if (_readinessCheckVersion !== version) return;
+    if (!resp.ok) {
+      panel.innerHTML = '<div style="color:#c62828;font-size:12px">Could not check readiness.</div>';
+      return;
+    }
+    const data = await resp.json();
+    const checks = data.checks || [];
+    const allOk = checks.every(c => c.ok);
+
+    let html = '';
+    if (allOk) {
+      html += '<div style="padding:6px 10px;background:#e8f5e9;border-radius:6px;margin-bottom:6px;font-size:12px;color:#2e7d32;font-weight:600">Ready to deliver offers</div>';
+    }
+
+    html += '<div class="offer-readiness-checks" style="display:flex;flex-direction:column;gap:4px">';
+    for (const check of checks) {
+      const icon = check.ok
+        ? '<span style="color:#2e7d32;font-weight:700;margin-right:6px">&#10003;</span>'
+        : check.severity === 'error'
+          ? '<span style="color:#c62828;font-weight:700;margin-right:6px">&#10007;</span>'
+          : '<span style="color:#e65100;font-weight:700;margin-right:6px">!</span>';
+      const labelColor = check.ok ? 'var(--text-primary)' : check.severity === 'error' ? '#c62828' : '#e65100';
+      html += `<div style="font-size:12px;line-height:1.5;display:flex;align-items:flex-start">
+        ${icon}<span style="color:${labelColor}">${check.label}${check.fix ? '<br><em style=\"font-weight:400;color:var(--text-secondary)\">' + check.fix + '</em>' : ''}</span>
+      </div>`;
+    }
+    html += '</div>';
+    panel.innerHTML = html;
+  } catch (e) {
+    if (_readinessCheckVersion !== version) return;
+    panel.innerHTML = '<div style="color:#c62828;font-size:12px">Readiness check failed.</div>';
+  }
+}
+
+function onOfferDecisionChange(blockId, decisionIdStr) {
+  const decisionId = decisionIdStr ? parseInt(decisionIdStr, 10) : null;
+  const context = findBlockContext(blockId);
+  if (!context?.block) return;
+  context.block.decisionId = decisionId;
+  if (decisionId) {
+    const decision = editorState.offerDecisions.find(d => d.id === decisionId);
+    context.block.offerLabel = decision ? decision.name : '';
+    const configs = decision?.placement_configs || [];
+    if (configs.length === 1) {
+      context.block.placementId = configs[0].placement_id;
+    } else if (context.block.placementId) {
+      const stillValid = configs.some(pc => pc.placement_id === context.block.placementId);
+      if (!stillValid) context.block.placementId = null;
+    }
+  } else {
+    context.block.placementId = null;
+    context.block.offerLabel = '';
+  }
+  renderEmailBlocks();
+  switchEditorTab('styles');
+  pushHistory();
+  runOfferReadinessCheck(blockId);
+}
+
+function onOfferPlacementChange(blockId, placementIdStr) {
+  const placementId = placementIdStr ? parseInt(placementIdStr, 10) : null;
+  const context = findBlockContext(blockId);
+  if (!context?.block) return;
+  context.block.placementId = placementId;
+  renderEmailBlocks();
+  switchEditorTab('styles');
+  pushHistory();
+  runOfferReadinessCheck(blockId);
+}
+

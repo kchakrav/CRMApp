@@ -44,3 +44,4 @@ coverage/
 # Uploads and generated data
 public/uploads/
 data/database.json
+data/email-config.json

@@ -14,18 +14,35 @@ const orchestrationRouter = require('./routes/orchestration');
 const deliveriesRouter = require('./routes/deliveries');
 const predefinedFiltersRouter = require('./routes/predefined_filters');
 const emailTemplatesRouter = require('./routes/email_templates');
+const { seedSampleTemplates } = require('./routes/email_templates');
 const assetsRouter = require('./routes/assets');
 const fragmentsRouter = require('./routes/fragments');
+const { seedSampleFragments } = require('./routes/fragments');
 const landingPagesRouter = require('./routes/landingPages');
 const customObjectsRouter = require('./routes/customObjects');
+const enumerationsRouter = require('./routes/enumerations');
+const { seedSampleEnumerations } = require('./routes/enumerations');
 const audiencesRouter = require('./routes/audiences');
 const queryRouter = require('./routes/query');
+const transactionalRouter = require('./routes/transactional');
+
+// Offer Decisioning
+const offersRouter = require('./routes/offers');
+const placementsRouter = require('./routes/placements');
+const collectionsRouter = require('./routes/collections');
+const decisionRulesRouter = require('./routes/decisionRules');
+const decisionsRouter = require('./routes/decisions');
+
+const emailService = require('./services/emailService');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
 // Initialize database
 initializeDatabase();
+
+// Initialize email service (SendGrid)
+emailService.init();
 
 // Middleware
 app.use(cors());
@@ -50,8 +67,17 @@ app.use('/uploads', express.static(path.join(__dirname, '../public/uploads')));
 app.use('/api/fragments', fragmentsRouter);
 app.use('/api/landing-pages', landingPagesRouter);
 app.use('/api/custom-objects', customObjectsRouter);
+app.use('/api/enumerations', enumerationsRouter);
 app.use('/api/audiences', audiencesRouter);
 app.use('/api/query', queryRouter);
+app.use('/api/transactional', transactionalRouter);
+
+// Offer Decisioning routes
+app.use('/api/offers', offersRouter);
+app.use('/api/placements', placementsRouter);
+app.use('/api/collections', collectionsRouter);
+app.use('/api/decision-rules', decisionRulesRouter);
+app.use('/api/decisions', decisionsRouter);
 
 // Legacy route redirects (for backward compatibility during transition)
 app.use('/api/campaigns', (req, res) => {
@@ -110,6 +136,11 @@ app.use((err, req, res, next) => {
     }
   });
 });
+
+// Seed sample content templates & fragments
+seedSampleTemplates();
+seedSampleFragments();
+seedSampleEnumerations();
 
 // Start server
 app.listen(PORT, () => {

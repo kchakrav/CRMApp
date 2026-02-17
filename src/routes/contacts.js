@@ -40,6 +40,9 @@ router.get('/', (req, res) => {
       contacts = contacts.filter(c => c.engagement_score >= score);
     }
     
+    // Sort by newest first
+    contacts.sort((a, b) => (b.id || 0) - (a.id || 0));
+
     // Pagination
     const total = contacts.length;
     const startIndex = (page - 1) * limit;

@@ -127,6 +127,14 @@ const activityDefinitions = [
     ]
   },
   {
+    category: 'Intelligence',
+    icon: _ico('<path d="M20 12V8H6a2 2 0 0 1-2-2c0-1.1.9-2 2-2h12v4"/><path d="M4 6v12c0 1.1.9 2 2 2h14v-4"/><path d="M18 12a2 2 0 0 0-2 2c0 1.1.9 2 2 2h4v-4h-4z"/>'),
+    items: [
+      { type: 'offer_decision', category: 'intelligence', name: 'Offer Decision', desc: 'Resolve best offer per contact', icon: _ico('<path d="M20 12V8H6a2 2 0 0 1-2-2c0-1.1.9-2 2-2h12v4"/><path d="M4 6v12c0 1.1.9 2 2 2h14v-4"/><path d="M18 12a2 2 0 0 0-2 2c0 1.1.9 2 2 2h4v-4h-4z"/>') },
+      { type: 'ab_test', category: 'intelligence', name: 'A/B Test', desc: 'Split test offers', icon: _ico('<rect width="18" height="18" x="3" y="3" rx="2"/><path d="M12 3v18"/><path d="M3 12h18"/>') }
+    ]
+  },
+  {
     category: 'Channels',
     icon: _ico('<rect width="20" height="16" x="2" y="4" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/>'),
     items: [
@@ -191,12 +199,21 @@ async function loadReferenceData() {
       ...d,
       channel_key: d.channel_key || String(d.channel || '').toLowerCase()
     }));
+
+    // Load offer decisions for orchestration
+    try {
+      const decisionsResponse = await fetch(`${API_BASE}/decisions`);
+      const decisionsData = await decisionsResponse.json();
+      referenceData.decisions = decisionsData.decisions || [];
+    } catch (e) { referenceData.decisions = []; }
   } catch (error) {
     console.error('Error loading reference data:', error);
   }
 }
 
 // Load campaign information
+let currentWorkflowData = null; // Stores loaded workflow metadata (name, description, etc.)
+
 async function loadCampaignInfo() {
   try {
     const url = isWorkflowContext
@@ -204,6 +221,7 @@ async function loadCampaignInfo() {
       : `${API_BASE}/campaigns/${campaignId}`;
     const response = await fetch(url);
     const campaign = await response.json();
+    currentWorkflowData = campaign || null;
     const name = campaign?.name || 'Orchestration';
     document.getElementById('campaign-name').textContent = `${name} - Orchestration`;
   } catch (error) {
@@ -299,18 +317,21 @@ async function executeOrchestration() {
     return;
   }
   
+  // Run the visual workflow so nodes show executing → complete on the canvas
+  startWorkflow();
+  
   try {
-    showLoading();
     const response = await fetch(`${API_BASE}/orchestration/${campaignId}/execute`, {
       method: 'POST'
     });
     
     const result = await response.json();
-    hideLoading();
-    
+    if (!response.ok) {
+      showToast(result.error || 'Error executing orchestration', 'error');
+      return;
+    }
     showToast(`Campaign executed! Sent to ${result.sent_count} customers`, 'success');
   } catch (error) {
-    hideLoading();
     showToast('Error executing orchestration', 'error');
     console.error(error);
   }
@@ -415,7 +436,7 @@ function setupDragAndDrop() {
       const type = item.dataset.type;
       const category = item.dataset.category;
       const name = item.querySelector('.activity-name').textContent;
-      const icon = item.querySelector('.activity-icon').textContent;
+      const icon = item.querySelector('.activity-icon').innerHTML;
 
       console.log('✅ Drag started:', { type, category, name, icon });
 
@@ -496,8 +517,22 @@ function setupDragAndDrop() {
   console.log('✅ Drag and drop setup complete');
 }
 
+// Lookup icon from activity definitions by type
+function _getActivityIcon(type) {
+  for (const group of activityDefinitions) {
+    for (const item of group.items) {
+      if (item.type === type) return item.icon;
+    }
+  }
+  return _ico('<rect width="14" height="14" x="5" y="5" rx="2"/>');
+}
+
 // Add node to canvas
 function addNode(type, category, name, icon, x, y, returnIdOnly = false) {
+  // Resolve icon: if empty/whitespace, look it up from definitions
+  if (!icon || !icon.trim() || !icon.includes('<svg')) {
+    icon = _getActivityIcon(type);
+  }
   const position = findAvailablePosition(x, y);
   const node = {
     id: `node-${nodeIdCounter++}`,
@@ -530,6 +565,7 @@ function addNode(type, category, name, icon, x, y, returnIdOnly = false) {
   console.log('➕ Adding node:', node);
   console.log('📊 Nodes array before:', nodes.length);
   
+  pushUndoState();
   nodes.push(node);
   
   console.log('📊 Nodes array after:', nodes.length);
@@ -638,7 +674,8 @@ function updatePropertiesPanelVisibility() {
   }
   if (sidebar) {
     sidebar.classList.toggle('properties-hidden', !hasSelection);
-    sidebar.classList.toggle('all-hidden', !hasSelection);
+    // Never hide the entire sidebar — AI Assistant should always be visible
+    sidebar.classList.remove('all-hidden');
   }
 }
 
@@ -688,6 +725,8 @@ function createNodeElement(node) {
   if (runtime.status) {
     nodeEl.classList.add(`status-${runtime.status}`);
   }
+  if (node.disabled) nodeEl.classList.add('node-disabled');
+  if (node.paused) nodeEl.classList.add('node-paused');
   
   // Build config display
   let configHtml = '';
@@ -734,11 +773,17 @@ function createNodeElement(node) {
     : '';
 
   const description = getNodeDescription(node);
+  const stateBadge = node.disabled
+    ? '<span class="node-status node-status-disabled">disabled</span>'
+    : node.paused
+      ? '<span class="node-status node-status-paused">paused</span>'
+      : (runtime.status ? `<span class="node-status ${runtime.status}">${runtime.status}</span>` : '');
+
   nodeEl.innerHTML = `
     <div class="node-header">
       <span class="node-icon">${node.icon}</span>
       <span class="node-title" title="${node.name}">${node.name}</span>
-      ${runtime.status ? `<span class="node-status ${runtime.status}">${runtime.status}</span>` : ''}
+      ${stateBadge}
       <button class="node-menu" onclick="selectNodeById('${node.id}')" title="Properties">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg>
       </button>
@@ -849,6 +894,7 @@ function getNodeDescription(node) {
 function makeNodeDraggable(nodeEl, node) {
   let isDragging = false;
   let dragOffset = { x: 0, y: 0 };
+  let undoPushed = false;
   
   nodeEl.addEventListener('mousedown', (e) => {
     if (e.target.classList.contains('connection-point') || e.target.classList.contains('node-menu')) {
@@ -856,6 +902,7 @@ function makeNodeDraggable(nodeEl, node) {
     }
     
     isDragging = true;
+    undoPushed = false;
     nodeEl.classList.add('dragging');
     
     const rect = nodeEl.getBoundingClientRect();
@@ -865,6 +912,12 @@ function makeNodeDraggable(nodeEl, node) {
   
   document.addEventListener('mousemove', (e) => {
     if (!isDragging) return;
+    
+    // Push undo state once when the drag actually starts moving
+    if (!undoPushed) {
+      pushUndoState();
+      undoPushed = true;
+    }
     
     const canvas = document.getElementById('canvas');
     const canvasRect = canvas.getBoundingClientRect();
@@ -881,6 +934,7 @@ function makeNodeDraggable(nodeEl, node) {
   document.addEventListener('mouseup', () => {
     if (isDragging) {
       isDragging = false;
+      undoPushed = false;
       nodeEl.classList.remove('dragging');
     }
   });
@@ -911,6 +965,7 @@ function completeConnection(nodeId) {
     return;
   }
   
+  pushUndoState();
   connections.push({
     id: `conn-${Date.now()}`,
     from: connectionStart,
@@ -1388,6 +1443,7 @@ function selectConnection(connectionId) {
 }
 
 function deleteConnection(connectionId) {
+  pushUndoState();
   connections = connections.filter(c => c.id !== connectionId);
   selectedConnectionId = null;
   insertConnectionId = null;
@@ -1456,6 +1512,36 @@ function advanceExecution() {
   const currentId = executionState.order[executionState.currentIndex];
   if (currentId && runtimeByNode[currentId]) {
     const currentNode = nodes.find(n => n.id === currentId);
+
+    // Skip disabled nodes immediately
+    if (currentNode?.disabled) {
+      runtimeByNode[currentId].status = 'skipped';
+      executionState.currentIndex += 1;
+      if (executionState.currentIndex >= executionState.order.length) {
+        clearInterval(executionState.intervalId);
+        executionState.intervalId = null;
+        executionState.running = false;
+        renderCanvas();
+        showToast('Workflow completed', 'success');
+        return;
+      }
+      const nextId = executionState.order[executionState.currentIndex];
+      setNodeStatus(nextId, 'executing');
+      renderCanvas();
+      return;
+    }
+
+    // Pause execution at paused nodes
+    if (currentNode?.paused && runtimeByNode[currentId].status === 'executing') {
+      runtimeByNode[currentId].status = 'paused';
+      clearInterval(executionState.intervalId);
+      executionState.intervalId = null;
+      executionState.running = false;
+      renderCanvas();
+      showToast(`Execution paused at ${currentNode.name}`, 'warning');
+      return;
+    }
+
     if (currentNode?.type === 'external_signal') {
       runtimeByNode[currentId].status = 'waiting';
       executionState.waitingNodeId = currentId;
@@ -1572,6 +1658,8 @@ function showNodeProperties(node) {
   const propertiesContent = document.getElementById('properties-content');
   
   const typeLabel = node.type.replace(/_/g, ' ');
+  const isDisabled = !!node.disabled;
+  const isPaused   = !!node.paused;
   let html = `
     <div class="properties-node-header">
       <span class="properties-node-icon">${node.icon}</span>
@@ -1579,6 +1667,26 @@ function showNodeProperties(node) {
         <span class="properties-node-name">${node.name}</span>
         <span class="properties-node-type">${typeLabel}</span>
       </div>
+    </div>
+    <div class="prop-action-bar">
+      <button class="prop-action-btn prop-action-delete" title="Delete" onclick="propActionDelete('${node.id}')">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg>
+      </button>
+      <button class="prop-action-btn ${isDisabled ? 'active' : ''}" title="${isDisabled ? 'Enable' : 'Disable'}" onclick="propActionDisable('${node.id}')">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="m4.9 4.9 14.2 14.2"/></svg>
+      </button>
+      <button class="prop-action-btn ${isPaused ? 'active' : ''}" title="${isPaused ? 'Resume' : 'Pause'}" onclick="propActionPause('${node.id}')">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="4" height="16" x="6" y="4"/><rect width="4" height="16" x="14" y="4"/></svg>
+      </button>
+      <button class="prop-action-btn" title="Duplicate" onclick="propActionCopy('${node.id}')">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>
+      </button>
+      <button class="prop-action-btn" title="Logs" onclick="propActionLogs('${node.id}')">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z"/><path d="M14 2v6h6"/><path d="M16 13H8"/><path d="M16 17H8"/><path d="M10 9H8"/></svg>
+      </button>
+      <button class="prop-action-btn" title="Tasks" onclick="propActionTasks('${node.id}')">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l4 2"/></svg>
+      </button>
     </div>
     <div class="properties-form">
       <div class="properties-section-title">Configuration</div>
@@ -1643,7 +1751,7 @@ function showNodeProperties(node) {
             `).join('')}
           </select>
           <div class="form-inline-actions">
-            <button class="btn btn-sm btn-secondary" onclick="createSegmentFromNode('${node.id}')">+ Create Segment</button>
+            <button class="btn btn-sm btn-primary" onclick="createSegmentFromNode('${node.id}')">+ Create Segment</button>
           </div>
         </div>
       `;
@@ -1769,7 +1877,7 @@ function showNodeProperties(node) {
           <input type="text" class="form-input" value="${t.segment_code || ''}" onchange="updateSplitTransitionConfig('${node.id}', '${t.id}', 'segment_code', this.value)">
         </div>
         <div class="split-filter-row">
-          <button class="btn btn-sm btn-secondary" type="button">Create filter</button>
+          <button class="btn btn-sm btn-secondary" type="button">${_ico('<polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/>')} Create filter</button>
         </div>
         <div class="split-toggle-row">
           <label class="form-label">Enable limit</label>
@@ -1790,7 +1898,7 @@ function showNodeProperties(node) {
     html += `
       <div class="split-segment-header">
         <div class="split-segment-title">Segment</div>
-        <button class="btn btn-sm btn-secondary" type="button" onclick="addSplitTransition('${node.id}')">＋ Add segment</button>
+        <button class="btn btn-sm btn-primary" type="button" onclick="addSplitTransition('${node.id}')">+ Add segment</button>
       </div>
       ${transitionsHtml || '<div class="form-help">No segments added yet.</div>'}
     `;
@@ -1915,7 +2023,7 @@ function showNodeProperties(node) {
           ${targetOptions}
         </select>
         <div class="form-inline-actions">
-          <button class="btn btn-sm btn-secondary" type="button" onclick="enableJumpTargetSelect('${node.id}')">Select on canvas</button>
+          <button class="btn btn-sm btn-secondary" type="button" onclick="enableJumpTargetSelect('${node.id}')">${_ico('<path d="m3 3 7.07 16.97 2.51-7.39 7.39-2.51L3 3z"/><path d="m13 13 6 6"/>')} Select on canvas</button>
           ${targetId ? `<button class="btn btn-sm btn-ghost" type="button" onclick="focusNode('${targetId}')">Go to target</button>` : ''}
         </div>
         ${targetMissing ? `<div class="form-help text-danger">Target missing or deleted. Re-select target.</div>` : ''}
@@ -1976,12 +2084,12 @@ function showNodeProperties(node) {
           </div>
         </div>
         <div class="form-inline-actions">
-          <button class="btn btn-sm btn-secondary" type="button" onclick="startTimeoutConnection('${node.id}')">Connect timeout path</button>
+          <button class="btn btn-sm btn-secondary" type="button" onclick="startTimeoutConnection('${node.id}')">${_ico('<circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>')} Connect timeout path</button>
           ${timeoutConnection ? `<button class="btn btn-sm btn-ghost" type="button" onclick="selectConnection('${timeoutConnection.id}')">View timeout path</button>` : ''}
         </div>
       ` : ''}
       <div class="form-inline-actions">
-        <button class="btn btn-sm btn-secondary" type="button" onclick="simulateExternalSignal('${node.id}')">Send test signal</button>
+        <button class="btn btn-sm btn-primary" type="button" onclick="simulateExternalSignal('${node.id}')">${_ico('<path d="M13 2 3 14h9l-1 8 10-12h-9l1-8z"/>')} Send test signal</button>
         ${timeoutEnabled ? `<button class="btn btn-sm btn-ghost" type="button" onclick="simulateExternalTimeout('${node.id}')">Simulate timeout</button>` : ''}
       </div>
     `;
@@ -2142,7 +2250,7 @@ function showNodeProperties(node) {
         </select>
         <div class="form-help">Pick an existing delivery or create a new one</div>
         <div class="form-inline-actions">
-          <button class="btn btn-sm btn-secondary" onclick="createDeliveryFromNode('${node.id}', '${channel}')">+ Create ${channel.toUpperCase()} Delivery</button>
+          <button class="btn btn-sm btn-primary" onclick="createDeliveryFromNode('${node.id}', '${channel}')">+ Create ${channel.toUpperCase()} Delivery</button>
         </div>
       </div>
       <div class="form-group">
@@ -2152,6 +2260,53 @@ function showNodeProperties(node) {
       <div class="form-group">
         <label class="form-label">Message Content</label>
         <textarea class="form-input" rows="4" onchange="updateNodeConfig('content', this.value)">${node.config.content || ''}</textarea>
+      </div>
+    `;
+  } else if (node.type === 'offer_decision') {
+    const decisionOptions = (referenceData.decisions || []).map(d => `
+      <option value="${d.id}" ${node.config.decision_id == d.id ? 'selected' : ''}>
+        ${d.name} (${d.status || 'draft'})
+      </option>
+    `).join('');
+
+    html += `
+      <div class="form-group">
+        <label class="form-label">Decision Policy</label>
+        <select class="form-input" onchange="updateNodeConfig('decision_id', this.value)">
+          <option value="">Select a decision...</option>
+          ${decisionOptions}
+        </select>
+        <div class="form-help">Choose which offer decision to resolve for each contact</div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Context Data (JSON)</label>
+        <textarea class="form-input" rows="3" placeholder='{"channel":"email","campaign":"summer_sale"}' onchange="updateNodeConfig('context_data', this.value)">${node.config.context_data || ''}</textarea>
+        <div class="form-help">Optional real-time context passed to the decision engine</div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Branch on Offer</label>
+        <select class="form-input" onchange="updateNodeConfig('branch_mode', this.value)">
+          <option value="none" ${node.config.branch_mode === 'none' || !node.config.branch_mode ? 'selected' : ''}>No branching (continue)</option>
+          <option value="offer" ${node.config.branch_mode === 'offer' ? 'selected' : ''}>Branch by offer received</option>
+          <option value="fallback" ${node.config.branch_mode === 'fallback' ? 'selected' : ''}>Branch: personalized vs fallback</option>
+        </select>
+        <div class="form-help">Route contacts based on the offer they receive</div>
+      </div>
+    `;
+  } else if (node.type === 'ab_test') {
+    html += `
+      <div class="form-group">
+        <label class="form-label">Split Percentage</label>
+        <input type="number" class="form-input" min="1" max="99" value="${node.config.split_pct || 50}" onchange="updateNodeConfig('split_pct', this.value)">
+        <div class="form-help">% of contacts that go to variant A</div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Winner Metric</label>
+        <select class="form-input" onchange="updateNodeConfig('winner_metric', this.value)">
+          <option value="click_rate" ${node.config.winner_metric === 'click_rate' ? 'selected' : ''}>Click Rate</option>
+          <option value="conversion_rate" ${node.config.winner_metric === 'conversion_rate' ? 'selected' : ''}>Conversion Rate</option>
+          <option value="open_rate" ${node.config.winner_metric === 'open_rate' ? 'selected' : ''}>Open Rate</option>
+        </select>
       </div>
     `;
   }
@@ -2270,8 +2425,10 @@ function openPreviewModal(title, bodyHtml) {
 }
 
 function closePreviewModal(event) {
-  if (event && event.target && event.target.classList && !event.target.classList.contains('preview-modal') && !event.target.classList.contains('preview-modal-close')) {
-    return;
+  if (event && event.target) {
+    const isBackdrop = event.target.classList.contains('preview-modal');
+    const isCloseBtn = event.target.closest('.preview-modal-close');
+    if (!isBackdrop && !isCloseBtn) return;
   }
   const modal = document.getElementById('preview-modal');
   if (modal) modal.classList.add('hidden');
@@ -2330,8 +2487,10 @@ function formatPreviewCell(value) {
 
 function toggleAIAssistant() {
   const panel = document.getElementById('ai-assistant-panel');
+  const sidebar = document.getElementById('right-sidebar');
   if (!panel) return;
   panel.classList.toggle('collapsed');
+  if (sidebar) sidebar.classList.toggle('ai-collapsed', panel.classList.contains('collapsed'));
 }
 
 // Update node property
@@ -2435,6 +2594,7 @@ function focusNode(node) {
 
 // Delete node
 function deleteNode(nodeId) {
+  pushUndoState();
   const incoming = connections.filter(c => c.to === nodeId);
   const outgoing = connections.filter(c => c.from === nodeId);
   
@@ -2488,6 +2648,7 @@ function deleteSelected() {
 // Duplicate selected
 function duplicateSelected() {
   if (selectedNode) {
+    pushUndoState();
     const newNode = {
       ...selectedNode,
       id: `node-${nodeIdCounter++}`,
@@ -2500,6 +2661,119 @@ function duplicateSelected() {
     renderCanvas();
     showToast('Node duplicated', 'success');
   }
+}
+
+// ── Property-panel action bar handlers ──
+
+function propActionDelete(nodeId) {
+  if (!confirm('Delete this node and its connections?')) return;
+  deleteNode(nodeId);
+}
+
+function propActionDisable(nodeId) {
+  const node = getNodeById(nodeId);
+  if (!node) return;
+  node.disabled = !node.disabled;
+  if (node.disabled) node.paused = false; // can't be paused AND disabled
+  renderCanvas();
+  if (selectedNode && selectedNode.id === nodeId) showNodeProperties(node);
+  showToast(node.disabled ? `${node.name} disabled` : `${node.name} enabled`, 'info');
+}
+
+function propActionPause(nodeId) {
+  const node = getNodeById(nodeId);
+  if (!node) return;
+  node.paused = !node.paused;
+  if (node.paused) node.disabled = false; // can't be disabled AND paused
+  renderCanvas();
+  if (selectedNode && selectedNode.id === nodeId) showNodeProperties(node);
+  showToast(node.paused ? `${node.name} paused` : `${node.name} resumed`, 'info');
+}
+
+function propActionCopy(nodeId) {
+  const node = getNodeById(nodeId);
+  if (!node) return;
+  pushUndoState();
+  const newNode = {
+    ...JSON.parse(JSON.stringify(node)),
+    id: `node-${nodeIdCounter++}`,
+    name: node.name + ' (copy)',
+    position: {
+      x: node.position.x + 60,
+      y: node.position.y + 60
+    }
+  };
+  delete newNode.disabled;
+  delete newNode.paused;
+  nodes.push(newNode);
+  renderCanvas();
+  showToast('Node duplicated', 'success');
+}
+
+function propActionLogs(nodeId) {
+  const node = getNodeById(nodeId);
+  if (!node) return;
+  const runtime = runtimeByNode[nodeId] || {};
+  const status = runtime.status || 'idle';
+  const count  = runtime.count != null ? runtime.count : '—';
+
+  const overlay = document.createElement('div');
+  overlay.className = 'prop-logs-overlay';
+  overlay.onclick = function(e){ if(e.target === overlay) overlay.remove(); };
+  overlay.innerHTML = `
+    <div class="prop-logs-modal">
+      <div class="prop-logs-header">
+        <span>Logs — ${node.name}</span>
+        <button onclick="this.closest('.prop-logs-overlay').remove()">&times;</button>
+      </div>
+      <div class="prop-logs-body">
+        <table class="prop-logs-table">
+          <thead><tr><th>Time</th><th>Event</th><th>Details</th></tr></thead>
+          <tbody>
+            <tr><td>${new Date().toLocaleTimeString()}</td><td>Status</td><td>${status}</td></tr>
+            <tr><td>${new Date().toLocaleTimeString()}</td><td>Records processed</td><td>${count}</td></tr>
+            ${runtime.seconds ? `<tr><td>${new Date().toLocaleTimeString()}</td><td>Duration</td><td>${runtime.seconds.toFixed(1)}s</td></tr>` : ''}
+            ${node.disabled ? `<tr><td>—</td><td>Node disabled</td><td>This node will be skipped during execution</td></tr>` : ''}
+            ${node.paused ? `<tr><td>—</td><td>Node paused</td><td>Execution will halt at this node until resumed</td></tr>` : ''}
+          </tbody>
+        </table>
+        ${status === 'idle' ? '<p class="prop-logs-empty">No execution logs yet. Run the workflow to generate logs.</p>' : ''}
+      </div>
+    </div>
+  `;
+  document.body.appendChild(overlay);
+}
+
+function propActionTasks(nodeId) {
+  const node = getNodeById(nodeId);
+  if (!node) return;
+  const runtime = runtimeByNode[nodeId] || {};
+  const status  = runtime.status || 'idle';
+
+  const overlay = document.createElement('div');
+  overlay.className = 'prop-logs-overlay';
+  overlay.onclick = function(e){ if(e.target === overlay) overlay.remove(); };
+  overlay.innerHTML = `
+    <div class="prop-logs-modal">
+      <div class="prop-logs-header">
+        <span>Tasks — ${node.name}</span>
+        <button onclick="this.closest('.prop-logs-overlay').remove()">&times;</button>
+      </div>
+      <div class="prop-logs-body">
+        <table class="prop-logs-table">
+          <thead><tr><th>#</th><th>Task</th><th>Status</th><th>Started</th></tr></thead>
+          <tbody>
+            ${status !== 'idle' ? `
+              <tr><td>1</td><td>Initialize ${node.type.replace(/_/g,' ')}</td><td><span class="task-badge task-done">Done</span></td><td>${new Date().toLocaleTimeString()}</td></tr>
+              <tr><td>2</td><td>Process records</td><td><span class="task-badge task-${status === 'completed' ? 'done' : status === 'executing' ? 'running' : 'pending'}">${status === 'completed' ? 'Done' : status === 'executing' ? 'Running' : 'Pending'}</span></td><td>${new Date().toLocaleTimeString()}</td></tr>
+              <tr><td>3</td><td>Write output transition</td><td><span class="task-badge task-${status === 'completed' ? 'done' : 'pending'}">${status === 'completed' ? 'Done' : 'Pending'}</span></td><td>—</td></tr>
+            ` : '<tr><td colspan="4" style="text-align:center;color:#888;padding:24px;">No tasks yet. Run the workflow to generate tasks.</td></tr>'}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(overlay);
 }
 
 // Canvas controls
@@ -2533,6 +2807,7 @@ function applyCanvasTransform() {
 
 function autoLayout() {
   if (nodes.length === 0) return;
+  pushUndoState();
   
   // Improved auto-layout: arrange nodes by depth, reduce overlap
   const nodeMap = new Map(nodes.map(n => [n.id, n]));
@@ -2610,17 +2885,77 @@ function autoLayout() {
   showToast('Layout applied', 'success');
 }
 
-// Undo/Redo (basic implementation)
-let history = [];
-let historyIndex = -1;
+// ── Undo/Redo ─────────────────────────────────────────────────
+let _undoStack = [];   // past states
+let _redoStack = [];   // future states (after undo)
+const MAX_HISTORY = 50;
+
+// Take a snapshot of the current canvas state
+function _snapshotState() {
+  return JSON.stringify({ nodes, connections, nodeIdCounter });
+}
+
+// Push the current state onto the undo stack (call BEFORE making a change)
+function pushUndoState() {
+  _undoStack.push(_snapshotState());
+  if (_undoStack.length > MAX_HISTORY) _undoStack.shift();
+  _redoStack = []; // Any new action clears the redo stack
+}
 
 function undoAction() {
-  showToast('Undo not yet implemented', 'info');
+  if (_undoStack.length === 0) {
+    showToast('Nothing to undo', 'info');
+    return;
+  }
+  // Save current state to redo stack
+  _redoStack.push(_snapshotState());
+  // Restore previous state
+  const prev = JSON.parse(_undoStack.pop());
+  nodes = prev.nodes;
+  connections = prev.connections;
+  nodeIdCounter = prev.nodeIdCounter;
+  selectedNode = null;
+  selectedConnectionId = null;
+  renderCanvas();
+  showToast('Undo', 'info');
 }
 
 function redoAction() {
-  showToast('Redo not yet implemented', 'info');
+  if (_redoStack.length === 0) {
+    showToast('Nothing to redo', 'info');
+    return;
+  }
+  // Save current state to undo stack
+  _undoStack.push(_snapshotState());
+  // Restore next state
+  const next = JSON.parse(_redoStack.pop());
+  nodes = next.nodes;
+  connections = next.connections;
+  nodeIdCounter = next.nodeIdCounter;
+  selectedNode = null;
+  selectedConnectionId = null;
+  renderCanvas();
+  showToast('Redo', 'info');
 }
+
+// Keyboard shortcuts for undo/redo
+document.addEventListener('keydown', function(e) {
+  // Ctrl+Z / Cmd+Z = Undo
+  if ((e.ctrlKey || e.metaKey) && !e.shiftKey && e.key === 'z') {
+    e.preventDefault();
+    undoAction();
+  }
+  // Ctrl+Shift+Z / Cmd+Shift+Z = Redo
+  if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === 'z') {
+    e.preventDefault();
+    redoAction();
+  }
+  // Ctrl+Y / Cmd+Y = Redo
+  if ((e.ctrlKey || e.metaKey) && e.key === 'y') {
+    e.preventDefault();
+    redoAction();
+  }
+});
 
 // Validate orchestration
 function validateOrchestration() {
@@ -2737,52 +3072,200 @@ function toggleCategory(header) {
   header.classList.toggle('collapsed');
 }
 
+// ── Node type → icon mapping for AI-generated flows ─────────
+const NODE_TYPE_ICONS = {
+  entry: '<circle cx="12" cy="12" r="10"/><polygon points="10 8 16 12 10 16 10 8"/>',
+  exit: '<rect width="14" height="14" x="5" y="5" rx="2"/>',
+  stop: '<rect width="14" height="14" x="5" y="5" rx="2"/>',
+  segment: '<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>',
+  filter: '<polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/>',
+  exclude: '<circle cx="12" cy="12" r="10"/><line x1="15" x2="9" y1="9" y2="15"/><line x1="9" x2="15" y1="9" y2="15"/>',
+  split: '<line x1="12" x2="12" y1="2" y2="22"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>',
+  query: '<circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>',
+  build_audience: '<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>',
+  deduplication: '<path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/><line x1="12" x2="12" y1="18" y2="12"/><line x1="9" x2="15" y1="15" y2="15"/>',
+  enrichment: '<circle cx="12" cy="12" r="10"/><line x1="12" x2="12" y1="8" y2="16"/><line x1="8" x2="16" y1="12" y2="12"/>',
+  save_audience: '<path d="M15.2 3a2 2 0 0 1 1.4.6l3.8 3.8a2 2 0 0 1 .6 1.4V19a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2Z"/><path d="M17 21v-7a1 1 0 0 0-1-1H8a1 1 0 0 0-1 1v7"/><path d="M7 3v4a1 1 0 0 0 1 1h7"/>',
+  wait: '<circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>',
+  condition: '<circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><path d="M12 17h.01"/>',
+  scheduler: '<rect width="18" height="18" x="3" y="4" rx="2" ry="2"/><line x1="16" x2="16" y1="2" y2="6"/><line x1="8" x2="8" y1="2" y2="6"/><line x1="3" x2="21" y1="10" y2="10"/>',
+  random: '<rect width="18" height="18" x="3" y="3" rx="2"/><path d="M12 8v8"/><path d="M8 12h8"/>',
+  fork: '<line x1="12" x2="12" y1="2" y2="22"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>',
+  email: '<rect width="20" height="16" x="2" y="4" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/>',
+  sms: '<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>',
+  push: '<rect width="14" height="20" x="5" y="2" rx="2" ry="2"/><path d="M12 18h.01"/>',
+  webhook: '<path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>',
+  direct_mail: '<rect width="20" height="16" x="2" y="4" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/>',
+  goal: '<circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/>',
+  alert: '<circle cx="12" cy="12" r="10"/><line x1="12" x2="12" y1="8" y2="12"/><line x1="12" x2="12.01" y1="16" y2="16"/>'
+};
+
+function _getNodeIcon(type) {
+  return _ico(NODE_TYPE_ICONS[type] || NODE_TYPE_ICONS.email);
+}
+
+// Store last AI suggestion for apply buttons
+let _lastAISuggestion = null;
+
 // AI Functions
-function suggestOrchestration() {
+async function suggestOrchestration() {
   const chat = document.getElementById('orchestration-ai-chat');
-  const suggestion = `
-    <div class="ai-message assistant">
-      <strong>${_ico('<path d="M12 2v2"/><path d="M12 20v2"/><path d="M4.93 4.93l1.41 1.41"/><path d="M17.66 17.66l1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="M6.34 17.66l-1.41 1.41"/><path d="M19.07 4.93l-1.41 1.41"/><circle cx="12" cy="12" r="5"/>')} Suggested Flow:</strong><br><br>
-      1. <strong>Entry</strong> - Start campaign<br>
-      2. <strong>Segment</strong> - Filter to VIP customers<br>
-      3. <strong>Email</strong> - Send personalized offer<br>
-      4. <strong>Wait</strong> - 2 days<br>
-      5. <strong>Condition</strong> - Check if opened<br>
-      6. <strong>Email</strong> - Follow-up (if opened)<br>
-      7. <strong>Exit</strong> - End campaign<br><br>
-      <button class="btn btn-sm btn-primary" onclick="applyAISuggestion('vip_campaign', false)" style="margin-right: 0.5rem;">${_ico('<path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/>')} Apply to Canvas</button>
-      <button class="btn btn-sm btn-danger" onclick="applyAISuggestion('vip_campaign', true)">${_ico('<path d="m17 2 4 4-4 4"/><path d="M3 11v-1a4 4 0 0 1 4-4h14"/><path d="m7 22-4-4 4-4"/><path d="M21 13v1a4 4 0 0 1-4 4H3"/>')} Override All</button>
-    </div>
-  `;
-  chat.innerHTML += suggestion;
+  const wfName = currentWorkflowData?.name || '';
+  const wfDesc = currentWorkflowData?.description || '';
+
+  if (!wfName) {
+    chat.innerHTML += `<div class="ai-message assistant">Please save the workflow with a name first so I can suggest a relevant flow.</div>`;
+    chat.scrollTop = chat.scrollHeight;
+    return;
+  }
+
+  // Show thinking indicator
+  const thinkingId = `ai-thinking-${Date.now()}`;
+  chat.innerHTML += `<div class="ai-message user">Suggest a flow for: <strong>${wfName}</strong>${wfDesc ? `<br><em>${wfDesc}</em>` : ''}</div>`;
+  chat.innerHTML += `<div class="ai-message assistant" id="${thinkingId}"><em>${_ico('<path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/>')} Analyzing "${wfName}" and designing flow...</em></div>`;
+  chat.scrollTop = chat.scrollHeight;
+
+  try {
+    const response = await fetch(`${API_BASE}/ai/suggest-flow`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: wfName, description: wfDesc })
+    });
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || 'Failed to get suggestion');
+
+    _lastAISuggestion = data.flow;
+
+    // Build a visual step list
+    const stepList = data.flow.map((n, i) => {
+      const icon = _getNodeIcon(n.type);
+      const configHint = _describeConfig(n);
+      return `${i + 1}. ${icon} <strong>${n.name}</strong>${configHint ? ` — <em>${configHint}</em>` : ''}`;
+    }).join('<br>');
+
+    const sourceLabel = data.source === 'openai' ? '🤖 AI-generated' : '✨ Smart suggestion';
+    const thinkingEl = document.getElementById(thinkingId);
+    if (thinkingEl) {
+      thinkingEl.outerHTML = `
+        <div class="ai-message assistant">
+          <strong>${_ico('<path d="M12 2v2"/><path d="M12 20v2"/><path d="M4.93 4.93l1.41 1.41"/><path d="M17.66 17.66l1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="M6.34 17.66l-1.41 1.41"/><path d="M19.07 4.93l-1.41 1.41"/><circle cx="12" cy="12" r="5"/>')} Suggested Flow</strong> <span style="font-size:11px;color:#6b7280">(${sourceLabel})</span><br><br>
+          ${stepList}<br><br>
+          <button class="btn btn-sm btn-primary" onclick="applyAISuggestion(null, false)" style="margin-right: 0.5rem;">${_ico('<path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/>')} Apply to Canvas</button>
+          <button class="btn btn-sm btn-danger" onclick="applyAISuggestion(null, true)">${_ico('<path d="m17 2 4 4-4 4"/><path d="M3 11v-1a4 4 0 0 1 4-4h14"/><path d="m7 22-4-4 4-4"/><path d="M21 13v1a4 4 0 0 1-4 4H3"/>')} Override All</button>
+        </div>
+      `;
+    }
+  } catch (err) {
+    const thinkingEl = document.getElementById(thinkingId);
+    if (thinkingEl) {
+      thinkingEl.outerHTML = `<div class="ai-message assistant" style="color:#dc2626">Error: ${err.message}</div>`;
+    }
+  }
   chat.scrollTop = chat.scrollHeight;
 }
 
-function optimizeOrchestration() {
+// Helper: describe a node's config in a short human-readable string
+function _describeConfig(node) {
+  const c = node.config || {};
+  if (node.type === 'wait') {
+    return c.wait_time ? `${c.wait_time} ${c.wait_unit || 'hours'}` : '';
+  }
+  if (node.type === 'email') return c.subject || '';
+  if (node.type === 'sms') return c.message ? c.message.slice(0, 50) + (c.message.length > 50 ? '...' : '') : '';
+  if (node.type === 'condition') return c.condition_type ? `Check: ${c.condition_type}` : '';
+  if (node.type === 'segment' || node.type === 'filter') return c.criteria || c.action || '';
+  if (node.type === 'split') return c.split_ratio ? `${c.split_ratio}/${100 - c.split_ratio} split` : '';
+  if (node.type === 'goal') return c.goal_type || '';
+  if (node.type === 'offer_decision') {
+    const dec = (referenceData.decisions || []).find(d => d.id == c.decision_id);
+    return dec ? dec.name : 'No decision selected';
+  }
+  if (node.type === 'ab_test') return c.split_pct ? `${c.split_pct}% / ${100 - c.split_pct}%` : '';
+  return '';
+}
+
+async function optimizeOrchestration() {
   const chat = document.getElementById('orchestration-ai-chat');
-  const tips = `
-    <div class="ai-message assistant">
-      <strong>${_ico('<polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>')} Optimization Tips:</strong><br><br>
-      • Add Wait nodes between emails (min 24h)<br>
-      • Use A/B Split to test messaging<br>
-      • Filter by engagement before sending<br>
-      • Add Goal nodes to track conversions<br>
-      • Exclude customers who already converted<br><br>
-      <strong>Want me to apply optimized flow?</strong><br>
-      <button class="btn btn-sm btn-primary" onclick="applyAISuggestion('optimized_flow', false)" style="margin-right: 0.5rem;">${_ico('<path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/>')} Apply Optimization</button>
-      <button class="btn btn-sm btn-danger" onclick="applyAISuggestion('optimized_flow', true)">${_ico('<path d="m17 2 4 4-4 4"/><path d="M3 11v-1a4 4 0 0 1 4-4h14"/><path d="m7 22-4-4 4-4"/><path d="M21 13v1a4 4 0 0 1-4 4H3"/>')} Override All</button>
-    </div>
-  `;
-  chat.innerHTML += tips;
+
+  if (!nodes || nodes.length === 0) {
+    chat.innerHTML += '<div class="ai-message assistant">There are no nodes on the canvas to optimize. Add some nodes first, or click <strong>Suggest Flow</strong> to generate one.</div>';
+    chat.scrollTop = chat.scrollHeight;
+    return;
+  }
+
+  const thinkingId = 'ai-optimize-' + Date.now();
+  chat.innerHTML += '<div class="ai-message user">Optimize my current flow (' + nodes.length + ' nodes)</div>';
+  chat.innerHTML += '<div class="ai-message assistant" id="' + thinkingId + '"><em>Analyzing your flow for improvements...</em></div>';
+  chat.scrollTop = chat.scrollHeight;
+
+  try {
+    const payload = {
+      name: currentWorkflowData?.name || '',
+      description: currentWorkflowData?.description || '',
+      nodes: nodes.map(function(n) {
+        return { id: n.id, type: n.type, category: n.category, name: n.name, config: n.config || {} };
+      }),
+      connections: connections.map(function(c) {
+        return { from: c.from, to: c.to };
+      })
+    };
+
+    const response = await fetch(API_BASE + '/ai/optimize-flow', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || 'Optimization failed');
+
+    // Build score badge
+    var scoreColor = data.score >= 80 ? '#22c55e' : data.score >= 50 ? '#f59e0b' : '#ef4444';
+    var scoreLabel = data.score >= 80 ? 'Good' : data.score >= 50 ? 'Needs Work' : 'Poor';
+
+    // Build issues list
+    var issuesHtml = (data.issues || []).map(function(issue) {
+      var icon = issue.severity === 'critical' ? '🔴' : issue.severity === 'warning' ? '🟡' : '🔵';
+      return '<div style="margin-bottom:8px"><span>' + icon + '</span> <strong>' + issue.message + '</strong><br><span style="font-size:12px;color:#6b7280;margin-left:20px">' + issue.suggestion + '</span></div>';
+    }).join('');
+
+    // Build action buttons if there's an improved flow
+    var actionButtons = '';
+    if (data.improved_flow && data.improved_flow.length > 0) {
+      _lastAISuggestion = data.improved_flow;
+      actionButtons = '<br><strong>Apply optimized flow?</strong><br><button class="btn btn-sm btn-primary" onclick="applyAISuggestion(null, false)" style="margin-right:0.5rem;margin-top:6px">Apply Improvements</button> <button class="btn btn-sm btn-danger" onclick="applyAISuggestion(null, true)" style="margin-top:6px">Replace All</button>';
+    }
+
+    var sourceLabel = data.source === 'openai' ? '🤖 AI analysis' : '📋 Rule-based analysis';
+
+    var thinkingEl = document.getElementById(thinkingId);
+    if (thinkingEl) {
+      thinkingEl.outerHTML = '<div class="ai-message assistant">' +
+        '<div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">' +
+          '<strong>Flow Analysis</strong>' +
+          '<span style="background:' + scoreColor + ';color:#fff;padding:2px 10px;border-radius:12px;font-size:12px;font-weight:600">' + data.score + '/100 ' + scoreLabel + '</span>' +
+          '<span style="font-size:11px;color:#6b7280">(' + sourceLabel + ')</span>' +
+        '</div>' +
+        issuesHtml +
+        actionButtons +
+      '</div>';
+    }
+  } catch (err) {
+    var thinkingEl2 = document.getElementById(thinkingId);
+    if (thinkingEl2) {
+      thinkingEl2.outerHTML = '<div class="ai-message assistant" style="color:#dc2626">Optimization failed: ' + err.message + '</div>';
+    }
+  }
   chat.scrollTop = chat.scrollHeight;
 }
 
 // Apply AI-suggested flow to canvas
+// flowType: null = use _lastAISuggestion (dynamic AI), or a string key for legacy templates
 function applyAISuggestion(flowType, override = false) {
   if (override) {
     if (!confirm('This will delete all existing nodes and connections. Continue?')) {
       return;
     }
+    pushUndoState();
     nodes = [];
     connections = [];
     nodeIdCounter = 1;
@@ -2790,6 +3273,9 @@ function applyAISuggestion(flowType, override = false) {
     if (!confirm('Add suggested flow to existing canvas?')) {
       return;
     }
+    pushUndoState();
+  } else {
+    pushUndoState();
   }
   
   let startY = 100;
@@ -2800,65 +3286,43 @@ function applyAISuggestion(flowType, override = false) {
     const maxY = Math.max(...nodes.map(n => n.position.y));
     startY = maxY + 150;
   }
-  
-  const flowTemplates = {
-    vip_campaign: [
-      { type: 'entry', category: 'flow', name: 'Entry Point', icon: _ico('<circle cx="12" cy="12" r="10"/><polygon points="10 8 16 12 10 16 10 8"/>'), x: startX, y: startY },
-      { type: 'segment', category: 'targeting', name: 'VIP Segment', icon: _ico('<circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/>'), x: startX, y: startY + 120, config: { action: 'include' } },
-      { type: 'email', category: 'channels', name: 'VIP Offer Email', icon: _ico('<rect width="20" height="16" x="2" y="4" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/>'), x: startX, y: startY + 240, config: { subject: 'Exclusive VIP Offer', content: 'Special offer just for you!' } },
-      { type: 'wait', category: 'flow_control', name: 'Wait 2 Days', icon: _ico('<circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>'), x: startX, y: startY + 360, config: { wait_time: 2, wait_unit: 'days' } },
-      { type: 'condition', category: 'flow_control', name: 'Check Opened', icon: _ico('<circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><path d="M12 17h.01"/>'), x: startX, y: startY + 480, config: { condition_type: 'email_opened', time_window: 2 } },
-      { type: 'email', category: 'channels', name: 'Follow-up Email', icon: _ico('<rect width="20" height="16" x="2" y="4" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/>'), x: startX, y: startY + 600, config: { subject: 'Did you see our offer?', content: 'Follow-up message' } },
-      { type: 'exit', category: 'flow', name: 'Exit', icon: _ico('<rect width="14" height="14" x="5" y="5" rx="2"/>'), x: startX, y: startY + 720 }
-    ],
-    optimized_flow: [
-      { type: 'entry', category: 'flow', name: 'Entry Point', icon: _ico('<circle cx="12" cy="12" r="10"/><polygon points="10 8 16 12 10 16 10 8"/>'), x: startX, y: startY },
-      { type: 'segment', category: 'targeting', name: 'Active Subscribers', icon: _ico('<circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/>'), x: startX, y: startY + 120, config: { action: 'include' } },
-      { type: 'split', category: 'flow_control', name: 'A/B Test', icon: _ico('<line x1="12" x2="12" y1="2" y2="22"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>'), x: startX, y: startY + 240, config: { split_ratio: 50, variant_a_name: 'Version A', variant_b_name: 'Version B' } },
-      { type: 'email', category: 'channels', name: 'Email Variant A', icon: _ico('<rect width="20" height="16" x="2" y="4" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/>'), x: startX - 150, y: startY + 360, config: { subject: 'Version A Subject' } },
-      { type: 'email', category: 'channels', name: 'Email Variant B', icon: _ico('<rect width="20" height="16" x="2" y="4" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/>'), x: startX + 150, y: startY + 360, config: { subject: 'Version B Subject' } },
-      { type: 'wait', category: 'flow_control', name: 'Wait 24 Hours', icon: _ico('<circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>'), x: startX, y: startY + 480, config: { wait_time: 24, wait_unit: 'hours' } },
-      { type: 'condition', category: 'flow_control', name: 'Check Engagement', icon: _ico('<circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><path d="M12 17h.01"/>'), x: startX, y: startY + 600, config: { condition_type: 'email_clicked', time_window: 1 } },
-      { type: 'goal', category: 'tracking', name: 'Track Goal', icon: _ico('<circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/>'), x: startX, y: startY + 720 },
-      { type: 'exit', category: 'flow', name: 'Exit', icon: _ico('<rect width="14" height="14" x="5" y="5" rx="2"/>'), x: startX, y: startY + 840 }
-    ],
-    welcome_flow: [
-      { type: 'entry', category: 'flow', name: 'New Subscriber', icon: _ico('<circle cx="12" cy="12" r="10"/><polygon points="10 8 16 12 10 16 10 8"/>'), x: startX, y: startY },
-      { type: 'email', category: 'channels', name: 'Welcome Email', icon: _ico('<rect width="20" height="16" x="2" y="4" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/>'), x: startX, y: startY + 120, config: { subject: 'Welcome! Here\'s what to expect', content: 'Thanks for joining us!' } },
-      { type: 'wait', category: 'flow_control', name: 'Wait 1 Day', icon: _ico('<circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>'), x: startX, y: startY + 240, config: { wait_time: 1, wait_unit: 'days' } },
-      { type: 'email', category: 'channels', name: 'Getting Started', icon: _ico('<rect width="20" height="16" x="2" y="4" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/>'), x: startX, y: startY + 360, config: { subject: 'Getting started guide', content: 'Here\'s how to get the most out of...' } },
-      { type: 'wait', category: 'flow_control', name: 'Wait 3 Days', icon: _ico('<circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>'), x: startX, y: startY + 480, config: { wait_time: 3, wait_unit: 'days' } },
-      { type: 'condition', category: 'flow_control', name: 'Made Purchase?', icon: _ico('<circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><path d="M12 17h.01"/>'), x: startX, y: startY + 600, config: { condition_type: 'purchased', time_window: 7 } },
-      { type: 'email', category: 'channels', name: 'First Purchase Offer', icon: _ico('<rect width="20" height="16" x="2" y="4" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/>'), x: startX, y: startY + 720, config: { subject: '20% off your first order', content: 'Special offer for new customers' } },
-      { type: 'exit', category: 'flow', name: 'Exit', icon: _ico('<rect width="14" height="14" x="5" y="5" rx="2"/>'), x: startX, y: startY + 840 }
-    ],
-    cart_recovery: [
-      { type: 'entry', category: 'flow', name: 'Cart Abandoned', icon: _ico('<circle cx="12" cy="12" r="10"/><polygon points="10 8 16 12 10 16 10 8"/>'), x: startX, y: startY },
-      { type: 'wait', category: 'flow_control', name: 'Wait 1 Hour', icon: _ico('<circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>'), x: startX, y: startY + 120, config: { wait_time: 1, wait_unit: 'hours' } },
-      { type: 'email', category: 'channels', name: 'Reminder Email', icon: _ico('<rect width="20" height="16" x="2" y="4" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/>'), x: startX, y: startY + 240, config: { subject: 'You left items in your cart', content: 'Complete your purchase!' } },
-      { type: 'wait', category: 'flow_control', name: 'Wait 24 Hours', icon: _ico('<circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>'), x: startX, y: startY + 360, config: { wait_time: 24, wait_unit: 'hours' } },
-      { type: 'condition', category: 'flow_control', name: 'Check Purchase', icon: _ico('<circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><path d="M12 17h.01"/>'), x: startX, y: startY + 480, config: { condition_type: 'purchased', time_window: 1 } },
-      { type: 'email', category: 'channels', name: 'Incentive Email', icon: _ico('<rect width="20" height="16" x="2" y="4" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/>'), x: startX, y: startY + 600, config: { subject: '10% off to complete your order', content: 'Special discount just for you' } },
-      { type: 'wait', category: 'flow_control', name: 'Wait 48 Hours', icon: _ico('<circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>'), x: startX, y: startY + 720, config: { wait_time: 48, wait_unit: 'hours' } },
-      { type: 'email', category: 'channels', name: 'Final Reminder', icon: _ico('<rect width="20" height="16" x="2" y="4" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/>'), x: startX, y: startY + 840, config: { subject: 'Last chance - cart expiring soon', content: 'Your cart items are still waiting' } },
-      { type: 'exit', category: 'flow', name: 'Exit', icon: _ico('<rect width="14" height="14" x="5" y="5" rx="2"/>'), x: startX, y: startY + 960 }
-    ],
-    winback_flow: [
-      { type: 'entry', category: 'flow', name: 'Inactive Customer', icon: _ico('<circle cx="12" cy="12" r="10"/><polygon points="10 8 16 12 10 16 10 8"/>'), x: startX, y: startY },
-      { type: 'filter', category: 'targeting', name: 'Filter Inactive', icon: _ico('<circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>'), x: startX, y: startY + 120, config: { filter_field: 'last_purchase_date', operator: 'greater_than', filter_value: '60' } },
-      { type: 'email', category: 'channels', name: 'We Miss You', icon: _ico('<rect width="20" height="16" x="2" y="4" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/>'), x: startX, y: startY + 240, config: { subject: 'We miss you! Come back', content: 'It\'s been a while...' } },
-      { type: 'wait', category: 'flow_control', name: 'Wait 3 Days', icon: _ico('<circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>'), x: startX, y: startY + 360, config: { wait_time: 3, wait_unit: 'days' } },
-      { type: 'condition', category: 'flow_control', name: 'Engaged?', icon: _ico('<circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><path d="M12 17h.01"/>'), x: startX, y: startY + 480, config: { condition_type: 'email_opened', time_window: 3 } },
-      { type: 'email', category: 'channels', name: 'Special Offer', icon: _ico('<rect width="20" height="16" x="2" y="4" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/>'), x: startX, y: startY + 600, config: { subject: '25% off - Welcome back!', content: 'Exclusive comeback offer' } },
-      { type: 'wait', category: 'flow_control', name: 'Wait 7 Days', icon: _ico('<circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>'), x: startX, y: startY + 720, config: { wait_time: 7, wait_unit: 'days' } },
-      { type: 'condition', category: 'flow_control', name: 'Converted?', icon: _ico('<circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><path d="M12 17h.01"/>'), x: startX, y: startY + 840, config: { condition_type: 'purchased', time_window: 7 } },
-      { type: 'exit', category: 'flow', name: 'Exit', icon: _ico('<rect width="14" height="14" x="5" y="5" rx="2"/>'), x: startX, y: startY + 960 }
-    ]
-  };
-  
-  const template = flowTemplates[flowType];
-  if (!template) {
-    showToast('Template not found', 'error');
+
+  let template;
+
+  if (flowType === null && _lastAISuggestion) {
+    // Dynamic AI-generated flow — convert to positioned template
+    template = _lastAISuggestion.map((n, i) => ({
+      type: n.type,
+      category: n.category || 'flow',
+      name: n.name,
+      icon: _getNodeIcon(n.type),
+      x: startX,
+      y: startY + (i * 120),
+      config: n.config || {}
+    }));
+  } else {
+    // Legacy hardcoded templates (for Optimize and chat-based suggestions)
+    const flowTemplates = {
+      optimized_flow: [
+        { type: 'entry', category: 'flow', name: 'Entry Point', x: startX, y: startY },
+        { type: 'segment', category: 'targeting', name: 'Active Subscribers', x: startX, y: startY + 120, config: { action: 'include' } },
+        { type: 'split', category: 'flow_control', name: 'A/B Test', x: startX, y: startY + 240, config: { split_ratio: 50 } },
+        { type: 'email', category: 'channels', name: 'Email Variant A', x: startX - 150, y: startY + 360, config: { subject: 'Version A Subject' } },
+        { type: 'email', category: 'channels', name: 'Email Variant B', x: startX + 150, y: startY + 360, config: { subject: 'Version B Subject' } },
+        { type: 'wait', category: 'flow_control', name: 'Wait 24 Hours', x: startX, y: startY + 480, config: { wait_time: 24, wait_unit: 'hours' } },
+        { type: 'condition', category: 'flow_control', name: 'Check Engagement', x: startX, y: startY + 600, config: { condition_type: 'email_clicked', time_window: 1 } },
+        { type: 'goal', category: 'tracking', name: 'Track Goal', x: startX, y: startY + 720 },
+        { type: 'exit', category: 'flow', name: 'Exit', x: startX, y: startY + 840 }
+      ]
+    };
+    template = flowTemplates[flowType];
+    if (template) {
+      template = template.map(n => ({ ...n, icon: _getNodeIcon(n.type), config: n.config || {} }));
+    }
+  }
+
+  if (!template || template.length === 0) {
+    showToast('No flow template available. Try "Suggest Flow" first.', 'error');
     return;
   }
   
@@ -2906,12 +3370,57 @@ function sendOrchestrationAIMessage() {
   
   chat.innerHTML += `<div class="ai-message user">${message}</div>`;
   input.value = '';
+
+  // Check if this is a flow creation request — route to AI endpoint
+  const lower = message.toLowerCase();
+  const isFlowRequest = (/create|build|design|suggest|make|generate|add/i.test(lower) &&
+    /flow|workflow|campaign|journey|sequence|automation|series|welcome|cart|winback|abandon|onboard|nurture|drip|birthday|promo|sale|vip|loyalty/i.test(lower));
+
+  if (isFlowRequest) {
+    _handleAIChatFlowRequest(message, chat);
+    return;
+  }
   
   setTimeout(() => {
     const response = getOrchestrationAIResponse(message);
     chat.innerHTML += `<div class="ai-message assistant">${response}</div>`;
     chat.scrollTop = chat.scrollHeight;
   }, 500);
+}
+
+// Handle chat-based flow creation through the AI endpoint
+async function _handleAIChatFlowRequest(message, chat) {
+  const thinkingId = 'ai-chat-thinking-' + Date.now();
+  chat.innerHTML += '<div class="ai-message assistant" id="' + thinkingId + '"><em>Designing your flow...</em></div>';
+  chat.scrollTop = chat.scrollHeight;
+
+  try {
+    const response = await fetch(API_BASE + '/ai/suggest-flow', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: message, description: '' })
+    });
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || 'Failed');
+
+    _lastAISuggestion = data.flow;
+    const stepList = data.flow.map(function(n, i) {
+      var hint = _describeConfig(n);
+      return (i + 1) + '. ' + _getNodeIcon(n.type) + ' <strong>' + n.name + '</strong>' + (hint ? ' — <em>' + hint + '</em>' : '');
+    }).join('<br>');
+
+    var sourceLabel = data.source === 'openai' ? 'AI-generated' : 'Smart suggestion';
+    var thinkingEl = document.getElementById(thinkingId);
+    if (thinkingEl) {
+      thinkingEl.outerHTML = '<div class="ai-message assistant"><strong>Here is your flow</strong> <span style="font-size:11px;color:#6b7280">(' + sourceLabel + ')</span><br><br>' + stepList + '<br><br><button class="btn btn-sm btn-primary" onclick="applyAISuggestion(null, false)" style="margin-right:0.5rem">Apply to Canvas</button> <button class="btn btn-sm btn-danger" onclick="applyAISuggestion(null, true)">Override All</button></div>';
+    }
+  } catch (err) {
+    var thinkingEl2 = document.getElementById(thinkingId);
+    if (thinkingEl2) {
+      thinkingEl2.outerHTML = '<div class="ai-message assistant" style="color:#dc2626">Sorry, could not generate a flow: ' + err.message + '</div>';
+    }
+  }
+  chat.scrollTop = chat.scrollHeight;
 }
 
 function getOrchestrationAIResponse(message) {
@@ -2933,7 +3442,7 @@ function getOrchestrationAIResponse(message) {
     return "Use <strong>Segment</strong> nodes to filter your audience. Target VIP customers, recent buyers, or at-risk customers. Dynamic segments update automatically. You can have multiple segment filters in sequence.";
   }
   
-  if (lower.includes('welcome') || lower.includes('onboard')) {
+  if (false && lower.includes('welcome')) {
     return `I can create a welcome/onboarding flow for you!<br><br>
       <button class="btn btn-sm btn-primary" onclick="applyAISuggestion('welcome_flow', false)" style="margin-right: 0.5rem;">${_ico('<path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/>')} Add Welcome Flow</button>
       <button class="btn btn-sm btn-danger" onclick="applyAISuggestion('welcome_flow', true)">${_ico('<path d="m17 2 4 4-4 4"/><path d="M3 11v-1a4 4 0 0 1 4-4h14"/><path d="m7 22-4-4 4-4"/><path d="M21 13v1a4 4 0 0 1-4 4H3"/>')} Replace All</button>`;
@@ -2961,7 +3470,7 @@ function getOrchestrationAIResponse(message) {
       Just ask: "create welcome flow" or "add cart recovery"`;
   }
   
-  return "I can help with orchestration design, best practices, timing, segmentation, and optimization. I can also create campaign templates - just ask! Try: 'suggest a flow', 'create welcome campaign', or 'add cart recovery'.";
+  return 'I can help with orchestration design, best practices, timing, segmentation, and optimization.<br><br>To generate a flow, just describe what you need, e.g.:<br>• <em>"Create a welcome email series"</em><br>• <em>"Build a cart abandonment flow"</em><br>• <em>"Design a VIP loyalty campaign"</em><br><br>Or click <strong>Suggest Flow</strong> above to auto-generate based on this workflow\'s name.';
 }
 
 // Navigation
@@ -2982,7 +3491,7 @@ function showToast(message, type = 'info') {
   const container = document.getElementById('toast-container');
   const toast = document.createElement('div');
   toast.className = `toast ${type}`;
-  toast.textContent = message;
+  toast.innerHTML = message;
   
   container.appendChild(toast);
   

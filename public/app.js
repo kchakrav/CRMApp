@@ -15,8 +15,10 @@ const ICONS = {
   dashboard:    _i(16, '<rect width="7" height="9" x="3" y="3" rx="1"/><rect width="7" height="5" x="14" y="3" rx="1"/><rect width="7" height="9" x="14" y="12" rx="1"/><rect width="7" height="5" x="3" y="16" rx="1"/>'),
   compass:      _i(16, '<circle cx="12" cy="12" r="10"/><polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76"/>'),
   zap:          _i(16, '<polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>'),
+  workflow:     _i(16, '<rect x="3" y="3" width="6" height="6" rx="1"/><rect x="15" y="3" width="6" height="6" rx="1"/><rect x="9" y="15" width="6" height="6" rx="1"/><path d="M6 9v3a1 1 0 0 0 1 1h3"/><path d="M18 9v3a1 1 0 0 1-1 1h-3"/>'),
   send:         _i(16, '<path d="m22 2-7 20-4-9-9-4Z"/><path d="m22 2-11 11"/>'),
   messageSquare:_i(16, '<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>'),
+  eventMessage: _i(16, '<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/><path d="M13 6 8.5 13H13l-.5 5L17 11h-4.5L13 6z"/>'),
   history:      _i(16, '<path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l4 2"/>'),
   fileText:     _i(16, '<path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M10 9H8"/><path d="M16 13H8"/><path d="M16 17H8"/>'),
   image:        _i(16, '<rect width="18" height="18" x="3" y="3" rx="2" ry="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/>'),
@@ -58,7 +60,6 @@ const ICONS = {
   broadcast:    _i(14, '<path d="m3 11 18-5v12L3 13v-2z"/><path d="M11.6 16.8a3 3 0 1 1-5.8-1.6"/>'),
   bot:          _i(14, '<path d="M12 8V4H8"/><rect width="16" height="12" x="4" y="8" rx="2"/><path d="M2 14h2"/><path d="M20 14h2"/><path d="M15 13v2"/><path d="M9 13v2"/>'),
   repeat:       _i(14, '<path d="m17 2 4 4-4 4"/><path d="M3 11v-1a4 4 0 0 1 4-4h14"/><path d="m7 22-4-4 4-4"/><path d="M21 13v1a4 4 0 0 1-4 4H3"/>'),
-  workflow:     _i(14, '<rect width="8" height="8" x="3" y="3" rx="2"/><path d="M7 11v4a2 2 0 0 0 2 2h4"/><rect width="8" height="8" x="13" y="13" rx="2"/>'),
 
   // --- Analytics / Stats ---
   mailStat:     _i(16, '<rect width="20" height="16" x="2" y="4" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/>'),
@@ -185,23 +186,32 @@ function renderCurrentPage() {
     segments: 'Segments',
     audiences: 'Audiences',
     'custom-objects': 'Custom Objects',
+    enumerations: 'Enumerations',
     'query-service': 'Query Service',
     analytics: 'Analytics',
     ai: 'AI Features',
-    'api-docs': 'API Documentation'
+    'api-docs': 'API Documentation',
+    'transactional': 'Events & Messages',
+    'event-history': 'Event History',
+    'offers': 'Offers',
+    'placements': 'Placements',
+    'offer-collections': 'Collections',
+    'decision-rules': 'Decision Rules',
+    'strategies': 'Strategies',
+    'decisions': 'Decisions',
+    'offer-analytics': 'Offer Analytics'
   };
   
-  document.getElementById('page-title').textContent = titleMap[view] || view;
-  
-  // Show/hide create button
-  const createBtn = document.getElementById('create-btn');
-  if (['contacts', 'campaigns', 'segments', 'audiences', 'custom-objects'].includes(view) && page === 'list') {
-    createBtn.style.display = 'block';
-    const label = view === 'custom-objects' ? 'Custom Object' : view === 'audiences' ? 'Audience' : view === 'contacts' ? 'Contact' : titleMap[view].slice(0, -1);
-    document.getElementById('create-btn-text').textContent = `+ Create ${label}`;
+  const pageTitleEl = document.getElementById('page-title');
+  if (view === 'transactional') {
+    pageTitleEl.innerHTML = ICONS.eventMessage + ' Events &amp; Messages';
   } else {
-    createBtn.style.display = 'none';
+    pageTitleEl.textContent = titleMap[view] || view;
   }
+  
+  // Hide page-level create button (create actions live inside card headers)
+  const createBtn = document.getElementById('create-btn');
+  createBtn.style.display = 'none';
   
   // Route to appropriate page
   if (page === 'create') {
@@ -295,7 +305,7 @@ function showListPage(view) {
       callViewLoader(window.loadDeliveries, 'Deliveries');
       break;
     case 'transactional':
-      callViewLoader(window.loadTransactionalMessages, 'Transactional Messages');
+      callViewLoader(window.loadTransactionalMessages, 'Events & Messages');
       break;
     case 'event-history':
       callViewLoader(window.loadEventHistory, 'Event History');
@@ -330,6 +340,9 @@ function showListPage(view) {
     case 'custom-objects':
       callViewLoader(loadCustomObjects, 'Custom Objects');
       break;
+    case 'enumerations':
+      callViewLoader(loadEnumerations, 'Enumerations');
+      break;
     case 'query-service':
       callViewLoader(loadQueryService, 'Query Service');
       break;
@@ -341,6 +354,28 @@ function showListPage(view) {
       break;
     case 'api-docs':
       callViewLoader(loadAPIDocs, 'API Documentation');
+      break;
+    // ── Offer Decisioning views ──
+    case 'offers':
+      callViewLoader(window.loadOffers, 'Offers');
+      break;
+    case 'placements':
+      callViewLoader(window.loadPlacements, 'Placements');
+      break;
+    case 'offer-collections':
+      callViewLoader(window.loadOfferCollections, 'Collections');
+      break;
+    case 'decision-rules':
+      callViewLoader(window.loadDecisionRules, 'Decision Rules');
+      break;
+    case 'strategies':
+      callViewLoader(window.loadStrategies, 'Strategies');
+      break;
+    case 'decisions':
+      callViewLoader(window.loadDecisions, 'Decisions');
+      break;
+    case 'offer-analytics':
+      callViewLoader(window.loadOfferAnalytics, 'Offer Analytics');
       break;
     default:
       renderMissingView(view);
@@ -369,6 +404,18 @@ function showCreatePage(view) {
     case 'custom-objects':
       renderCustomObjectForm();
       break;
+    case 'offers':
+      window.renderOfferForm();
+      break;
+    case 'placements':
+      window.renderPlacementForm();
+      break;
+    case 'strategies':
+      window.renderStrategyForm();
+      break;
+    case 'decisions':
+      window.renderDecisionForm();
+      break;
   }
 }
 
@@ -379,7 +426,7 @@ async function showEditPage(view, id) {
   showLoading();
   
   try {
-    const endpoint = view === 'custom-objects' ? 'custom-objects' : view;
+    const endpoint = view === 'custom-objects' ? 'custom-objects' : view === 'strategies' ? 'decisions/strategies' : view;
     const response = await fetch(`${API_BASE}/${endpoint}/${id}`);
     const data = await response.json();
     
@@ -398,6 +445,18 @@ async function showEditPage(view, id) {
         break;
       case 'custom-objects':
         renderCustomObjectForm(data);
+        break;
+      case 'offers':
+        window.renderOfferForm(data);
+        break;
+      case 'placements':
+        window.renderPlacementForm(data);
+        break;
+      case 'strategies':
+        window.renderStrategyForm(data);
+        break;
+      case 'decisions':
+        window.renderDecisionForm(data);
         break;
     }
     
@@ -713,58 +772,10 @@ function renderWorkflowForm(workflow = null) {
   const isEdit = !!workflow;
   const content = document.getElementById('content');
   
-  // Default workflow type for new workflows
-  const workflowType = workflow?.workflow_type || 'broadcast';
-  const entryTriggerType = workflow?.entry_trigger?.type || 'manual';
   
   content.innerHTML = `
     <div class="form-container">
       <form id="workflow-form" onsubmit="handleWorkflowSubmit(event)">
-        <!-- Workflow Type Selection (only for new workflows) -->
-        ${!isEdit ? `
-        <div class="form-section">
-          <h3 class="form-section-title">${ICONS.zap} Choose Workflow Type</h3>
-          <div class="workflow-type-selector" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 1rem; margin-bottom: 1.5rem;">
-            <label class="workflow-type-card" onclick="selectWorkflowType('broadcast')">
-              <input type="radio" name="workflow_type" value="broadcast" checked style="display: none;">
-              <div class="type-card broadcast active">
-                <div class="type-icon">${ICONS.broadcast}</div>
-                <div class="type-title">Broadcast</div>
-                <div class="type-description">One-time or scheduled send to your audience</div>
-                <div class="type-examples">Product launches, announcements, promotions</div>
-              </div>
-            </label>
-            <label class="workflow-type-card" onclick="selectWorkflowType('automated')">
-              <input type="radio" name="workflow_type" value="automated" style="display: none;">
-              <div class="type-card automated">
-                <div class="type-icon">${ICONS.bot}</div>
-                <div class="type-title">Automated</div>
-                <div class="type-description">Event-triggered journey that runs continuously</div>
-                <div class="type-examples">Welcome series, cart recovery, win-back</div>
-              </div>
-            </label>
-            <label class="workflow-type-card" onclick="selectWorkflowType('recurring')">
-              <input type="radio" name="workflow_type" value="recurring" style="display: none;">
-              <div class="type-card recurring">
-                <div class="type-icon">${ICONS.repeat}</div>
-                <div class="type-title">Recurring</div>
-                <div class="type-description">Scheduled workflow that repeats regularly</div>
-                <div class="type-examples">Weekly newsletter, monthly roundup</div>
-              </div>
-            </label>
-          </div>
-        </div>
-        ` : `
-          <input type="hidden" name="workflow_type" value="${workflowType}">
-          <div class="form-section">
-            <div class="info-banner" style="padding: 1rem; background: #EFF6FF; border-left: 4px solid #3B82F6; border-radius: 0.5rem; margin-bottom: 1.5rem;">
-              <strong>Workflow Type:</strong> 
-              ${workflowType === 'broadcast' ? `${ICONS.broadcast} Broadcast` : workflowType === 'automated' ? `${ICONS.bot} Automated` : `${ICONS.repeat} Recurring`}
-              <div style="font-size: 0.875rem; color: #6B7280; margin-top: 0.25rem;">Workflow type cannot be changed after creation</div>
-            </div>
-          </div>
-        `}
-        
         <!-- Basic Information -->
         <div class="form-section">
           <h3 class="form-section-title">Basic Information</h3>
@@ -780,15 +791,53 @@ function renderWorkflowForm(workflow = null) {
           </div>
         </div>
         
-        <!-- Entry Trigger Configuration -->
-        <div class="form-section" id="trigger-section">
-          <h3 class="form-section-title">Entry Trigger</h3>
-          <div class="form-grid" id="trigger-config">
-            <!-- Dynamic trigger configuration will be inserted here -->
+        <!-- Schedule -->
+        <div class="form-section">
+          <h3 class="form-section-title">Schedule</h3>
+          <div class="form-grid">
+            <!-- When to run -->
+            <div class="form-group form-grid-full">
+              <label class="form-label">When should this workflow run?</label>
+              <div style="display:flex;gap:0;border:1px solid var(--border-default, #e2e8f0);border-radius:8px;overflow:hidden;margin-bottom:4px">
+                <button type="button" id="wf-timing-now" class="btn ${workflow?.entry_trigger?.type === 'scheduled' || workflow?.entry_trigger?.config?.scheduled_at ? 'btn-ghost' : 'btn-primary'}" style="flex:1;border-radius:0;border:none;padding:8px 12px;font-size:13px" onclick="setWfScheduleMode('now')">
+                  ${ICONS.broadcast || ''} Run now
+                </button>
+                <button type="button" id="wf-timing-schedule" class="btn ${workflow?.entry_trigger?.type === 'scheduled' || workflow?.entry_trigger?.config?.scheduled_at ? 'btn-primary' : 'btn-ghost'}" style="flex:1;border-radius:0;border:none;border-left:1px solid var(--border-default, #e2e8f0);padding:8px 12px;font-size:13px" onclick="setWfScheduleMode('schedule')">
+                  ${ICONS.calendar || ''} Schedule for later
+                </button>
+              </div>
+              <div class="form-help" id="wf-schedule-help" style="margin-top:2px">${workflow?.entry_trigger?.type === 'scheduled' || workflow?.entry_trigger?.config?.scheduled_at ? 'Choose a date and time to run this workflow.' : 'This workflow will run when you activate it manually.'}</div>
+            </div>
+            <!-- Schedule date/time (visible only when scheduled) -->
+            <div id="wf-schedule-fields" style="${workflow?.entry_trigger?.type === 'scheduled' || workflow?.entry_trigger?.config?.scheduled_at ? '' : 'display:none'}">
+              <div class="form-grid">
+                <div class="form-group">
+                  <label class="form-label form-label-required">Date</label>
+                  <input type="date" id="scheduled-date" class="form-input" value="${workflow?.entry_trigger?.config?.scheduled_at ? new Date(workflow.entry_trigger.config.scheduled_at).toISOString().split('T')[0] : ''}">
+                </div>
+                <div class="form-group">
+                  <label class="form-label form-label-required">Time</label>
+                  <input type="time" id="scheduled-time" class="form-input" value="${workflow?.entry_trigger?.config?.scheduled_at ? new Date(workflow.entry_trigger.config.scheduled_at).toTimeString().slice(0, 5) : '10:00'}">
+                </div>
+              </div>
+            </div>
+            <!-- Recurring toggle -->
+            <div class="form-group form-grid-full" style="margin-top:8px">
+              <label style="display:flex;align-items:center;gap:8px;cursor:pointer;user-select:none">
+                <input type="checkbox" id="wf-recurring-toggle" onchange="toggleWfRecurring(this.checked)" ${workflow?.entry_trigger?.config?.frequency ? 'checked' : ''}>
+                <span style="font-weight:500">${ICONS.repeat || ''} Make this recurring</span>
+              </label>
+              <div class="form-help" style="margin-top:2px;margin-left:24px">Repeat this workflow on a regular schedule</div>
+            </div>
+            <!-- Recurring fields (visible only when checked) -->
+            <div id="wf-recurring-fields" style="${workflow?.entry_trigger?.config?.frequency ? '' : 'display:none'}">
+              <div class="form-grid" id="wf-recurring-grid"></div>
+            </div>
           </div>
         </div>
         
-        <!-- Status -->
+        <!-- Status (edit only) -->
+        ${isEdit ? `
         <div class="form-section">
           <h3 class="form-section-title">Status</h3>
           <div class="form-grid">
@@ -798,13 +847,14 @@ function renderWorkflowForm(workflow = null) {
                 <option value="draft" ${workflow?.status === 'draft' ? 'selected' : ''}>Draft</option>
                 <option value="active" ${workflow?.status === 'active' ? 'selected' : ''}>Active</option>
                 <option value="paused" ${workflow?.status === 'paused' ? 'selected' : ''}>Paused</option>
-                ${isEdit && workflow?.status === 'completed' ? '<option value="completed" selected>Completed</option>' : ''}
-                ${isEdit && workflow?.status === 'archived' ? '<option value="archived" selected>Archived</option>' : ''}
+                ${workflow?.status === 'completed' ? '<option value="completed" selected>Completed</option>' : ''}
+                ${workflow?.status === 'archived' ? '<option value="archived" selected>Archived</option>' : ''}
               </select>
               <div class="form-help">Draft workflows can be edited, active workflows are running</div>
             </div>
           </div>
         </div>
+        ` : '<input type="hidden" id="workflow-status" value="draft">'}
         
         <div class="form-actions">
           <button type="button" class="btn btn-secondary" onclick="navigateTo('workflows', 'list')">Cancel</button>
@@ -815,123 +865,88 @@ function renderWorkflowForm(workflow = null) {
     </div>
   `;
   
-  // Initialize trigger configuration
-  updateTriggerConfig(workflowType, workflow);
+  // Initialize recurring fields if needed
+  initWfRecurringFields(workflow);
 }
 
-// Select workflow type (for new workflows)
-function selectWorkflowType(type) {
-  // Update radio button
-  document.querySelectorAll('.workflow-type-card input[type="radio"]').forEach(radio => {
-    radio.checked = radio.value === type;
-  });
-  
-  // Update visual selection
-  document.querySelectorAll('.type-card').forEach(card => {
-    card.classList.remove('active');
-  });
-  event.currentTarget.querySelector('.type-card').classList.add('active');
-  
-  // Update trigger configuration
-  updateTriggerConfig(type, null);
+// ── Schedule helpers ──
+
+function setWfScheduleMode(mode) {
+  const nowBtn = document.getElementById('wf-timing-now');
+  const schedBtn = document.getElementById('wf-timing-schedule');
+  const schedFields = document.getElementById('wf-schedule-fields');
+  const helpEl = document.getElementById('wf-schedule-help');
+
+  if (mode === 'now') {
+    nowBtn.className = 'btn btn-primary';
+    schedBtn.className = 'btn btn-ghost';
+    schedFields.style.display = 'none';
+    if (helpEl) helpEl.textContent = 'This workflow will run when you activate it manually.';
+  } else {
+    nowBtn.className = 'btn btn-ghost';
+    schedBtn.className = 'btn btn-primary';
+    schedFields.style.display = '';
+    if (helpEl) helpEl.textContent = 'Choose a date and time to run this workflow.';
+  }
 }
 
-// Update trigger configuration based on workflow type
-function updateTriggerConfig(workflowType, workflow = null) {
-  const triggerConfig = document.getElementById('trigger-config');
-  if (!triggerConfig) return;
-  
-  let html = '';
-  
-  if (workflowType === 'broadcast') {
-    const triggerType = workflow?.entry_trigger?.type || 'manual';
-    html = `
-      <div class="form-group form-grid-full">
-        <label class="form-label form-label-required">Send Option</label>
-        <select id="entry-trigger-type" class="form-input" onchange="updateBroadcastTrigger(this.value)" required>
-          <option value="manual" ${triggerType === 'manual' ? 'selected' : ''}>Send Now (Manual)</option>
-          <option value="scheduled" ${triggerType === 'scheduled' ? 'selected' : ''}>Schedule for Later</option>
-        </select>
-      </div>
-      <div id="schedule-fields" style="display: ${triggerType === 'scheduled' ? 'contents' : 'none'};">
-        <div class="form-group">
-          <label class="form-label form-label-required">Scheduled Date</label>
-          <input type="date" id="scheduled-date" class="form-input" value="${workflow?.entry_trigger?.config?.scheduled_at ? new Date(workflow.entry_trigger.config.scheduled_at).toISOString().split('T')[0] : ''}">
-        </div>
-        <div class="form-group">
-          <label class="form-label form-label-required">Scheduled Time</label>
-          <input type="time" id="scheduled-time" class="form-input" value="${workflow?.entry_trigger?.config?.scheduled_at ? new Date(workflow.entry_trigger.config.scheduled_at).toTimeString().slice(0, 5) : '10:00'}">
-        </div>
-      </div>
-    `;
-  } else if (workflowType === 'automated') {
-    const eventName = workflow?.entry_trigger?.config?.event_name || 'contact_created';
-    html = `
-      <div class="form-group form-grid-full">
-        <label class="form-label form-label-required">Trigger Event</label>
-        <select id="trigger-event" class="form-input" required>
-          <option value="contact_created" ${eventName === 'contact_created' ? 'selected' : ''}>Contact Created (New Subscriber)</option>
-          <option value="cart_abandoned" ${eventName === 'cart_abandoned' ? 'selected' : ''}>Cart Abandoned</option>
-          <option value="order_completed" ${eventName === 'order_completed' ? 'selected' : ''}>Order Completed</option>
-          <option value="inactivity_detected" ${eventName === 'inactivity_detected' ? 'selected' : ''}>Inactivity Detected</option>
-          <option value="birthday" ${eventName === 'birthday' ? 'selected' : ''}>Birthday</option>
-          <option value="loyalty_upgrade" ${eventName === 'loyalty_upgrade' ? 'selected' : ''}>Loyalty Tier Upgrade</option>
-          <option value="browse_behavior" ${eventName === 'browse_behavior' ? 'selected' : ''}>Browse Behavior</option>
-        </select>
-        <div class="form-help">This workflow will trigger automatically when this event occurs</div>
-      </div>
-    `;
-  } else if (workflowType === 'recurring') {
-    const frequency = workflow?.entry_trigger?.config?.frequency || 'weekly';
-    html = `
+function toggleWfRecurring(checked) {
+  const fields = document.getElementById('wf-recurring-fields');
+  if (fields) {
+    fields.style.display = checked ? '' : 'none';
+    if (checked && !document.getElementById('recurring-frequency')) {
+      renderWfRecurringGrid(null);
+    }
+  }
+}
+
+function initWfRecurringFields(workflow) {
+  if (workflow?.entry_trigger?.config?.frequency) {
+    renderWfRecurringGrid(workflow);
+  }
+}
+
+function renderWfRecurringGrid(workflow) {
+  const grid = document.getElementById('wf-recurring-grid');
+  if (!grid) return;
+  const freq = workflow?.entry_trigger?.config?.frequency || 'weekly';
+  const day = workflow?.entry_trigger?.config?.day || 'monday';
+  const time = workflow?.entry_trigger?.config?.time || '10:00';
+
+  grid.innerHTML = `
       <div class="form-group">
         <label class="form-label form-label-required">Frequency</label>
-        <select id="recurring-frequency" class="form-input" onchange="updateRecurringFields(this.value)" required>
-          <option value="daily" ${frequency === 'daily' ? 'selected' : ''}>Daily</option>
-          <option value="weekly" ${frequency === 'weekly' ? 'selected' : ''}>Weekly</option>
-          <option value="monthly" ${frequency === 'monthly' ? 'selected' : ''}>Monthly</option>
+      <select id="recurring-frequency" class="form-input" onchange="onWfFrequencyChange(this.value)" required>
+        <option value="daily" ${freq === 'daily' ? 'selected' : ''}>Daily</option>
+        <option value="weekly" ${freq === 'weekly' ? 'selected' : ''}>Weekly</option>
+        <option value="monthly" ${freq === 'monthly' ? 'selected' : ''}>Monthly</option>
         </select>
       </div>
-      <div class="form-group" id="recurring-day-field" style="display: ${frequency !== 'daily' ? 'block' : 'none'};">
+    <div class="form-group" id="recurring-day-field" style="${freq === 'daily' ? 'display:none' : ''}">
         <label class="form-label form-label-required">Day</label>
-        ${frequency === 'weekly' ? `
+      ${freq !== 'monthly' ? `
           <select id="recurring-day" class="form-input" required>
-            <option value="monday">Monday</option>
-            <option value="tuesday">Tuesday</option>
-            <option value="wednesday">Wednesday</option>
-            <option value="thursday">Thursday</option>
-            <option value="friday">Friday</option>
-            <option value="saturday">Saturday</option>
-            <option value="sunday">Sunday</option>
+          ${['monday','tuesday','wednesday','thursday','friday','saturday','sunday'].map(d =>
+            '<option value="' + d + '"' + (day === d ? ' selected' : '') + '>' + d.charAt(0).toUpperCase() + d.slice(1) + '</option>'
+          ).join('')}
           </select>
         ` : `
-          <input type="number" id="recurring-day" class="form-input" min="1" max="28" value="1" required>
+        <input type="number" id="recurring-day" class="form-input" min="1" max="28" value="${typeof day === 'number' ? day : 1}" required>
           <div class="form-help">Day of month (1-28)</div>
         `}
       </div>
       <div class="form-group">
         <label class="form-label form-label-required">Time</label>
-        <input type="time" id="recurring-time" class="form-input" value="${workflow?.entry_trigger?.config?.time || '10:00'}" required>
+      <input type="time" id="recurring-time" class="form-input" value="${time}" required>
       </div>
     `;
   }
   
-  triggerConfig.innerHTML = html;
-}
-
-// Helper functions for trigger config
-function updateBroadcastTrigger(type) {
-  const scheduleFields = document.getElementById('schedule-fields');
-  if (scheduleFields) {
-    scheduleFields.style.display = type === 'scheduled' ? 'contents' : 'none';
-  }
-}
-
-function updateRecurringFields(frequency) {
-  const dayField = document.getElementById('recurring-day-field');
-  if (dayField) {
-    dayField.style.display = frequency !== 'daily' ? 'block' : 'none';
-  }
+function onWfFrequencyChange(frequency) {
+  // Re-render the recurring grid to swap day-of-week / day-of-month
+  const grid = document.getElementById('wf-recurring-grid');
+  if (!grid) return;
+  renderWfRecurringGrid({ entry_trigger: { config: { frequency, day: frequency === 'monthly' ? 1 : 'monday', time: document.getElementById('recurring-time')?.value || '10:00' } } });
 }
 
 // Handle Workflow Form Submit
@@ -940,62 +955,43 @@ async function handleWorkflowSubmit(event) {
   
   const isEdit = currentRoute.id !== null;
   
-  // Get workflow type
-  const workflowType = isEdit 
-    ? document.querySelector('input[name="workflow_type"]').value
-    : document.querySelector('input[name="workflow_type"]:checked').value;
-  
   // Base workflow data
   const workflowData = {
     name: document.getElementById('workflow-name').value,
     description: document.getElementById('workflow-description').value,
-    status: document.getElementById('workflow-status').value
+    status: document.getElementById('workflow-status').value,
+    workflow_type: 'broadcast'
   };
   
-  // Add workflow_type for new workflows
-  if (!isEdit) {
-    workflowData.workflow_type = workflowType;
-  }
-  
-  // Build entry_trigger based on workflow type
-  if (workflowType === 'broadcast') {
-    const triggerType = document.getElementById('entry-trigger-type').value;
-    workflowData.entry_trigger = {
-      type: triggerType,
-      config: {}
-    };
-    
-    if (triggerType === 'scheduled') {
-      const date = document.getElementById('scheduled-date').value;
-      const time = document.getElementById('scheduled-time').value;
+  // Build entry_trigger from schedule + recurring options
+  const isScheduled = document.getElementById('wf-timing-schedule')?.classList.contains('btn-primary');
+  const isRecurring = document.getElementById('wf-recurring-toggle')?.checked;
+
+  if (isScheduled || isRecurring) {
+    workflowData.entry_trigger = { type: 'scheduled', config: {} };
+
+    // Scheduled date/time
+    if (isScheduled) {
+      const date = document.getElementById('scheduled-date')?.value;
+      const time = document.getElementById('scheduled-time')?.value;
       if (date && time) {
         workflowData.entry_trigger.config.scheduled_at = `${date}T${time}:00Z`;
       }
     }
-  } else if (workflowType === 'automated') {
-    workflowData.entry_trigger = {
-      type: 'event',
-      config: {
-        event_name: document.getElementById('trigger-event').value,
-        conditions: {}
+
+    // Recurring fields
+    if (isRecurring) {
+      const frequency = document.getElementById('recurring-frequency')?.value;
+      const recurTime = document.getElementById('recurring-time')?.value;
+      if (frequency) workflowData.entry_trigger.config.frequency = frequency;
+      if (recurTime) workflowData.entry_trigger.config.time = recurTime;
+      if (frequency && frequency !== 'daily') {
+        const day = document.getElementById('recurring-day')?.value;
+        if (day) workflowData.entry_trigger.config.day = day;
       }
-    };
-  } else if (workflowType === 'recurring') {
-    const frequency = document.getElementById('recurring-frequency').value;
-    const time = document.getElementById('recurring-time').value;
-    
-    workflowData.entry_trigger = {
-      type: 'scheduled',
-      config: {
-        frequency: frequency,
-        time: time
-      }
-    };
-    
-    if (frequency !== 'daily') {
-      const day = document.getElementById('recurring-day').value;
-      workflowData.entry_trigger.config.day = day;
     }
+  } else {
+    workflowData.entry_trigger = { type: 'manual', config: {} };
   }
   
   // Initialize empty orchestration for new workflows
@@ -1229,7 +1225,6 @@ async function loadDashboard() {
         </div>
         <div class="dashboard-hero-right">
           <div class="dashboard-carousel">
-            <button class="carousel-nav prev" type="button" onclick="scrollDashboardCarousel(-1)">‹</button>
             <div class="dashboard-feature-track" id="dashboard-feature-track">
               ${features.map(feature => `
                 <div class="dashboard-feature-card">
@@ -1240,7 +1235,9 @@ async function loadDashboard() {
                 </div>
               `).join('')}
             </div>
-            <button class="carousel-nav next" type="button" onclick="scrollDashboardCarousel(1)">›</button>
+            <div class="carousel-dots" id="carousel-dots">
+              ${features.map((_, i) => `<button class="carousel-dot${i === 0 ? ' active' : ''}" type="button" onclick="scrollToCarouselCard(${i})"></button>`).join('')}
+            </div>
           </div>
         </div>
       </div>
@@ -1324,6 +1321,8 @@ async function loadDashboard() {
 
 // Customers View with CRUD
 // Filter state for contacts
+let contactsPage = 1;
+const CONTACTS_PER_PAGE = 100;
 let contactFilters = {
   status: 'all',
   subscription: 'all',
@@ -1353,22 +1352,68 @@ function setAudienceTab(tabLabel) {
   loadAudiences();
 }
 
+let _carouselTimer = null;
+let _carouselIndex = 0;
+
 function initDashboardCarousel() {
   const track = document.getElementById('dashboard-feature-track');
   if (!track) return;
-  const observer = new ResizeObserver(() => {
-    track.dataset.cardWidth = track.querySelector('.dashboard-feature-card')?.offsetWidth || 320;
+  _carouselIndex = 0;
+  _updateCarouselDots();
+
+  // Update active dot on manual scroll
+  track.addEventListener('scroll', () => {
+    const cards = track.querySelectorAll('.dashboard-feature-card');
+    if (!cards.length) return;
+    const card = cards[0];
+    const gap = parseInt(getComputedStyle(track).columnGap || getComputedStyle(track).gap || '16', 10) || 16;
+    const idx = Math.round(track.scrollLeft / (card.offsetWidth + gap));
+    if (idx !== _carouselIndex) {
+      _carouselIndex = idx;
+      _updateCarouselDots();
+    }
   });
-  observer.observe(track);
+
+  // Auto-advance every 4 seconds
+  _startCarouselAutoPlay();
+
+  // Pause auto-play on hover
+  track.addEventListener('mouseenter', () => _stopCarouselAutoPlay());
+  track.addEventListener('mouseleave', () => _startCarouselAutoPlay());
 }
 
-function scrollDashboardCarousel(direction) {
+function scrollToCarouselCard(index) {
   const track = document.getElementById('dashboard-feature-track');
   if (!track) return;
-  const card = track.querySelector('.dashboard-feature-card');
-  const cardWidth = card ? card.offsetWidth : 320;
+  const cards = track.querySelectorAll('.dashboard-feature-card');
+  if (!cards.length) return;
   const gap = parseInt(getComputedStyle(track).columnGap || getComputedStyle(track).gap || '16', 10) || 16;
-  track.scrollBy({ left: direction * (cardWidth + gap), behavior: 'smooth' });
+  _carouselIndex = index;
+  track.scrollTo({ left: index * (cards[0].offsetWidth + gap), behavior: 'smooth' });
+  _updateCarouselDots();
+  _stopCarouselAutoPlay();
+  _startCarouselAutoPlay();
+}
+
+function _updateCarouselDots() {
+  const dots = document.querySelectorAll('#carousel-dots .carousel-dot');
+  dots.forEach((dot, i) => dot.classList.toggle('active', i === _carouselIndex));
+}
+
+function _startCarouselAutoPlay() {
+  _stopCarouselAutoPlay();
+  _carouselTimer = setInterval(() => {
+    const track = document.getElementById('dashboard-feature-track');
+    if (!track) return;
+    const total = track.querySelectorAll('.dashboard-feature-card').length;
+    if (!total) return;
+    _carouselIndex = (_carouselIndex + 1) % total;
+    scrollToCarouselCard(_carouselIndex);
+  }, 4000);
+}
+
+function _stopCarouselAutoPlay() {
+  if (_carouselTimer) { clearInterval(_carouselTimer); _carouselTimer = null; }
 }
 
 function clearContactFilterTag(key) {
@@ -1394,10 +1439,6 @@ function clearContactFilterTag(key) {
 
 function clearWorkflowFilterTag(key) {
   switch (key) {
-    case 'type':
-      workflowFilters.type = 'all';
-      currentWorkflowFilter = 'all';
-      break;
     case 'status':
       workflowFilters.status = 'all';
       break;
@@ -1405,7 +1446,7 @@ function clearWorkflowFilterTag(key) {
       workflowFilters.search = '';
       break;
   }
-  loadWorkflows(workflowFilters.type);
+  loadWorkflows();
 }
 
 function clearSegmentFilterTag(key) {
@@ -1441,10 +1482,14 @@ function clearAudienceFilterTag(key) {
 async function loadContacts() {
   showLoading();
   try {
-    const response = await fetch(`${API_BASE}/contacts?limit=100`);
+    const searchParam = contactFilters.search ? `&search=${encodeURIComponent(contactFilters.search)}` : '';
+    const statusParam = contactFilters.status !== 'all' ? `&status=${encodeURIComponent(contactFilters.status)}` : '';
+    const subParam = contactFilters.subscription !== 'all' ? `&subscription_status=${encodeURIComponent(contactFilters.subscription)}` : '';
+    const response = await fetch(`${API_BASE}/contacts?page=${contactsPage}&limit=${CONTACTS_PER_PAGE}${searchParam}${statusParam}${subParam}`);
     const data = await response.json();
+    const pagination = data.pagination || {};
     
-    // Apply filters
+    // Apply remaining client-side filters (loyalty, engagement)
     let filteredContacts = data.contacts.filter(contact => {
       if (contactFilters.status !== 'all' && contact.status !== contactFilters.status) return false;
       if (contactFilters.subscription !== 'all' && contact.subscription_status !== contactFilters.subscription) return false;
@@ -1533,17 +1578,12 @@ async function loadContacts() {
       <div class="card">
         <div class="card-header">
           <h3 class="card-title">${ICONS.users} Profiles</h3>
+          <button class="btn btn-primary" onclick="showCustomerModal()">+ Create Profile</button>
         </div>
         
         ${createTableToolbar({
-          tabs: [
-            {id: 'all', label: 'All', active: true, onclick: 'loadContacts()'},
-            {id: 'import', label: 'Import', active: false, onclick: 'showContactImportDialog()'},
-            {id: 'export', label: 'Export', active: false, onclick: 'showContactExportDialog()'}
-          ],
           resultCount: filteredContacts.length,
-          totalCount: data.contacts.length,
-          showRefresh: false,
+          totalCount: pagination.total || data.contacts.length,
           showColumnSelector: true,
           columns,
           viewKey: 'contacts',
@@ -1613,6 +1653,15 @@ async function loadContacts() {
             </tbody>
           </table>
         </div>
+        ${pagination.pages > 1 ? `
+        <div class="table-pagination">
+          <button class="btn btn-secondary btn-sm" ${contactsPage <= 1 ? 'disabled' : ''} onclick="goToContactsPage(1)" title="First page">&laquo;</button>
+          <button class="btn btn-secondary btn-sm" ${contactsPage <= 1 ? 'disabled' : ''} onclick="goToContactsPage(${contactsPage - 1})" title="Previous page">&lsaquo; Prev</button>
+          <span class="pagination-info">Page ${contactsPage} of ${pagination.pages} &nbsp;(${pagination.total.toLocaleString()} profiles)</span>
+          <button class="btn btn-secondary btn-sm" ${contactsPage >= pagination.pages ? 'disabled' : ''} onclick="goToContactsPage(${contactsPage + 1})" title="Next page">Next &rsaquo;</button>
+          <button class="btn btn-secondary btn-sm" ${contactsPage >= pagination.pages ? 'disabled' : ''} onclick="goToContactsPage(${pagination.pages})" title="Last page">&raquo;</button>
+        </div>
+        ` : ''}
       </div>
     `;
     
@@ -1629,6 +1678,7 @@ async function loadContacts() {
 // Contact filter helper functions
 function updateContactFilter(key, value) {
   contactFilters[key] = value;
+  contactsPage = 1; // Reset to page 1 on filter change
   
   // Debounce search, reload immediately for other filters
   if (key === 'search') {
@@ -1636,6 +1686,11 @@ function updateContactFilter(key, value) {
   } else {
     loadContacts();
   }
+}
+
+function goToContactsPage(page) {
+  contactsPage = page;
+  loadContacts();
 }
 
 function clearContactFilters() {
@@ -1646,6 +1701,7 @@ function clearContactFilters() {
     engagement: 'all',
     search: ''
   };
+  contactsPage = 1;
   loadContacts();
 }
 
@@ -1653,64 +1709,160 @@ function clearContactFilters() {
 function showCustomerModal(customer = null) {
   currentEditId = customer ? customer.id : null;
   
-  document.getElementById('modal-title').textContent = customer ? 'Edit Customer' : 'Create Customer';
-  document.querySelector('.modal-content').classList.add('modal-with-ai');
+  document.getElementById('modal-title').textContent = customer ? 'Edit Profile' : 'Create Profile';
+  const mc = document.querySelector('.modal-content');
+  mc.classList.remove('modal-with-ai');
+  mc.style.width = 'min(640px, 94vw)';
+  
+  const _sel = (id, val, opts) => opts.map(o => `<option value="${o.value}" ${val === o.value ? 'selected' : ''}>${o.label}</option>`).join('');
+  const c = customer || {};
   
   const formHtml = `
-    <div class="form-group">
-      <label class="form-label">Email *</label>
-      <input type="email" id="customer-email" class="form-input" value="${customer?.email || ''}" required>
-    </div>
-    <div class="form-group">
-      <label class="form-label">First Name</label>
-      <input type="text" id="customer-first-name" class="form-input" value="${customer?.first_name || ''}">
-    </div>
-    <div class="form-group">
-      <label class="form-label">Last Name</label>
-      <input type="text" id="customer-last-name" class="form-input" value="${customer?.last_name || ''}">
-    </div>
-    <div class="form-group">
-      <label class="form-label">Phone</label>
-      <input type="tel" id="customer-phone" class="form-input" value="${customer?.phone || ''}">
-    </div>
-    <div class="form-group">
-      <label class="form-label">Status</label>
-      <select id="customer-status" class="form-input">
-        <option value="active" ${customer?.status === 'active' ? 'selected' : ''}>Active</option>
-        <option value="inactive" ${customer?.status === 'inactive' ? 'selected' : ''}>Inactive</option>
-      </select>
-    </div>
-    <div class="form-group">
-      <label class="form-label">Lifecycle Stage</label>
-      <select id="customer-lifecycle" class="form-input">
-        <option value="">Select...</option>
-        <option value="lead" ${customer?.lifecycle_stage === 'lead' ? 'selected' : ''}>Lead</option>
-        <option value="customer" ${customer?.lifecycle_stage === 'customer' ? 'selected' : ''}>Customer</option>
-        <option value="vip" ${customer?.lifecycle_stage === 'vip' ? 'selected' : ''}>VIP</option>
-        <option value="at_risk" ${customer?.lifecycle_stage === 'at_risk' ? 'selected' : ''}>At Risk</option>
-        <option value="churned" ${customer?.lifecycle_stage === 'churned' ? 'selected' : ''}>Churned</option>
-      </select>
+    <div class="profile-form-sections">
+      <!-- Basic Information -->
+      <fieldset class="profile-fieldset">
+        <legend>Basic Information</legend>
+        <div class="form-grid-2">
+          <div class="form-group">
+            <label class="form-label">Email *</label>
+            <input type="email" id="customer-email" class="form-input" value="${c.email || ''}" required>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Phone</label>
+            <input type="tel" id="customer-phone" class="form-input" value="${c.phone || ''}">
+          </div>
+          <div class="form-group">
+            <label class="form-label">First Name</label>
+            <input type="text" id="customer-first-name" class="form-input" value="${c.first_name || ''}">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Last Name</label>
+            <input type="text" id="customer-last-name" class="form-input" value="${c.last_name || ''}">
+          </div>
+        </div>
+      </fieldset>
+
+      <!-- Demographics -->
+      <fieldset class="profile-fieldset">
+        <legend>Demographics</legend>
+        <div class="form-grid-2">
+          <div class="form-group">
+            <label class="form-label">Date of Birth</label>
+            <input type="date" id="customer-dob" class="form-input" value="${c.date_of_birth || ''}">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Gender</label>
+            <select id="customer-gender" class="form-input">
+              <option value="">Select...</option>
+              ${_sel('customer-gender', c.gender || '', [{value:'male',label:'Male'},{value:'female',label:'Female'},{value:'other',label:'Other'},{value:'prefer_not_to_say',label:'Prefer not to say'}])}
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">City</label>
+            <input type="text" id="customer-city" class="form-input" value="${c.city || ''}">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Country</label>
+            <input type="text" id="customer-country" class="form-input" value="${c.country || ''}">
+          </div>
+          <div class="form-group">
+            <label class="form-label">State</label>
+            <input type="text" id="customer-state" class="form-input" value="${c.state || ''}">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Postal Code</label>
+            <input type="text" id="customer-postal" class="form-input" value="${c.postal_code || ''}">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Language</label>
+            <input type="text" id="customer-language" class="form-input" placeholder="en" value="${c.language || ''}">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Timezone</label>
+            <input type="text" id="customer-timezone" class="form-input" placeholder="America/New_York" value="${c.timezone || ''}">
+          </div>
+        </div>
+      </fieldset>
+
+      <!-- Status & Lifecycle -->
+      <fieldset class="profile-fieldset">
+        <legend>Status & Lifecycle</legend>
+        <div class="form-grid-2">
+          <div class="form-group">
+            <label class="form-label">Status</label>
+            <select id="customer-status" class="form-input">
+              ${_sel('customer-status', c.status || 'active', [{value:'active',label:'Active'},{value:'inactive',label:'Inactive'}])}
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Lifecycle Stage</label>
+            <select id="customer-lifecycle" class="form-input">
+              <option value="">Select...</option>
+              ${_sel('customer-lifecycle', c.lifecycle_stage || '', [{value:'lead',label:'Lead'},{value:'customer',label:'Customer'},{value:'vip',label:'VIP'},{value:'at_risk',label:'At Risk'},{value:'churned',label:'Churned'}])}
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Subscription</label>
+            <select id="customer-subscription" class="form-input">
+              ${_sel('customer-subscription', c.subscription_status || 'subscribed', [{value:'subscribed',label:'Subscribed'},{value:'unsubscribed',label:'Unsubscribed'},{value:'bounced',label:'Bounced'},{value:'pending',label:'Pending'}])}
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Source</label>
+            <select id="customer-source" class="form-input">
+              ${_sel('customer-source', c.source || 'organic', [{value:'organic',label:'Organic'},{value:'paid',label:'Paid'},{value:'social',label:'Social'},{value:'referral',label:'Referral'},{value:'email',label:'Email'}])}
+            </select>
+          </div>
+        </div>
+      </fieldset>
+
+      <!-- Channel Preferences -->
+      <fieldset class="profile-fieldset">
+        <legend>Channel Preferences</legend>
+        <div class="form-grid-2">
+          <div class="form-group">
+            <label class="form-label">Preferred Channel</label>
+            <select id="customer-pref-channel" class="form-input">
+              ${_sel('customer-pref-channel', c.preferred_channel || 'email', [{value:'email',label:'Email'},{value:'sms',label:'SMS'},{value:'push',label:'Push'},{value:'whatsapp',label:'WhatsApp'}])}
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Frequency</label>
+            <select id="customer-freq" class="form-input">
+              ${_sel('customer-freq', c.communication_frequency || 'weekly', [{value:'daily',label:'Daily'},{value:'weekly',label:'Weekly'},{value:'monthly',label:'Monthly'}])}
+            </select>
+          </div>
+        </div>
+        <div class="form-checkbox-row" style="display:flex;gap:16px;flex-wrap:wrap;margin-top:8px">
+          <label class="form-checkbox-label"><input type="checkbox" id="customer-email-optin" ${c.email_opt_in ? 'checked' : ''}> Email opt-in</label>
+          <label class="form-checkbox-label"><input type="checkbox" id="customer-sms-optin" ${c.sms_opt_in ? 'checked' : ''}> SMS opt-in</label>
+          <label class="form-checkbox-label"><input type="checkbox" id="customer-push-optin" ${c.push_opt_in ? 'checked' : ''}> Push opt-in</label>
+          <label class="form-checkbox-label"><input type="checkbox" id="customer-whatsapp-optin" ${c.whatsapp_opt_in ? 'checked' : ''}> WhatsApp opt-in</label>
+        </div>
+      </fieldset>
+
+      <!-- Consent & Privacy -->
+      <fieldset class="profile-fieldset">
+        <legend>Consent & Privacy</legend>
+        <div class="form-checkbox-row" style="display:flex;gap:16px;flex-wrap:wrap">
+          <label class="form-checkbox-label"><input type="checkbox" id="customer-marketing-consent" ${c.marketing_consent ? 'checked' : ''}> Marketing consent</label>
+          <label class="form-checkbox-label"><input type="checkbox" id="customer-gdpr-consent" ${c.gdpr_consent ? 'checked' : ''}> GDPR consent</label>
+          <label class="form-checkbox-label"><input type="checkbox" id="customer-email-verified" ${c.email_verified ? 'checked' : ''}> Email verified</label>
+          <label class="form-checkbox-label"><input type="checkbox" id="customer-phone-verified" ${c.phone_verified ? 'checked' : ''}> Phone verified</label>
+        </div>
+      </fieldset>
+
+      <!-- Notes -->
+      <fieldset class="profile-fieldset">
+        <legend>Notes</legend>
+        <div class="form-group" style="margin-bottom:0">
+          <textarea id="customer-notes" class="form-input" rows="3" placeholder="Add any notes about this contact...">${c.notes || ''}</textarea>
+        </div>
+      </fieldset>
     </div>
   `;
   
-  const aiAssistant = createAIAssistant('customer', {
-    suggestions: [
-      { label: 'Tip', text: 'Set lifecycle stage based on purchase history and engagement' },
-      { label: 'Best Practice', text: 'VIP customers typically have 5+ orders or $500+ lifetime value' },
-      { label: 'Recommendation', text: 'Mark customers as "At Risk" if no activity in 60+ days' }
-    ]
-  });
-  
-  const modalBody = `
-    <div class="modal-body-split">
-      <div class="modal-form-section">
-        ${formHtml}
-      </div>
-      ${aiAssistant}
-    </div>
-  `;
-  
-  document.getElementById('modal-body').innerHTML = modalBody;
+  document.getElementById('modal-body').innerHTML = formHtml;
   document.getElementById('modal').classList.remove('hidden');
   
   document.getElementById('modal-submit-btn').onclick = saveCustomer;
@@ -1718,13 +1870,43 @@ function showCustomerModal(customer = null) {
 
 // Save Customer
 async function saveCustomer() {
+  const _v = (id) => (document.getElementById(id)?.value || '').trim();
+  const _c = (id) => !!document.getElementById(id)?.checked;
+
   const data = {
-    email: document.getElementById('customer-email').value,
-    first_name: document.getElementById('customer-first-name').value,
-    last_name: document.getElementById('customer-last-name').value,
-    phone: document.getElementById('customer-phone').value,
-    status: document.getElementById('customer-status').value,
-    lifecycle_stage: document.getElementById('customer-lifecycle').value
+    // Basic
+    email: _v('customer-email'),
+    first_name: _v('customer-first-name'),
+    last_name: _v('customer-last-name'),
+    phone: _v('customer-phone'),
+    // Demographics
+    date_of_birth: _v('customer-dob') || undefined,
+    gender: _v('customer-gender') || undefined,
+    city: _v('customer-city') || undefined,
+    state: _v('customer-state') || undefined,
+    country: _v('customer-country') || undefined,
+    postal_code: _v('customer-postal') || undefined,
+    language: _v('customer-language') || undefined,
+    timezone: _v('customer-timezone') || undefined,
+    // Status & Lifecycle
+    status: _v('customer-status') || 'active',
+    lifecycle_stage: _v('customer-lifecycle') || undefined,
+    subscription_status: _v('customer-subscription') || 'subscribed',
+    source: _v('customer-source') || 'organic',
+    // Channel Preferences
+    preferred_channel: _v('customer-pref-channel') || 'email',
+    communication_frequency: _v('customer-freq') || 'weekly',
+    email_opt_in: _c('customer-email-optin'),
+    sms_opt_in: _c('customer-sms-optin'),
+    push_opt_in: _c('customer-push-optin'),
+    whatsapp_opt_in: _c('customer-whatsapp-optin'),
+    // Consent
+    marketing_consent: _c('customer-marketing-consent'),
+    gdpr_consent: _c('customer-gdpr-consent'),
+    email_verified: _c('customer-email-verified'),
+    phone_verified: _c('customer-phone-verified'),
+    // Notes
+    notes: _v('customer-notes') || undefined
   };
   
   if (!data.email) {
@@ -1745,11 +1927,11 @@ async function saveCustomer() {
     
     if (!response.ok) {
       const error = await response.json();
-      throw new Error(error.error || 'Failed to save customer');
+      throw new Error(error.error || 'Failed to save profile');
     }
     
     closeModal();
-    showToast(currentEditId ? 'Customer updated successfully!' : 'Customer created successfully!', 'success');
+    showToast(currentEditId ? 'Profile updated successfully!' : 'Profile created successfully!', 'success');
     loadContacts();
   } catch (error) {
     showError(error.message);
@@ -2061,20 +2243,13 @@ function deleteCampaign(id) {
 }
 
 // Workflows View with CRUD
-// Workflows View (Unified: Broadcast + Automated + Recurring)
-let currentWorkflowFilter = 'all'; // all, broadcast, automated, recurring
-
-// Additional workflow filters
 let workflowFilters = {
-  type: 'all',
   status: 'all',
   search: ''
 };
 
-async function loadWorkflows(filterType = 'all') {
+async function loadWorkflows() {
   showLoading();
-  currentWorkflowFilter = filterType;
-  workflowFilters.type = filterType;
   
   try {
     const response = await fetch(`${API_BASE}/workflows`);
@@ -2097,7 +2272,6 @@ async function loadWorkflows(filterType = 'all') {
     
     // Apply filters
     workflows = workflows.filter(w => {
-      if (workflowFilters.type !== 'all' && w.workflow_type !== workflowFilters.type) return false;
       if (workflowFilters.status !== 'all' && w.status !== workflowFilters.status) return false;
       if (workflowFilters.search) {
         const searchTerm = workflowFilters.search.toLowerCase();
@@ -2110,18 +2284,8 @@ async function loadWorkflows(filterType = 'all') {
     
     // Apply sorting
     workflows = applySorting(workflows, currentTableSort.column || 'id');
-    
-    const counts = {
-      all: workflows.length,
-      broadcast: workflows.filter(w => w.workflow_type === 'broadcast').length,
-      automated: workflows.filter(w => w.workflow_type === 'automated').length,
-      recurring: workflows.filter(w => w.workflow_type === 'recurring').length
-    };
 
     const filterTags = [];
-    if (workflowFilters.type !== 'all') {
-      filterTags.push({ key: 'type', label: 'Type', value: workflowFilters.type });
-    }
     if (workflowFilters.status !== 'all') {
       filterTags.push({ key: 'status', label: 'Status', value: workflowFilters.status });
     }
@@ -2139,9 +2303,15 @@ async function loadWorkflows(filterType = 'all') {
         'archived': 'draft'
       };
       
-      const typeIcon = 
-        w.workflow_type === 'broadcast' ? ICONS.broadcast :
-        w.workflow_type === 'automated' ? ICONS.bot : ICONS.repeat;
+      // Determine schedule label
+      const hasSchedule = w.entry_trigger?.type === 'scheduled' && w.entry_trigger?.config?.scheduled_at;
+      const hasRecurring = !!w.entry_trigger?.config?.frequency;
+      const freqLabel = hasRecurring ? w.entry_trigger.config.frequency.charAt(0).toUpperCase() + w.entry_trigger.config.frequency.slice(1) : '';
+      const scheduleLabel = hasSchedule && hasRecurring
+        ? `Scheduled, ${freqLabel}`
+        : hasRecurring ? freqLabel
+        : hasSchedule ? 'Scheduled'
+        : 'Run once';
       
       const usage = { segments: [], audiences: [], deliveries: [] };
       const addUniqueUsage = (list, item) => {
@@ -2196,9 +2366,9 @@ async function loadWorkflows(filterType = 'all') {
       
       return `
         <tr>
-          <td data-column-id="name">${createTableLink(`${typeIcon} ${w.name}`, `navigateTo('workflows', 'edit', ${w.id})`)}</td>
+          <td data-column-id="name">${createTableLink(`${ICONS.workflow} ${w.name}`, `navigateTo('workflows', 'edit', ${w.id})`)}</td>
           <td data-column-id="status">${createStatusIndicator(statusMap[w.status] || 'draft', w.status)}</td>
-          <td data-column-id="workflow_type">${w.workflow_type}</td>
+          <td data-column-id="schedule">${scheduleLabel}</td>
           <td data-column-id="used_in">${renderUsedInList(usedInItems)}</td>
           <td data-column-id="created_by">${w.created_by || 'System'}</td>
           <td data-column-id="created_at">${w.created_at ? new Date(w.created_at).toLocaleString() : '-'}</td>
@@ -2214,7 +2384,7 @@ async function loadWorkflows(filterType = 'all') {
     const columns = [
       { id: 'name', label: 'Workflow' },
       { id: 'status', label: 'Status' },
-      { id: 'workflow_type', label: 'Type' },
+      { id: 'schedule', label: 'Schedule' },
       { id: 'used_in', label: 'Uses' },
       { id: 'created_by', label: 'Created by' },
       { id: 'created_at', label: 'Created at' },
@@ -2227,20 +2397,13 @@ async function loadWorkflows(filterType = 'all') {
     const content = `
       <div class="card">
         <div class="card-header">
-          <h3 class="card-title">${ICONS.zap} Workflows</h3>
+          <h3 class="card-title">${ICONS.workflow} Workflows</h3>
           <button class="btn btn-primary" onclick="navigateTo('workflows', 'create')">+ Create Workflow</button>
         </div>
         
         ${createTableToolbar({
-          tabs: [
-            {id: 'all', label: `All (${counts.all})`, active: filterType === 'all', onclick: 'loadWorkflows("all")'},
-            {id: 'broadcast', label: `${ICONS.broadcast} Broadcast (${counts.broadcast})`, active: filterType === 'broadcast', onclick: 'loadWorkflows("broadcast")'},
-            {id: 'automated', label: `${ICONS.bot} Automated (${counts.automated})`, active: filterType === 'automated', onclick: 'loadWorkflows("automated")'},
-            {id: 'recurring', label: `${ICONS.repeat} Recurring (${counts.recurring})`, active: filterType === 'recurring', onclick: 'loadWorkflows("recurring")'}
-          ],
           resultCount: workflows.length,
           totalCount: allWorkflows.length,
-          showRefresh: false,
           showColumnSelector: true,
           columns,
           viewKey: 'workflows',
@@ -2274,7 +2437,7 @@ async function loadWorkflows(filterType = 'all') {
               <tr>
                 ${createSortableHeader('name', 'Workflow', currentTableSort)}
                 ${createSortableHeader('status', 'Status', currentTableSort)}
-                ${createSortableHeader('workflow_type', 'Type', currentTableSort)}
+                <th data-column-id="schedule">Schedule</th>
                 <th data-column-id="used_in">Uses</th>
                 ${createSortableHeader('created_by', 'Created by', currentTableSort)}
                 ${createSortableHeader('created_at', 'Created at', currentTableSort)}
@@ -2415,21 +2578,19 @@ async function editWorkflow(id) {
 function updateWorkflowFilter(key, value) {
   workflowFilters[key] = value;
   
-  // Debounce search, reload immediately for other filters
   if (key === 'search') {
-    debounce('workflowSearch', () => loadWorkflows(workflowFilters.type), 400);
+    debounce('workflowSearch', () => loadWorkflows(), 400);
   } else {
-    loadWorkflows(workflowFilters.type);
+    loadWorkflows();
   }
 }
 
 function clearWorkflowFilters() {
   workflowFilters = {
-    type: currentWorkflowFilter, // Keep the type tab
     status: 'all',
     search: ''
   };
-  loadWorkflows(currentWorkflowFilter);
+  loadWorkflows();
 }
 
 // Activate Workflow
@@ -2473,7 +2634,7 @@ function confirmDeleteWorkflow(id) {
       if (!response.ok) throw new Error('Failed to delete');
       
       showToast('Workflow deleted successfully!', 'success');
-      loadWorkflows(currentWorkflowFilter);
+      loadWorkflows();
     } catch (error) {
       showError('Failed to delete workflow: ' + error.message);
     } finally {
@@ -2490,7 +2651,7 @@ async function archiveWorkflow(id) {
     if (!response.ok) throw new Error('Failed to archive');
     
     showToast('Workflow archived successfully!', 'success');
-    loadWorkflows(currentWorkflowFilter);
+    loadWorkflows();
   } catch (error) {
     showError('Failed to archive workflow');
   } finally {
@@ -2498,9 +2659,300 @@ async function archiveWorkflow(id) {
   }
 }
 
-// Show Workflow Report
+// Show Workflow Report – Adobe Campaign style, inline
 async function showWorkflowReport(id) {
-  window.location.href = `campaign-report.html?workflowId=${id}`;
+  try {
+    showLoading();
+    const resp = await fetch(`${API_BASE}/workflows/${id}/report`);
+    const rpt = await resp.json();
+    if (!resp.ok) throw new Error(rpt.error || 'Failed to load report');
+
+    const wf = rpt.workflow;
+    const m = rpt.metrics;
+    const p = rpt.performance;
+    const hasRptSchedule = wf.entry_trigger?.type === 'scheduled' && wf.entry_trigger?.config?.scheduled_at;
+    const hasRptRecur = !!wf.entry_trigger?.config?.frequency;
+    const rptFreq = hasRptRecur ? wf.entry_trigger.config.frequency.charAt(0).toUpperCase() + wf.entry_trigger.config.frequency.slice(1) : '';
+    const typeLabel = hasRptSchedule && hasRptRecur ? `Scheduled, ${rptFreq}` : hasRptRecur ? rptFreq : hasRptSchedule ? 'Scheduled' : 'Broadcast';
+    const statusBadge = '<span class="badge badge-' + ({ active:'success', completed:'info', draft:'secondary', paused:'warning', archived:'secondary' }[wf.status] || 'secondary') + '">' + wf.status + '</span>';
+
+    let html = '<div class="rpt-page">';
+    // Header
+    html += `<div class="rpt-header card">
+      <div class="rpt-header-left">
+        <button class="btn-back" onclick="navigateTo('workflows')" title="Back">${ICONS.chevronLeft || '<svg width="20" height="20" viewBox="0 0 20 20" fill="none"><path d="M12.5 15L7.5 10L12.5 5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>'}</button>
+        <div>
+          <div class="rpt-header-title">${ICONS.barChart || ''} ${wf.name}</div>
+          <div class="rpt-header-sub">${typeLabel} Workflow Report ${statusBadge}
+            ${wf.last_run_at ? ' &middot; Last run ' + new Date(wf.last_run_at).toLocaleString() : ''}
+          </div>
+        </div>
+      </div>
+      <div class="rpt-header-actions">
+        <button class="btn btn-secondary btn-sm" onclick="window.location.href='orchestration.html?workflowId=${wf.id}'">${ICONS.palette || ''} Open Canvas</button>
+      </div>
+    </div>`;
+
+    // Tabs
+    html += `<div class="rpt-tabs">
+      <button class="rpt-tab active" data-tab="overview" onclick="switchWfReportTab(this,'overview')">${ICONS.barChart || ''} Overview</button>
+      <button class="rpt-tab" data-tab="execution" onclick="switchWfReportTab(this,'execution')">${ICONS.activity || '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>'} Execution</button>
+      <button class="rpt-tab" data-tab="deliveries" onclick="switchWfReportTab(this,'deliveries')">${ICONS.mail || '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="16" x="2" y="4" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></svg>'} Deliveries</button>
+      <button class="rpt-tab" data-tab="tracking" onclick="switchWfReportTab(this,'tracking')">${ICONS.eye || '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>'} Tracking</button>
+    </div>`;
+
+    // ═══════ TAB: Overview ═══════
+    html += '<div class="rpt-tab-content" id="wfrpt-tab-overview">';
+
+    // Workflow KPIs
+    html += '<div class="rpt-section-title">Workflow Summary</div><div class="rpt-kpi-grid">';
+    html += _wfKpi('Entries', wf.entry_count, 'Total profiles entered', '<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>');
+    html += _wfKpi('Completed', wf.completion_count, wf.entry_count > 0 ? Math.round((wf.completion_count / wf.entry_count) * 100) + '% completion' : '', '<path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><path d="m9 11 3 3L22 4"/>');
+    html += _wfKpi('Active', wf.active_count, 'Currently in workflow', '<polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>');
+    html += _wfKpi('Errors', rpt.workflow_errors || 0, '', '<circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>');
+    html += '</div>';
+
+    // Channel KPIs
+    html += '<div class="rpt-section-title">Channel Performance</div><div class="rpt-kpi-grid">';
+    html += _wfKpi('Sent', m.sent, 'Messages processed', '<path d="M22 2 11 13"/><path d="m22 2-7 20-4-9-9-4 20-7z"/>');
+    html += _wfKpi('Delivered', m.delivered, p.delivery_rate + '% rate', '<path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><path d="m9 11 3 3L22 4"/>');
+    html += _wfKpi('Opened', m.opened, p.open_rate + '% open rate', '<path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/>');
+    html += _wfKpi('Clicked', m.clicked, p.click_rate + '% CTR', '<path d="m3 3 7.07 16.97 2.51-7.39 7.39-2.51L3 3z"/><path d="m13 13 6 6"/>');
+    html += _wfKpi('Bounced', m.bounced, p.bounce_rate + '%', '<path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><path d="M12 9v4"/><path d="M12 17h.01"/>');
+    html += _wfKpi('Revenue', '$' + (m.revenue || 0).toFixed(2), p.conversion_rate + '% conversion', '<line x1="12" x2="12" y1="2" y2="22"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>');
+    html += '</div>';
+
+    // Workflow Details
+    html += `<div class="rpt-section-title">Workflow Details</div>
+      <div class="rpt-stats-table"><table><tbody>
+        <tr><td><strong>Type</strong></td><td>${typeLabel}</td></tr>
+        <tr><td><strong>Status</strong></td><td>${statusBadge}</td></tr>
+        <tr><td><strong>Created</strong></td><td>${wf.created_at ? new Date(wf.created_at).toLocaleString() : '-'}</td></tr>
+        <tr><td><strong>Activated</strong></td><td>${wf.activated_at ? new Date(wf.activated_at).toLocaleString() : '-'}</td></tr>
+        <tr><td><strong>Last Run</strong></td><td>${wf.last_run_at ? new Date(wf.last_run_at).toLocaleString() : 'Never'}</td></tr>
+        <tr><td><strong>Next Run</strong></td><td>${wf.next_run_at ? new Date(wf.next_run_at).toLocaleString() : '-'}</td></tr>
+      </tbody></table></div>`;
+    html += '</div>'; // end overview
+
+    // ═══════ TAB: Execution ═══════
+    html += '<div class="rpt-tab-content" id="wfrpt-tab-execution" style="display:none">';
+
+    // Execution History
+    html += '<div class="rpt-section-title">Execution History</div>';
+    if (rpt.execution_history && rpt.execution_history.length > 0) {
+      html += '<div class="rpt-stats-table"><table><thead><tr><th>Run ID</th><th>Started</th><th>Duration</th><th>Entries Processed</th><th>Errors</th><th>Status</th></tr></thead><tbody>';
+      rpt.execution_history.forEach(function(ex) {
+        var durSec = (ex.duration_ms / 1000).toFixed(1);
+        var statusCls = ex.status === 'completed' ? 'success' : 'danger';
+        html += '<tr><td>#' + ex.run_id + '</td><td>' + new Date(ex.started_at).toLocaleString() + '</td><td>' + durSec + 's</td><td>' + (ex.entries_processed || 0).toLocaleString() + '</td><td>' + (ex.errors || 0) + '</td><td><span class="badge badge-' + statusCls + '">' + ex.status + '</span></td></tr>';
+      });
+      html += '</tbody></table></div>';
+    } else {
+      html += '<div style="text-align:center;padding:2rem;color:#94a3b8">No execution history yet</div>';
+    }
+
+    // Activity Metrics
+    html += '<div class="rpt-section-title">Activity Metrics</div>';
+    if (rpt.activity_metrics && rpt.activity_metrics.length > 0) {
+      html += '<div class="rpt-stats-table"><table><thead><tr><th>Activity</th><th>Type</th><th>Processed</th><th>Transitioned</th><th>Rejected</th><th>Duration</th><th>Status</th></tr></thead><tbody>';
+      rpt.activity_metrics.forEach(function(am) {
+        var icon = '';
+        if (am.type === 'email') icon = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="16" x="2" y="4" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></svg> ';
+        else if (am.type === 'sms') icon = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg> ';
+        else if (am.type === 'push') icon = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg> ';
+        var statusCls = am.status === 'completed' ? 'success' : 'warning';
+        html += '<tr><td>' + icon + am.label + '</td><td>' + am.type + '</td><td>' + am.processed.toLocaleString() + '</td><td>' + am.transitioned.toLocaleString() + '</td><td>' + am.rejected.toLocaleString() + '</td><td>' + (am.duration_ms / 1000).toFixed(1) + 's</td><td><span class="badge badge-' + statusCls + '">' + am.status + '</span></td></tr>';
+      });
+      html += '</tbody></table></div>';
+    } else {
+      html += '<div style="text-align:center;padding:2rem;color:#94a3b8">No activities in this workflow</div>';
+    }
+    html += '</div>'; // end execution
+
+    // ═══════ TAB: Deliveries ═══════
+    html += '<div class="rpt-tab-content" id="wfrpt-tab-deliveries" style="display:none">';
+    html += '<div class="rpt-section-title">Delivery Performance by Channel</div>';
+    if (rpt.delivery_breakdown && rpt.delivery_breakdown.length > 0) {
+      rpt.delivery_breakdown.forEach(function(db) {
+        var chIcon = db.channel === 'email' ? '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="16" x="2" y="4" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></svg>'
+          : db.channel === 'sms' ? '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>'
+          : '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>';
+        html += '<div class="card" style="margin-bottom:1rem"><div class="card-header"><h3 class="card-title">' + chIcon + ' ' + db.label + ' <span class="badge badge-secondary" style="margin-left:6px">' + db.channel.toUpperCase() + '</span></h3></div><div class="card-body">';
+        html += '<div class="rpt-kpi-grid rpt-kpi-sm">';
+        html += _wfKpi('Sent', db.sent, '', '<path d="M22 2 11 13"/><path d="m22 2-7 20-4-9-9-4 20-7z"/>');
+        html += _wfKpi('Delivered', db.delivered, db.delivery_rate + '%', '<path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><path d="m9 11 3 3L22 4"/>');
+        if (db.channel === 'email') html += _wfKpi('Opens', db.opens, db.open_rate + '%', '<path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/>');
+        html += _wfKpi('Clicks', db.clicks, db.click_rate + '%', '<path d="m3 3 7.07 16.97 2.51-7.39 7.39-2.51L3 3z"/><path d="m13 13 6 6"/>');
+        html += '</div></div></div>';
+      });
+    } else {
+      html += '<div style="text-align:center;padding:2rem;color:#94a3b8">No delivery activities in this workflow</div>';
+    }
+    html += '</div>'; // end deliveries
+
+    // ═══════ TAB: Tracking ═══════
+    html += '<div class="rpt-tab-content" id="wfrpt-tab-tracking" style="display:none">';
+    html += '<div class="rpt-section-title">Engagement Timeline</div>';
+    html += '<div class="card"><div class="card-body"><canvas id="wfrpt-engagement-chart" style="max-height:280px;width:100%"></canvas></div></div>';
+
+    // Device & Geo
+    html += '<div class="rpt-grid-2"><div>';
+    html += '<div class="rpt-section-title">Device Breakdown</div><div class="card"><div class="card-body"><canvas id="wfrpt-device-chart" style="max-height:240px;width:100%"></canvas></div></div>';
+    html += '</div><div>';
+    html += '<div class="rpt-section-title">Geographic Performance</div><div class="rpt-stats-table"><table><thead><tr><th>Country</th><th>Opens</th><th>Clicks</th></tr></thead><tbody>';
+    (rpt.geo_breakdown || []).forEach(function(g) { html += '<tr><td><strong>' + g.country + '</strong></td><td>' + g.opens.toLocaleString() + '</td><td>' + g.clicks.toLocaleString() + '</td></tr>'; });
+    html += '</tbody></table></div></div></div>';
+
+    // Top links
+    if (rpt.top_links && rpt.top_links.length > 0) {
+      html += '<div class="rpt-section-title">Top Links</div>';
+      rpt.top_links.forEach(function(lk) {
+        html += '<div class="rpt-link-item"><div class="rpt-link-header"><span class="rpt-link-url">' + lk.url + '</span><span class="rpt-link-clicks">' + lk.clicks.toLocaleString() + ' clicks</span></div><div class="rpt-link-bar-bg"><div class="rpt-link-bar" style="width:' + lk.percentage + '%"></div></div></div>';
+      });
+    }
+
+    // Recipients
+    html += '<div class="rpt-section-title">Recipients</div>';
+    html += '<div class="rpt-recip-tabs"><button class="rpt-recip-tab active" onclick="switchWfrptRecipTab(this,\'engaged\')">Engaged</button><button class="rpt-recip-tab" onclick="switchWfrptRecipTab(this,\'non-engaged\')">Non-Engaged</button><button class="rpt-recip-tab" onclick="switchWfrptRecipTab(this,\'bounced\')">Bounced</button></div>';
+
+    // Engaged
+    html += '<div class="rpt-recip-content wfrpt-recip" id="wfrpt-engaged"><div class="rpt-stats-table"><table><thead><tr><th>Recipient</th><th>Email</th><th>Sent</th><th>Opened</th><th>Clicked</th><th>Engagement</th></tr></thead><tbody>';
+    (rpt.recipients.engaged || []).forEach(function(rc) {
+      var engLabel = rc.engagement_score >= 3 ? '<span class="badge badge-success">High</span>' : rc.engagement_score >= 1 ? '<span class="badge badge-info">Medium</span>' : '<span class="badge badge-secondary">Low</span>';
+      html += '<tr><td><strong>' + rc.name + '</strong></td><td>' + rc.email + '</td><td>' + (rc.sent_at ? new Date(rc.sent_at).toLocaleDateString() : '-') + '</td><td>' + (rc.opened_at ? new Date(rc.opened_at).toLocaleString() : '-') + '</td><td>' + (rc.clicked_at ? new Date(rc.clicked_at).toLocaleString() : '-') + '</td><td>' + engLabel + '</td></tr>';
+    });
+    if (!rpt.recipients.engaged || rpt.recipients.engaged.length === 0) html += '<tr><td colspan="6" style="text-align:center;padding:1.5rem;color:#94a3b8">No engaged recipients yet</td></tr>';
+    html += '</tbody></table></div></div>';
+
+    // Non-engaged
+    html += '<div class="rpt-recip-content wfrpt-recip" id="wfrpt-non-engaged" style="display:none"><div class="rpt-stats-table"><table><thead><tr><th>Recipient</th><th>Email</th><th>Sent</th><th>Status</th></tr></thead><tbody>';
+    (rpt.recipients.non_engaged || []).forEach(function(rc) { html += '<tr><td><strong>' + rc.name + '</strong></td><td>' + rc.email + '</td><td>' + (rc.sent_at ? new Date(rc.sent_at).toLocaleDateString() : '-') + '</td><td><span class="badge badge-secondary">No interaction</span></td></tr>'; });
+    if (!rpt.recipients.non_engaged || rpt.recipients.non_engaged.length === 0) html += '<tr><td colspan="4" style="text-align:center;padding:1.5rem;color:#94a3b8">All recipients engaged!</td></tr>';
+    html += '</tbody></table></div></div>';
+
+    // Bounced
+    html += '<div class="rpt-recip-content wfrpt-recip" id="wfrpt-bounced" style="display:none"><div class="rpt-stats-table"><table><thead><tr><th>Recipient</th><th>Email</th><th>Sent</th><th>Bounce Type</th></tr></thead><tbody>';
+    (rpt.recipients.bounced || []).forEach(function(rc) { html += '<tr><td><strong>' + rc.name + '</strong></td><td>' + rc.email + '</td><td>' + (rc.sent_at ? new Date(rc.sent_at).toLocaleDateString() : '-') + '</td><td><span class="badge badge-danger">' + (rc.bounce_type || 'hard') + '</span></td></tr>'; });
+    if (!rpt.recipients.bounced || rpt.recipients.bounced.length === 0) html += '<tr><td colspan="4" style="text-align:center;padding:1.5rem;color:#94a3b8">No bounces</td></tr>';
+    html += '</tbody></table></div></div>';
+    html += '</div>'; // end tracking tab
+
+    html += '</div>'; // end rpt-page
+
+    document.getElementById('content').innerHTML = html;
+
+    // Draw charts
+    setTimeout(function() {
+      _drawWfEngagementChart(rpt.engagement_timeline);
+      _drawWfDeviceChart(rpt.device_breakdown);
+    }, 100);
+
+  } catch (error) {
+    showToast('Error loading workflow report: ' + error.message, 'error');
+  } finally {
+    hideLoading();
+  }
+}
+
+function _wfKpi(title, value, sub, iconPath) {
+  return '<div class="rpt-kpi"><div class="rpt-kpi-header"><span class="rpt-kpi-title">' + title + '</span><span class="rpt-kpi-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' + iconPath + '</svg></span></div><div class="rpt-kpi-value">' + (typeof value === 'number' ? value.toLocaleString() : value) + '</div>' + (sub ? '<div class="rpt-kpi-sub">' + sub + '</div>' : '') + '</div>';
+}
+
+function switchWfReportTab(btn, tab) {
+  document.querySelectorAll('.rpt-tab').forEach(function(t) { t.classList.remove('active'); });
+  btn.classList.add('active');
+  document.querySelectorAll('[id^="wfrpt-tab-"]').forEach(function(c) { c.style.display = 'none'; });
+  var el = document.getElementById('wfrpt-tab-' + tab);
+  if (el) el.style.display = 'block';
+}
+
+function switchWfrptRecipTab(btn, tab) {
+  document.querySelectorAll('.rpt-recip-tab').forEach(function(t) { t.classList.remove('active'); });
+  btn.classList.add('active');
+  document.querySelectorAll('.wfrpt-recip').forEach(function(c) { c.style.display = 'none'; });
+  var el = document.getElementById('wfrpt-' + tab);
+  if (el) el.style.display = 'block';
+}
+
+function _drawWfEngagementChart(timeline) {
+  var canvas = document.getElementById('wfrpt-engagement-chart');
+  if (!canvas || !timeline || timeline.length === 0) return;
+  var ctx = canvas.getContext('2d');
+  var w = canvas.parentElement.clientWidth;
+  var h = 280;
+  canvas.width = w; canvas.height = h;
+  var pad = 50;
+  var cw = w - pad * 2, ch2 = h - pad * 2;
+  var maxO = Math.max(1, ...timeline.map(function(d) { return d.opens; }));
+  var maxC = Math.max(1, ...timeline.map(function(d) { return d.clicks; }));
+  var maxV = Math.max(maxO, maxC);
+  var spacing = cw / (timeline.length - 1 || 1);
+
+  ctx.strokeStyle = '#e2e8f0'; ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(pad, pad); ctx.lineTo(pad, h - pad); ctx.lineTo(w - pad, h - pad); ctx.stroke();
+
+  // Area fill
+  ctx.fillStyle = 'rgba(59,130,246,0.08)';
+  ctx.beginPath(); ctx.moveTo(pad, h - pad);
+  timeline.forEach(function(d, i) { ctx.lineTo(pad + i * spacing, h - pad - (d.opens / maxV) * ch2); });
+  ctx.lineTo(pad + (timeline.length - 1) * spacing, h - pad);
+  ctx.closePath(); ctx.fill();
+
+  // Opens line
+  ctx.strokeStyle = '#3b82f6'; ctx.lineWidth = 2.5;
+  ctx.beginPath();
+  timeline.forEach(function(d, i) { var x = pad + i * spacing, y = h - pad - (d.opens / maxV) * ch2; i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y); });
+  ctx.stroke();
+
+  // Clicks line
+  ctx.strokeStyle = '#10b981'; ctx.lineWidth = 2.5;
+  ctx.beginPath();
+  timeline.forEach(function(d, i) { var x = pad + i * spacing, y = h - pad - (d.clicks / maxV) * ch2; i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y); });
+  ctx.stroke();
+
+  // Labels
+  ctx.fillStyle = '#94a3b8'; ctx.font = '11px system-ui'; ctx.textAlign = 'right';
+  for (var i = 0; i <= 5; i++) ctx.fillText(Math.round((maxV / 5) * i).toString(), pad - 8, h - pad - (ch2 / 5) * i + 4);
+  ctx.textAlign = 'center';
+  timeline.forEach(function(d, i) { if (i % 6 === 0) ctx.fillText(d.hour + 'h', pad + i * spacing, h - pad + 18); });
+  ctx.font = 'bold 11px system-ui'; ctx.textAlign = 'left';
+  ctx.fillStyle = '#3b82f6'; ctx.fillText('● Opens', w - 160, 24);
+  ctx.fillStyle = '#10b981'; ctx.fillText('● Clicks', w - 160, 42);
+}
+
+function _drawWfDeviceChart(breakdown) {
+  var canvas = document.getElementById('wfrpt-device-chart');
+  if (!canvas || !breakdown) return;
+  var ctx = canvas.getContext('2d');
+  var w = canvas.parentElement.clientWidth; var h = 240;
+  canvas.width = w; canvas.height = h;
+  var cx = w / 2, cy = h / 2 - 10, rad = Math.min(w, h) / 3;
+  var devices = [
+    { label: 'Desktop', value: breakdown.desktop || 0, color: '#3b82f6' },
+    { label: 'Mobile', value: breakdown.mobile || 0, color: '#10b981' },
+    { label: 'Tablet', value: breakdown.tablet || 0, color: '#f59e0b' },
+    { label: 'Other', value: breakdown.other || 0, color: '#94a3b8' }
+  ];
+  var total = devices.reduce(function(s, d) { return s + d.value; }, 0);
+  if (total === 0) { ctx.fillStyle = '#94a3b8'; ctx.font = '13px system-ui'; ctx.textAlign = 'center'; ctx.fillText('No data', cx, cy); return; }
+  var start = -Math.PI / 2;
+  devices.forEach(function(dv) {
+    var slice = (dv.value / total) * Math.PI * 2;
+    ctx.fillStyle = dv.color;
+    ctx.beginPath(); ctx.moveTo(cx, cy); ctx.arc(cx, cy, rad, start, start + slice); ctx.closePath(); ctx.fill();
+    if (dv.value > 0) {
+      var mid = start + slice / 2;
+      ctx.fillStyle = '#fff'; ctx.font = 'bold 13px system-ui'; ctx.textAlign = 'center';
+      ctx.fillText(Math.round((dv.value / total) * 100) + '%', cx + Math.cos(mid) * rad * 0.65, cy + Math.sin(mid) * rad * 0.65 + 4);
+    }
+    start += slice;
+  });
+  devices.forEach(function(dv, i) {
+    var lx = 12, ly = h - 50 + i * 16;
+    ctx.fillStyle = dv.color; ctx.fillRect(lx, ly, 10, 10);
+    ctx.fillStyle = '#1e293b'; ctx.font = '11px system-ui'; ctx.textAlign = 'left';
+    ctx.fillText(dv.label + ': ' + dv.value.toLocaleString(), lx + 16, ly + 9);
+  });
 }
 
 // Segments View with CRUD
@@ -2668,14 +3120,12 @@ async function loadSegments() {
       <div class="card">
         <div class="card-header">
           <h3 class="card-title">${ICONS.target} Segments</h3>
+          <button class="btn btn-primary" onclick="navigateTo('segments', 'create')">+ Create Segment</button>
         </div>
         
         ${createTableToolbar({
-          tabs: ['All', 'Dynamic', 'Static'],
-          activeTab: segmentFilters.type === 'dynamic' ? 'Dynamic' : segmentFilters.type === 'static' ? 'Static' : 'All',
           resultCount: segments.length,
           totalCount: allSegments.length,
-          showRefresh: false,
           showColumnSelector: true,
           columns,
           viewKey: 'segments',
@@ -2938,105 +3388,597 @@ function deleteSegment(id) {
   });
 }
 
-// Analytics View (Read-only)
-async function loadAnalytics() {
+// ============================================
+// ANALYTICS – Adobe Campaign v8 Global Reports
+// ============================================
+
+let _analyticsPeriod = 30;
+let _analyticsChannel = 'all';
+let _analyticsData = {};
+
+async function loadAnalytics(period, channel) {
+  console.log('[Analytics] loadAnalytics called', { period, channel, _analyticsPeriod, _analyticsChannel });
+  if (period !== undefined) _analyticsPeriod = period;
+  if (channel !== undefined) _analyticsChannel = channel;
   showLoading();
   try {
-    const [campaignsRes, channelsRes] = await Promise.all([
-      fetch(`${API_BASE}/analytics/campaigns`),
-      fetch(`${API_BASE}/analytics/channels`)
-    ]);
-    
-    const campaigns = await campaignsRes.json();
-    const channels = await channelsRes.json();
-    
-    let campaignRows = '';
-    campaigns.slice(0, 10).forEach(campaign => {
-      campaignRows += `
-        <tr>
-          <td>${campaign.name}</td>
-          <td>${campaign.sent || 0}</td>
-          <td>${campaign.open_rate || 0}%</td>
-          <td>${campaign.click_rate || 0}%</td>
-          <td>${campaign.conversion_rate || 0}%</td>
-          <td>$${parseFloat(campaign.revenue || 0).toFixed(2)}</td>
-        </tr>
-      `;
-    });
-    
-    let channelRows = '';
-    channels.forEach(channel => {
-      channelRows += `
-        <tr>
-          <td>${channel.channel}</td>
-          <td>${channel.campaign_count}</td>
-          <td>${channel.total_sent || 0}</td>
-          <td>${channel.open_rate}%</td>
-          <td>${channel.click_rate}%</td>
-          <td>$${channel.total_revenue}</td>
-        </tr>
-      `;
-    });
-    
-    const content = `
-      <div class="card">
-        <div class="card-header">
-          <h3 class="card-title">Top Campaign Performance</h3>
-        </div>
-        <div class="card-body">
-          <div class="table-container">
-            <table>
-              <thead>
-                <tr>
-                  <th>Campaign</th>
-                  <th>Sent</th>
-                  <th>Open Rate</th>
-                  <th>Click Rate</th>
-                  <th>Conv. Rate</th>
-                  <th>Revenue</th>
-                </tr>
-              </thead>
-              <tbody>
-                ${campaignRows || '<tr><td colspan="6" style="text-align: center;">No data</td></tr>'}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      </div>
-      
-      <div class="card">
-        <div class="card-header">
-          <h3 class="card-title">Channel Performance</h3>
-        </div>
-        <div class="card-body">
-          <div class="table-container">
-            <table>
-              <thead>
-                <tr>
-                  <th>Channel</th>
-                  <th>Campaigns</th>
-                  <th>Sent</th>
-                  <th>Open Rate</th>
-                  <th>Click Rate</th>
-                  <th>Revenue</th>
-                </tr>
-              </thead>
-              <tbody>
-                ${channelRows || '<tr><td colspan="6" style="text-align: center;">No data</td></tr>'}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      </div>
-    `;
-    
-    document.getElementById('content').innerHTML = content;
-  } catch (error) {
-    showError('Failed to load analytics');
-    console.error(error);
+    const endpoints = [
+      `${API_BASE}/analytics/dashboard`,
+      `${API_BASE}/analytics/campaigns`,
+      `${API_BASE}/analytics/channels`,
+      `${API_BASE}/analytics/drill-down/email?period=${_analyticsPeriod}`,
+      `${API_BASE}/analytics/drill-down/revenue?period=${_analyticsPeriod}`,
+      `${API_BASE}/analytics/drill-down/customers?period=${_analyticsPeriod}`
+    ];
+    const responses = await Promise.all(endpoints.map(url => fetch(url)));
+    for (let i = 0; i < responses.length; i++) {
+      if (!responses[i].ok) {
+        throw new Error(`API error ${responses[i].status} from ${endpoints[i]}`);
+      }
+    }
+    const [dash, campaigns, channels, email, revenue, customers] = await Promise.all(responses.map(r => r.json()));
+    _analyticsData = { dash, campaigns: campaigns || [], channels: channels || [], email: email || {}, revenue: revenue || {}, customers: customers || {} };
+    console.log('[Analytics] Data loaded successfully, rendering page...');
+    _renderAnalyticsPage();
+    console.log('[Analytics] Page rendered successfully');
+  } catch (err) {
+    console.error('[Analytics] loadAnalytics error:', err);
+    document.getElementById('content').innerHTML = '<div style="padding:2rem;color:#ef4444"><h3>Analytics failed to load</h3><p>' + (err.message || err) + '</p><button class="btn btn-primary" onclick="loadAnalytics()">Retry</button></div>';
   } finally {
     hideLoading();
   }
+}
+
+function _renderAnalyticsPage() {
+  try {
+  const { dash, campaigns, channels, email, revenue, customers } = _analyticsData;
+  const p = _analyticsPeriod;
+  const em = (email && email.summary) ? email.summary : {};
+  const rv = (revenue && revenue.summary) ? revenue.summary : {};
+  const cs = (customers && customers.summary) ? customers.summary : {};
+
+  // Computed KPIs
+  const totalSent   = em.sent || dash.email_metrics?.total_emails_sent || 0;
+  const delivered    = Math.round(totalSent * ((100 - parseFloat(em.bounce_rate || 2)) / 100));
+  const opens        = em.opened || dash.email_metrics?.total_opens || 0;
+  const clicks       = em.clicked || dash.email_metrics?.total_clicks || 0;
+  const bounced      = em.bounced || 0;
+  const unsubs       = em.unsubscribed || 0;
+  const openRate     = em.open_rate  || dash.email_metrics?.open_rate  || 0;
+  const clickRate    = em.click_rate || dash.email_metrics?.click_rate || 0;
+  const bounceRate   = em.bounce_rate || 0;
+  const unsubRate    = em.unsubscribe_rate || 0;
+  const deliveryRate = totalSent > 0 ? ((delivered / totalSent) * 100).toFixed(1) : 0;
+
+  let html = '<div class="ga-page">';
+
+  // ── Header ──
+  html += `
+    <div class="ga-header">
+      <div class="ga-header-left">
+        <div class="ga-header-title">${ICONS.barChart} Global Reports</div>
+        <div class="ga-header-sub">Campaign analytics across all channels</div>
+      </div>
+      <div class="ga-header-right">
+        <div class="ga-period-sel">
+          <button class="ga-period-btn ${p===7?'active':''}"  onclick="loadAnalytics(7)">7 Days</button>
+          <button class="ga-period-btn ${p===30?'active':''}" onclick="loadAnalytics(30)">30 Days</button>
+          <button class="ga-period-btn ${p===90?'active':''}" onclick="loadAnalytics(90)">90 Days</button>
+        </div>
+        <button class="btn btn-secondary btn-sm" onclick="_exportAnalyticsCSV()" title="Export CSV">
+          ${_i(14,'<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/>')} Export
+        </button>
+      </div>
+    </div>`;
+
+  // ── KPI Cards ──
+  html += '<div class="ga-kpi-row">';
+  html += _gaKpi('Delivered',     delivered.toLocaleString(),  deliveryRate + '% delivery rate', '#3b82f6', '<path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><path d="m9 11 3 3L22 4"/>');
+  html += _gaKpi('Total Opens',   opens.toLocaleString(),     openRate + '% open rate',         '#8b5cf6', '<path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/>');
+  html += _gaKpi('Total Clicks',  clicks.toLocaleString(),    clickRate + '% CTR',              '#10b981', '<path d="m3 3 7.07 16.97 2.51-7.39 7.39-2.51L3 3z"/><path d="m13 13 6 6"/>');
+  html += _gaKpi('Bounced',       bounced.toLocaleString(),   bounceRate + '% bounce rate',     '#f59e0b', '<path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><path d="M12 9v4"/><path d="M12 17h.01"/>');
+  html += _gaKpi('Unsubscribed',  unsubs.toLocaleString(),    unsubRate + '%',                  '#ef4444', '<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="22" x2="16" y1="11" y2="11"/>');
+  html += _gaKpi('Revenue',       '$' + parseFloat(rv.total_revenue || 0).toLocaleString(), (parseInt(rv.total_orders, 10) || 0) + ' orders', '#0ea5e9', '<line x1="12" x2="12" y1="2" y2="22"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>');
+  html += '</div>';
+
+  // ── Tab Navigation ──
+  html += `
+    <div class="ga-tabs">
+      <button class="ga-tab active" data-tab="ga-summary" onclick="_gaTab(this,'ga-summary')">
+        ${_i(14,'<line x1="12" x2="12" y1="20" y2="10"/><line x1="18" x2="18" y1="20" y2="4"/><line x1="6" x2="6" y1="20" y2="16"/>')} Delivery Summary
+      </button>
+      <button class="ga-tab" data-tab="ga-tracking" onclick="_gaTab(this,'ga-tracking')">
+        ${_i(14,'<polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>')} Tracking Indicators
+      </button>
+      <button class="ga-tab" data-tab="ga-channels" onclick="_gaTab(this,'ga-channels')">
+        ${_i(14,'<path d="m22 2-7 20-4-9-9-4 20-7z"/><path d="m22 2-11 11"/>')} Channels
+      </button>
+      <button class="ga-tab" data-tab="ga-campaigns" onclick="_gaTab(this,'ga-campaigns')">
+        ${_i(14,'<path d="m3 11 18-5v12L3 13v-2z"/><path d="M11.6 16.8a3 3 0 1 1-5.8-1.6"/>')} Campaigns
+      </button>
+      <button class="ga-tab" data-tab="ga-revenue" onclick="_gaTab(this,'ga-revenue')">
+        ${_i(14,'<line x1="12" x2="12" y1="2" y2="22"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>')} Revenue
+      </button>
+    </div>`;
+
+  // ═══════ TAB: Delivery Summary ═══════
+  html += '<div class="ga-tab-pane" id="ga-summary">';
+
+  // Delivery over time chart
+  html += '<div class="ga-section-title">Delivery Over Time</div>';
+  html += '<div class="ga-chart-card"><canvas id="ga-delivery-chart"></canvas></div>';
+
+  // Delivery statistics table
+  html += '<div class="ga-grid-2">';
+
+  // Left: Delivery Statistics
+  html += '<div>';
+  html += '<div class="ga-section-title">Delivery Statistics</div>';
+  html += '<div class="ga-stats-table"><table><thead><tr><th></th><th>Count</th><th>Percentage</th></tr></thead><tbody>';
+  html += `<tr class="ga-row-success"><td>${_i(14,'<path d="M20 6 9 17l-5-5"/>')} Successful</td><td>${delivered.toLocaleString()}</td><td>${deliveryRate}%</td></tr>`;
+  html += `<tr class="ga-row-warn"><td>${_i(14,'<path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><path d="M12 9v4"/><path d="M12 17h.01"/>')} Bounced</td><td>${bounced.toLocaleString()}</td><td>${bounceRate}%</td></tr>`;
+  html += `<tr class="ga-row-error"><td>${_i(14,'<circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>')} Errors</td><td>${Math.round(totalSent * (bounceRate / 100)).toLocaleString()}</td><td>${bounceRate}%</td></tr>`;
+  html += '</tbody></table></div>';
+  html += '</div>';
+
+  // Right: Targeted Population
+  html += '<div>';
+  html += '<div class="ga-section-title">Audience Overview</div>';
+  html += '<div class="ga-stats-table"><table><thead><tr><th></th><th>Count</th><th>Change</th></tr></thead><tbody>';
+  html += `<tr><td>${_i(14,'<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>')} Total Contacts</td><td>${(cs.total || 0).toLocaleString()}</td><td><span class="ga-change-pos">+${cs.new_in_period || 0} new</span></td></tr>`;
+  html += `<tr><td>${_i(14,'<path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><path d="m9 11 3 3L22 4"/>')} Active</td><td>${(cs.active || 0).toLocaleString()}</td><td></td></tr>`;
+  html += `<tr><td>${_i(14,'<rect width="20" height="16" x="2" y="4" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/>')} Subscribed</td><td>${(cs.subscribed || 0).toLocaleString()}</td><td></td></tr>`;
+  html += `<tr><td>${_i(14,'<path d="M6 3h12l4 6-10 13L2 9Z"/><path d="M11 3 8 9l4 13 4-13-3-6"/><path d="M2 9h20"/>')} VIP</td><td>${(cs.vip || 0).toLocaleString()}</td><td></td></tr>`;
+  html += '</tbody></table></div>';
+  html += '</div>';
+
+  html += '</div>'; // end grid-2
+  html += '</div>'; // end summary tab
+
+  // ═══════ TAB: Tracking Indicators ═══════
+  html += '<div class="ga-tab-pane" id="ga-tracking" style="display:none">';
+
+  html += '<div class="ga-section-title">Engagement Over Time</div>';
+  html += '<div class="ga-chart-card"><canvas id="ga-tracking-chart"></canvas></div>';
+
+  // Tracking stats
+  html += '<div class="ga-section-title">Tracking Statistics</div>';
+  html += '<div class="rpt-kpi-grid rpt-kpi-sm">';
+  html += _rptKpi('Emails Sent', totalSent.toLocaleString(), '', '<rect width="20" height="16" x="2" y="4" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/>');
+  html += _rptKpi('Total Opens', opens.toLocaleString(), openRate + '% open rate', '<path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/>');
+  html += _rptKpi('Total Clicks', clicks.toLocaleString(), clickRate + '% CTR', '<path d="m3 3 7.07 16.97 2.51-7.39 7.39-2.51L3 3z"/><path d="m13 13 6 6"/>');
+  html += _rptKpi('Bounce Rate', bounceRate + '%', bounced.toLocaleString() + ' bounced', '<path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><path d="M12 9v4"/><path d="M12 17h.01"/>');
+  html += _rptKpi('Unsubscribed', unsubs.toLocaleString(), unsubRate + '%', '<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="22" x2="16" y1="11" y2="11"/>');
+  html += _rptKpi('Conversion', (em.conversion_rate || dash.email_metrics?.conversion_rate || 0) + '%', (em.total_conversions || dash.email_metrics?.total_conversions || 0).toLocaleString() + ' conversions', '<circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/>');
+  html += '</div>';
+
+  // Top performing emails
+  if (email.top_emails && email.top_emails.length > 0) {
+    html += '<div class="ga-section-title">Top Performing Emails</div>';
+    html += '<div class="ga-stats-table"><table><thead><tr><th>Subject</th><th>Sent</th><th>Open Rate</th><th>Click Rate</th><th>Bounce Rate</th></tr></thead><tbody>';
+    email.top_emails.slice(0,10).forEach(function(e) {
+      html += '<tr><td><strong>' + (e.subject || e.name || 'Untitled') + '</strong></td><td>' + (e.sent || 0).toLocaleString() + '</td><td>' + (e.open_rate || 0) + '%</td><td>' + (e.click_rate || 0) + '%</td><td>' + (e.bounce_rate || 0) + '%</td></tr>';
+    });
+    html += '</tbody></table></div>';
+  }
+  html += '</div>'; // end tracking tab
+
+  // ═══════ TAB: Channels ═══════
+  html += '<div class="ga-tab-pane" id="ga-channels" style="display:none">';
+  html += '<div class="ga-section-title">Channel Performance Comparison</div>';
+
+  // Channel donut chart + table side by side
+  html += '<div class="ga-grid-2">';
+  html += '<div><div class="ga-chart-card" style="height:280px"><canvas id="ga-channel-donut"></canvas></div></div>';
+  html += '<div>';
+
+  if (channels && channels.length > 0) {
+    html += '<div class="ga-stats-table"><table><thead><tr><th>Channel</th><th>Campaigns</th><th>Sent</th><th>Open Rate</th><th>Click Rate</th><th>Revenue</th></tr></thead><tbody>';
+    channels.forEach(function(ch) {
+      html += '<tr><td><span class="ga-channel-badge ga-ch-' + (ch.channel || 'email').toLowerCase() + '">' + (ch.channel || 'Email') + '</span></td>';
+      html += '<td>' + (ch.campaign_count || 0) + '</td>';
+      html += '<td>' + (ch.total_sent || 0).toLocaleString() + '</td>';
+      html += '<td>' + (ch.open_rate || 0) + '%</td>';
+      html += '<td>' + (ch.click_rate || 0) + '%</td>';
+      html += '<td>$' + (ch.total_revenue || 0).toLocaleString() + '</td></tr>';
+    });
+    html += '</tbody></table></div>';
+  } else {
+    html += '<div style="text-align:center;padding:2rem;color:#94a3b8">No channel data</div>';
+  }
+  html += '</div></div>';
+
+  // Channel breakdown bars
+  html += '<div class="ga-section-title">Messages Sent by Channel</div>';
+  const maxChSent = Math.max(1, ...channels.map(c => c.total_sent || 0));
+  channels.forEach(function(ch) {
+    const pct = ((ch.total_sent || 0) / maxChSent * 100).toFixed(0);
+    html += `<div class="ga-bar-row">
+      <div class="ga-bar-label">${ch.channel || 'Email'}</div>
+      <div class="ga-bar-track"><div class="ga-bar-fill ga-ch-${(ch.channel||'email').toLowerCase()}" style="width:${pct}%"></div></div>
+      <div class="ga-bar-val">${(ch.total_sent || 0).toLocaleString()}</div>
+    </div>`;
+  });
+  html += '</div>'; // end channels tab
+
+  // ═══════ TAB: Campaigns ═══════
+  html += '<div class="ga-tab-pane" id="ga-campaigns" style="display:none">';
+  html += '<div class="ga-section-title">Campaign Performance</div>';
+  if (campaigns && campaigns.length > 0) {
+    html += '<div class="ga-stats-table"><table><thead><tr><th>Campaign</th><th>Channel</th><th>Status</th><th>Sent</th><th>Open Rate</th><th>Click Rate</th><th>Conv. Rate</th><th>Revenue</th></tr></thead><tbody>';
+    campaigns.forEach(function(c) {
+      const ch = (c.campaign_type || 'email').toLowerCase();
+      const statusBadge = c.status === 'completed' ? '<span class="badge badge-success">Completed</span>' : c.status === 'active' ? '<span class="badge badge-info">Active</span>' : '<span class="badge badge-secondary">' + (c.status||'Draft') + '</span>';
+      html += '<tr><td><strong>' + (c.name || 'Untitled') + '</strong></td>';
+      html += '<td><span class="ga-channel-badge ga-ch-' + ch + '">' + (c.campaign_type || 'Email') + '</span></td>';
+      html += '<td>' + statusBadge + '</td>';
+      html += '<td>' + (c.sent || 0).toLocaleString() + '</td>';
+      html += '<td>' + (c.open_rate || 0) + '%</td>';
+      html += '<td>' + (c.click_rate || 0) + '%</td>';
+      html += '<td>' + (c.conversion_rate || 0) + '%</td>';
+      html += '<td>$' + parseFloat(c.revenue || 0).toFixed(2) + '</td></tr>';
+    });
+    html += '</tbody></table></div>';
+  } else {
+    html += '<div style="text-align:center;padding:2rem;color:#94a3b8">No campaign data available</div>';
+  }
+  html += '</div>'; // end campaigns tab
+
+  // ═══════ TAB: Revenue ═══════
+  html += '<div class="ga-tab-pane" id="ga-revenue" style="display:none">';
+
+  // Revenue KPIs
+  html += '<div class="rpt-kpi-grid">';
+  html += _rptKpi('Total Revenue', '$' + parseFloat(rv.total_revenue || 0).toLocaleString(), '', '<line x1="12" x2="12" y1="2" y2="22"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>');
+  html += _rptKpi('Total Orders', (parseInt(rv.total_orders, 10) || 0).toLocaleString(), '', '<rect width="16" height="16" x="4" y="4" rx="2"/><path d="M4 12h16"/><path d="M12 4v16"/>');
+  html += _rptKpi('Avg Order Value', '$' + parseFloat(rv.average_order_value || 0).toFixed(2), '', '<line x1="12" x2="12" y1="20" y2="10"/><line x1="18" x2="18" y1="20" y2="4"/><line x1="6" x2="6" y1="20" y2="16"/>');
+  const trendVal = rv.trend !== undefined ? rv.trend : 0;
+  const trendLabel = parseFloat(trendVal) >= 0 ? '+' + trendVal + '% vs prior' : trendVal + '% vs prior';
+  html += _rptKpi('Trend', trendLabel, '', '<polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>');
+  html += '</div>';
+
+  // Revenue chart
+  html += '<div class="ga-section-title">Revenue Over Time</div>';
+  html += '<div class="ga-chart-card"><canvas id="ga-revenue-chart"></canvas></div>';
+
+  // Top products
+  if (revenue.top_products && revenue.top_products.length > 0) {
+    html += '<div class="ga-section-title">Top Products</div>';
+    html += '<div class="ga-stats-table"><table><thead><tr><th>Product</th><th>Quantity</th><th>Revenue</th></tr></thead><tbody>';
+    revenue.top_products.forEach(function(pr) {
+      html += '<tr><td><strong>' + pr.name + '</strong></td><td>' + (pr.quantity || 0).toLocaleString() + '</td><td>$' + parseFloat(pr.revenue || 0).toFixed(2) + '</td></tr>';
+    });
+    html += '</tbody></table></div>';
+  }
+
+  // Recent orders
+  if (revenue.recent_orders && revenue.recent_orders.length > 0) {
+    html += '<div class="ga-section-title">Recent Orders</div>';
+    html += '<div class="ga-stats-table"><table><thead><tr><th>Order</th><th>Customer</th><th>Product</th><th>Amount</th><th>Date</th></tr></thead><tbody>';
+    revenue.recent_orders.slice(0,10).forEach(function(o) {
+      html += '<tr><td>#' + o.id + '</td><td>' + (o.customer_name || '-') + '</td><td>' + (o.product_name || '-') + '</td><td>$' + parseFloat(o.amount || 0).toFixed(2) + '</td><td>' + (o.created_at ? new Date(o.created_at).toLocaleDateString() : '-') + '</td></tr>';
+    });
+    html += '</tbody></table></div>';
+  }
+  html += '</div>'; // end revenue tab
+
+  html += '</div>'; // end ga-page
+
+  document.getElementById('content').innerHTML = html;
+
+  // ── Render charts after DOM is ready ──
+  setTimeout(function() {
+    try {
+      _drawGaDeliveryChart(email.chart_data);
+      _drawGaTrackingChart(email.chart_data);
+      _drawGaChannelDonut(channels);
+      _drawGaRevenueChart(revenue.chart_data);
+    } catch (chartErr) {
+      console.error('[Analytics] Chart rendering error:', chartErr);
+    }
+  }, 120);
+  } catch (renderErr) {
+    console.error('[Analytics] _renderAnalyticsPage error:', renderErr);
+    document.getElementById('content').innerHTML = '<div style="padding:2rem;color:#ef4444"><h3>Analytics render error</h3><p>' + (renderErr.message || renderErr) + '</p><pre>' + (renderErr.stack || '') + '</pre><button class="btn btn-primary" onclick="loadAnalytics()">Retry</button></div>';
+  }
+}
+
+// ── KPI helper ──
+function _gaKpi(title, value, sub, color, iconPath) {
+  return `<div class="ga-kpi">
+    <div class="ga-kpi-icon" style="background:${color}15;color:${color}">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${iconPath}</svg>
+    </div>
+    <div class="ga-kpi-body">
+      <div class="ga-kpi-label">${title}</div>
+      <div class="ga-kpi-value">${value}</div>
+      ${sub ? '<div class="ga-kpi-sub">' + sub + '</div>' : ''}
+    </div>
+  </div>`;
+}
+
+// ── Tab switch ──
+function _gaTab(btn, tabId) {
+  document.querySelectorAll('.ga-tab').forEach(t => t.classList.remove('active'));
+  btn.classList.add('active');
+  document.querySelectorAll('.ga-tab-pane').forEach(p => p.style.display = 'none');
+  const el = document.getElementById(tabId);
+  if (el) el.style.display = 'block';
+}
+
+// ── Export CSV stub ──
+function _exportAnalyticsCSV() {
+  showToast('CSV export coming soon', 'info');
+}
+
+// ── Chart: Delivery Over Time (area + line) ──
+function _drawGaDeliveryChart(data) {
+  const canvas = document.getElementById('ga-delivery-chart');
+  if (!canvas || !data || data.length === 0) return;
+  const ctx = canvas.getContext('2d');
+  const w = canvas.parentElement.clientWidth;
+  const h = 300;
+  canvas.width = w; canvas.height = h;
+  const pad = { top: 30, right: 20, bottom: 40, left: 55 };
+  const cw = w - pad.left - pad.right;
+  const ch = h - pad.top - pad.bottom;
+
+  const sentVals  = data.map(d => d.sent || 0);
+  const openVals  = data.map(d => d.opened || d.opens || 0);
+  const clickVals = data.map(d => d.clicked || d.clicks || 0);
+  const maxV = Math.max(1, ...sentVals);
+  const spacing = cw / Math.max(1, data.length - 1);
+
+  // Grid lines
+  ctx.strokeStyle = '#f1f5f9'; ctx.lineWidth = 1;
+  for (let i = 0; i <= 5; i++) {
+    const y = pad.top + ch - (ch / 5) * i;
+    ctx.beginPath(); ctx.moveTo(pad.left, y); ctx.lineTo(w - pad.right, y); ctx.stroke();
+  }
+
+  // Area – sent
+  ctx.fillStyle = 'rgba(59,130,246,0.08)';
+  ctx.beginPath(); ctx.moveTo(pad.left, pad.top + ch);
+  sentVals.forEach((v, i) => ctx.lineTo(pad.left + i * spacing, pad.top + ch - (v / maxV) * ch));
+  ctx.lineTo(pad.left + (data.length - 1) * spacing, pad.top + ch);
+  ctx.closePath(); ctx.fill();
+
+  // Lines
+  const drawLine = (vals, color, dash) => {
+    ctx.strokeStyle = color; ctx.lineWidth = 2.5; ctx.setLineDash(dash || []);
+    ctx.beginPath();
+    vals.forEach((v, i) => {
+      const x = pad.left + i * spacing;
+      const y = pad.top + ch - (v / maxV) * ch;
+      i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+    });
+    ctx.stroke();
+    ctx.setLineDash([]);
+    // Dots
+    vals.forEach((v, i) => {
+      if (data.length <= 30 || i % Math.ceil(data.length / 15) === 0) {
+        const x = pad.left + i * spacing;
+        const y = pad.top + ch - (v / maxV) * ch;
+        ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(x, y, 4, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = color; ctx.beginPath(); ctx.arc(x, y, 2.5, 0, Math.PI * 2); ctx.fill();
+      }
+    });
+  };
+  drawLine(sentVals, '#3b82f6');
+  drawLine(openVals, '#8b5cf6');
+  drawLine(clickVals, '#10b981', [5, 3]);
+
+  // Y axis labels
+  ctx.fillStyle = '#94a3b8'; ctx.font = '11px system-ui'; ctx.textAlign = 'right';
+  for (let i = 0; i <= 5; i++) ctx.fillText(Math.round((maxV / 5) * i).toLocaleString(), pad.left - 8, pad.top + ch - (ch / 5) * i + 4);
+
+  // X axis labels
+  ctx.textAlign = 'center';
+  data.forEach((d, i) => {
+    if (data.length <= 14 || i % Math.ceil(data.length / 10) === 0) {
+      ctx.fillText(new Date(d.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }), pad.left + i * spacing, h - 10);
+    }
+  });
+
+  // Legend
+  const legends = [{ label: 'Sent', color: '#3b82f6' }, { label: 'Opens', color: '#8b5cf6' }, { label: 'Clicks', color: '#10b981' }];
+  let lx = w - 240;
+  legends.forEach(l => {
+    ctx.fillStyle = l.color; ctx.fillRect(lx, 8, 12, 3);
+    ctx.fillStyle = '#64748b'; ctx.font = '11px system-ui'; ctx.textAlign = 'left';
+    ctx.fillText(l.label, lx + 16, 14);
+    lx += 72;
+  });
+}
+
+// ── Chart: Tracking (opens & clicks trend) ──
+function _drawGaTrackingChart(data) {
+  const canvas = document.getElementById('ga-tracking-chart');
+  if (!canvas || !data || data.length === 0) return;
+  const ctx = canvas.getContext('2d');
+  const w = canvas.parentElement.clientWidth;
+  const h = 280;
+  canvas.width = w; canvas.height = h;
+  const pad = { top: 30, right: 20, bottom: 40, left: 55 };
+  const cw = w - pad.left - pad.right;
+  const ch2 = h - pad.top - pad.bottom;
+
+  const openVals  = data.map(d => d.opened || d.opens || 0);
+  const clickVals = data.map(d => d.clicked || d.clicks || 0);
+  const maxV = Math.max(1, ...openVals, ...clickVals);
+  const spacing = cw / Math.max(1, data.length - 1);
+
+  // Grid
+  ctx.strokeStyle = '#f1f5f9'; ctx.lineWidth = 1;
+  for (let i = 0; i <= 5; i++) {
+    const y = pad.top + ch2 - (ch2 / 5) * i;
+    ctx.beginPath(); ctx.moveTo(pad.left, y); ctx.lineTo(w - pad.right, y); ctx.stroke();
+  }
+
+  // Bars for opens
+  const barW = Math.max(4, spacing * 0.3);
+  openVals.forEach((v, i) => {
+    const x = pad.left + i * spacing - barW;
+    const barH = (v / maxV) * ch2;
+    ctx.fillStyle = 'rgba(139,92,246,0.25)';
+    ctx.fillRect(x, pad.top + ch2 - barH, barW, barH);
+  });
+
+  // Line for clicks
+  ctx.strokeStyle = '#10b981'; ctx.lineWidth = 2.5;
+  ctx.beginPath();
+  clickVals.forEach((v, i) => {
+    const x = pad.left + i * spacing;
+    const y = pad.top + ch2 - (v / maxV) * ch2;
+    i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+  });
+  ctx.stroke();
+
+  // Y & X labels
+  ctx.fillStyle = '#94a3b8'; ctx.font = '11px system-ui'; ctx.textAlign = 'right';
+  for (let i = 0; i <= 5; i++) ctx.fillText(Math.round((maxV / 5) * i).toLocaleString(), pad.left - 8, pad.top + ch2 - (ch2 / 5) * i + 4);
+  ctx.textAlign = 'center';
+  data.forEach((d, i) => {
+    if (data.length <= 14 || i % Math.ceil(data.length / 10) === 0)
+      ctx.fillText(new Date(d.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }), pad.left + i * spacing, h - 10);
+  });
+
+  // Legend
+  ctx.font = 'bold 11px system-ui'; ctx.textAlign = 'left';
+  ctx.fillStyle = 'rgba(139,92,246,0.5)'; ctx.fillRect(w - 200, 8, 12, 12);
+  ctx.fillStyle = '#64748b'; ctx.fillText('Opens', w - 184, 18);
+  ctx.fillStyle = '#10b981'; ctx.beginPath(); ctx.moveTo(w - 110, 14); ctx.lineTo(w - 90, 14); ctx.lineWidth = 3; ctx.stroke();
+  ctx.fillStyle = '#64748b'; ctx.fillText('Clicks', w - 86, 18);
+}
+
+// ── Chart: Channel Donut ──
+function _drawGaChannelDonut(channels) {
+  const canvas = document.getElementById('ga-channel-donut');
+  if (!canvas || !channels || channels.length === 0) return;
+  const ctx = canvas.getContext('2d');
+  const w = canvas.parentElement.clientWidth;
+  const h = 280;
+  canvas.width = w; canvas.height = h;
+  const cx = w / 2, cy = h / 2 - 10;
+  const outerR = Math.min(w, h) / 2.6;
+  const innerR = outerR * 0.55;
+  const colors = { email: '#3b82f6', sms: '#10b981', push: '#f59e0b', direct: '#8b5cf6', default: '#94a3b8' };
+  const total = channels.reduce((s, c) => s + (c.total_sent || 0), 0);
+  if (total === 0) { ctx.fillStyle = '#94a3b8'; ctx.font = '13px system-ui'; ctx.textAlign = 'center'; ctx.fillText('No data', cx, cy); return; }
+
+  let start = -Math.PI / 2;
+  channels.forEach(ch => {
+    const val = ch.total_sent || 0;
+    const slice = (val / total) * Math.PI * 2;
+    const color = colors[(ch.channel || '').toLowerCase()] || colors.default;
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    ctx.arc(cx, cy, outerR, start, start + slice);
+    ctx.arc(cx, cy, innerR, start + slice, start, true);
+    ctx.closePath();
+    ctx.fill();
+    // Percentage label
+    if (val > 0) {
+      const mid = start + slice / 2;
+      const lr = (outerR + innerR) / 2;
+      ctx.fillStyle = '#fff'; ctx.font = 'bold 12px system-ui'; ctx.textAlign = 'center';
+      ctx.fillText(Math.round((val / total) * 100) + '%', cx + Math.cos(mid) * lr, cy + Math.sin(mid) * lr + 4);
+    }
+    start += slice;
+  });
+
+  // Center label
+  ctx.fillStyle = '#1e293b'; ctx.font = 'bold 18px system-ui'; ctx.textAlign = 'center';
+  ctx.fillText(total.toLocaleString(), cx, cy + 2);
+  ctx.fillStyle = '#94a3b8'; ctx.font = '11px system-ui';
+  ctx.fillText('Total Sent', cx, cy + 18);
+
+  // Legend
+  let ly = h - 30;
+  let lx = 20;
+  channels.forEach(ch => {
+    const color = colors[(ch.channel || '').toLowerCase()] || colors.default;
+    ctx.fillStyle = color; ctx.fillRect(lx, ly, 10, 10);
+    ctx.fillStyle = '#1e293b'; ctx.font = '11px system-ui'; ctx.textAlign = 'left';
+    ctx.fillText((ch.channel || 'Email') + ': ' + (ch.total_sent || 0).toLocaleString(), lx + 14, ly + 9);
+    lx += 140;
+  });
+}
+
+// ── Chart: Revenue Trend ──
+function _drawGaRevenueChart(data) {
+  const canvas = document.getElementById('ga-revenue-chart');
+  if (!canvas || !data || data.length === 0) return;
+  const ctx = canvas.getContext('2d');
+  const w = canvas.parentElement.clientWidth;
+  const h = 300;
+  canvas.width = w; canvas.height = h;
+  const pad = { top: 30, right: 20, bottom: 40, left: 65 };
+  const cw = w - pad.left - pad.right;
+  const ch2 = h - pad.top - pad.bottom;
+
+  const revVals   = data.map(d => d.revenue || 0);
+  const orderVals = data.map(d => d.orders || 0);
+  const maxRev = Math.max(1, ...revVals);
+  const maxOrd = Math.max(1, ...orderVals);
+  const barW = Math.max(8, (cw / data.length) - 6);
+
+  // Grid
+  ctx.strokeStyle = '#f1f5f9'; ctx.lineWidth = 1;
+  for (let i = 0; i <= 5; i++) {
+    const y = pad.top + ch2 - (ch2 / 5) * i;
+    ctx.beginPath(); ctx.moveTo(pad.left, y); ctx.lineTo(w - pad.right, y); ctx.stroke();
+  }
+
+  // Revenue bars
+  revVals.forEach((v, i) => {
+    const x = pad.left + (i + 0.5) * (cw / data.length) - barW / 2;
+    const barH = (v / maxRev) * ch2;
+    const grad = ctx.createLinearGradient(x, pad.top + ch2 - barH, x, pad.top + ch2);
+    grad.addColorStop(0, '#0ea5e9');
+    grad.addColorStop(1, '#bae6fd');
+    ctx.fillStyle = grad;
+    // Rounded top
+    const r = 3;
+    ctx.beginPath();
+    ctx.moveTo(x + r, pad.top + ch2 - barH);
+    ctx.lineTo(x + barW - r, pad.top + ch2 - barH);
+    ctx.quadraticCurveTo(x + barW, pad.top + ch2 - barH, x + barW, pad.top + ch2 - barH + r);
+    ctx.lineTo(x + barW, pad.top + ch2);
+    ctx.lineTo(x, pad.top + ch2);
+    ctx.lineTo(x, pad.top + ch2 - barH + r);
+    ctx.quadraticCurveTo(x, pad.top + ch2 - barH, x + r, pad.top + ch2 - barH);
+    ctx.closePath();
+    ctx.fill();
+  });
+
+  // Orders line overlay
+  ctx.strokeStyle = '#f59e0b'; ctx.lineWidth = 2.5;
+  ctx.beginPath();
+  orderVals.forEach((v, i) => {
+    const x = pad.left + (i + 0.5) * (cw / data.length);
+    const y = pad.top + ch2 - (v / maxOrd) * ch2;
+    i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+  });
+  ctx.stroke();
+
+  // Y labels
+  ctx.fillStyle = '#94a3b8'; ctx.font = '11px system-ui'; ctx.textAlign = 'right';
+  for (let i = 0; i <= 5; i++) ctx.fillText('$' + Math.round((maxRev / 5) * i).toLocaleString(), pad.left - 8, pad.top + ch2 - (ch2 / 5) * i + 4);
+
+  // X labels
+  ctx.textAlign = 'center';
+  data.forEach((d, i) => {
+    if (data.length <= 14 || i % Math.ceil(data.length / 10) === 0)
+      ctx.fillText(new Date(d.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }), pad.left + (i + 0.5) * (cw / data.length), h - 10);
+  });
+
+  // Legend
+  ctx.font = 'bold 11px system-ui'; ctx.textAlign = 'left';
+  ctx.fillStyle = '#0ea5e9'; ctx.fillRect(w - 220, 8, 12, 12);
+  ctx.fillStyle = '#64748b'; ctx.fillText('Revenue', w - 204, 18);
+  ctx.fillStyle = '#f59e0b'; ctx.beginPath(); ctx.moveTo(w - 120, 14); ctx.lineTo(w - 100, 14); ctx.lineWidth = 3; ctx.stroke();
+  ctx.fillStyle = '#64748b'; ctx.fillText('Orders', w - 96, 18);
 }
 
 // AI Features View (existing functionality)
@@ -3228,7 +4170,9 @@ async function getRecommendations() {
 // Modal Functions
 function closeModal() {
   document.getElementById('modal').classList.add('hidden');
-  document.querySelector('.modal-content').classList.remove('modal-with-ai');
+  const mc = document.querySelector('.modal-content');
+  mc.classList.remove('modal-with-ai');
+  mc.style.width = '';
   currentEditId = null;
 }
 
@@ -3722,6 +4666,35 @@ window.addEventListener('message', (event) => {
       iframe.src = '';
     }
   }
+  if (event.data.type === 'closeOfferRepEditor') {
+    const modal = document.getElementById('email-editor-modal');
+    const iframe = document.getElementById('email-editor-iframe');
+    if (modal) modal.classList.add('hidden');
+    if (iframe) iframe.src = '';
+    const ctx = window._offerRepEditorContext;
+    const htmlContent = event.data.content || '';
+    const blocks = event.data.blocks || null;
+    // Populate the textarea with generated HTML if on add/edit rep page
+    const addContent = document.getElementById('rep-content');
+    const editContent = document.getElementById('rep-edit-content');
+    const addBlocks = document.getElementById('rep-blocks');
+    const editBlocks = document.getElementById('rep-edit-blocks');
+    if (addContent && htmlContent) {
+      addContent.value = htmlContent;
+      if (addBlocks) addBlocks.value = blocks ? JSON.stringify(blocks) : '';
+      if (typeof _updateRepPreview === 'function') _updateRepPreview('rep');
+      showToast('Content applied from visual editor', 'success');
+    } else if (editContent && htmlContent) {
+      editContent.value = htmlContent;
+      if (editBlocks) editBlocks.value = blocks ? JSON.stringify(blocks) : '';
+      if (typeof _updateRepPreview === 'function') _updateRepPreview('rep-edit');
+      showToast('Content applied from visual editor', 'success');
+    } else if (ctx && ctx.offerId) {
+      // If we're not on the form page anymore, refresh the detail view
+      if (typeof showOfferDetail === 'function') showOfferDetail(ctx.offerId);
+    }
+    window._offerRepEditorContext = null;
+  }
 });
 
 // Drill-Down Functions
@@ -3884,7 +4857,7 @@ function renderWorkflowsDrillDown(data, period) {
     <div class="drill-down-container">
       <div class="drill-down-header">
         <button class="btn-back" onclick="loadDashboard()" title="Back to Dashboard">${BACK_SVG}</button>
-        <h2>${ICONS.zap} Workflow Performance</h2>
+        <h2>${ICONS.workflow} Workflow Performance</h2>
         <div class="period-selector">
           <button class="btn ${period === 7 ? 'btn-primary' : 'btn-secondary'}" onclick="loadDrillDown('workflows', 7)">7 Days</button>
           <button class="btn ${period === 30 ? 'btn-primary' : 'btn-secondary'}" onclick="loadDrillDown('workflows', 30)">30 Days</button>
@@ -3896,7 +4869,7 @@ function renderWorkflowsDrillDown(data, period) {
         <div class="stat-card">
           <div class="stat-card-header">
             <span class="stat-card-title">Workflows Executed</span>
-            <span class="stat-card-icon">${ICONS.zap}</span>
+            <span class="stat-card-icon">${ICONS.workflow}</span>
           </div>
           <div class="stat-card-value">${data.summary.in_period}</div>
           <div class="stat-card-label">Total: ${data.summary.total_campaigns}</div>
@@ -4496,14 +5469,12 @@ async function loadAudiences() {
       <div class="card">
         <div class="card-header">
           <h3 class="card-title">${ICONS.usersRound} Audiences</h3>
+          <button class="btn btn-primary" onclick="navigateTo('audiences', 'create')">+ Create Audience</button>
         </div>
         
         ${createTableToolbar({
-          tabs: ['All', 'Segment-based', 'Combined', 'Imported'],
-          activeTab: audienceFilters.type === 'segment_based' ? 'Segment-based' : audienceFilters.type === 'combined' ? 'Combined' : audienceFilters.type === 'imported' ? 'Imported' : 'All',
           resultCount: audiences.length,
           totalCount: allAudiences.length,
-          showRefresh: false,
           showColumnSelector: true,
           columns,
           viewKey: 'audiences',
@@ -4619,6 +5590,466 @@ function deleteAudience(id) {
 }
 
 // Custom Objects Functions
+let customObjectSearch = '';
+
+function updateCustomObjectSearch(value) {
+  customObjectSearch = value || '';
+  if (typeof debounce === 'function') {
+    debounce('customObjectSearch', () => loadCustomObjects(), 300);
+  } else {
+    loadCustomObjects();
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+//  ENUMERATIONS  (Enums – reusable value lists for dropdowns, statuses, etc.)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+let _enumState = { data: [], filter: 'all', search: '', editingId: null };
+
+async function loadEnumerations() {
+  showLoading();
+  try {
+    const res = await fetch(`${API_BASE}/enumerations`);
+    const json = await res.json();
+    _enumState.data = json.enumerations || [];
+    _renderEnumerationsPage();
+  } catch (e) {
+    showError('Failed to load enumerations');
+  } finally {
+    hideLoading();
+  }
+}
+
+function _renderEnumerationsPage() {
+  let items = [..._enumState.data];
+  if (_enumState.filter === 'system') items = items.filter(e => e.is_system);
+  if (_enumState.filter === 'custom') items = items.filter(e => !e.is_system);
+  if (_enumState.search) {
+    const q = _enumState.search.toLowerCase();
+    items = items.filter(e =>
+      (e.name || '').toLowerCase().includes(q) ||
+      (e.label || '').toLowerCase().includes(q) ||
+      (e.description || '').toLowerCase().includes(q)
+    );
+  }
+
+  const content = document.getElementById('content');
+  content.innerHTML = `
+    <div class="card">
+      <div class="card-header" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;">
+        <h2 style="margin:0;">Enumerations</h2>
+        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+          <div class="enum-filter-pills" style="display:flex;gap:6px;">
+            <button class="btn btn-sm ${_enumState.filter === 'all' ? 'btn-primary' : 'btn-outline'}" onclick="_enumSetFilter('all')">All (${_enumState.data.length})</button>
+            <button class="btn btn-sm ${_enumState.filter === 'system' ? 'btn-primary' : 'btn-outline'}" onclick="_enumSetFilter('system')">System (${_enumState.data.filter(e => e.is_system).length})</button>
+            <button class="btn btn-sm ${_enumState.filter === 'custom' ? 'btn-primary' : 'btn-outline'}" onclick="_enumSetFilter('custom')">Custom (${_enumState.data.filter(e => !e.is_system).length})</button>
+          </div>
+          <input type="text" class="form-control" placeholder="Search enumerations..." value="${_enumState.search}" oninput="_enumSetSearch(this.value)" style="width:220px;padding:6px 12px;">
+          <button class="btn btn-primary" onclick="_enumShowCreateModal()">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            Create Enumeration
+          </button>
+        </div>
+      </div>
+      <div style="overflow-x:auto;">
+        <table class="table">
+          <thead>
+            <tr>
+              <th style="width:24%;">Label</th>
+              <th style="width:20%;">Internal Name</th>
+              <th style="width:28%;">Description</th>
+              <th style="width:10%;text-align:center;">Values</th>
+              <th style="width:8%;text-align:center;">Type</th>
+              <th style="width:10%;text-align:right;">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${items.length === 0 ? `<tr><td colspan="6" style="text-align:center;padding:40px;color:var(--text-secondary);">No enumerations found</td></tr>` :
+              items.map(e => `
+                <tr style="cursor:pointer;" onclick="_enumOpenDetail(${e.id})">
+                  <td>
+                    <div style="font-weight:600;">${_esc(e.label)}</div>
+                  </td>
+                  <td><code style="font-size:12px;background:var(--bg-secondary);padding:2px 8px;border-radius:4px;">${_esc(e.name)}</code></td>
+                  <td style="color:var(--text-secondary);font-size:13px;">${_esc(e.description || '—')}</td>
+                  <td style="text-align:center;">
+                    <div style="display:flex;justify-content:center;gap:3px;flex-wrap:wrap;">
+                      ${(e.values || []).slice(0, 5).map(v =>
+                        `<span style="display:inline-block;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:500;${v.color ? `background:${v.color}22;color:${v.color};` : 'background:var(--bg-secondary);color:var(--text-secondary);'}">${_esc(v.label)}</span>`
+                      ).join('')}
+                      ${(e.values || []).length > 5 ? `<span style="font-size:11px;color:var(--text-secondary);">+${e.values.length - 5}</span>` : ''}
+                    </div>
+                  </td>
+                  <td style="text-align:center;">
+                    <span style="font-size:11px;font-weight:600;padding:3px 10px;border-radius:10px;${e.is_system ? 'background:#2563EB22;color:#2563EB;' : 'background:#05966922;color:#059669;'}">${e.is_system ? 'System' : 'Custom'}</span>
+                  </td>
+                  <td style="text-align:right;" onclick="event.stopPropagation();">
+                    <div style="position:relative;display:inline-block;">
+                      <button class="btn btn-sm btn-outline" onclick="_enumToggleMenu(this)" style="padding:4px 8px;">&#8943;</button>
+                      <div class="action-menu" style="display:none;position:absolute;right:0;top:100%;background:var(--bg-primary);border:1px solid var(--border-color);border-radius:8px;box-shadow:var(--shadow-lg);z-index:100;min-width:150px;">
+                        <button onclick="_enumOpenDetail(${e.id})" style="display:block;width:100%;text-align:left;padding:8px 16px;border:none;background:none;cursor:pointer;font-size:13px;color:var(--text-primary);">Edit</button>
+                        <button onclick="_enumDuplicate(${e.id})" style="display:block;width:100%;text-align:left;padding:8px 16px;border:none;background:none;cursor:pointer;font-size:13px;color:var(--text-primary);">Duplicate</button>
+                        ${!e.is_system ? `<button onclick="_enumDelete(${e.id})" style="display:block;width:100%;text-align:left;padding:8px 16px;border:none;background:none;cursor:pointer;font-size:13px;color:#DC2626;">Delete</button>` : ''}
+                      </div>
+                    </div>
+                  </td>
+                </tr>
+              `).join('')}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  `;
+}
+
+function _enumSetFilter(f) { _enumState.filter = f; _renderEnumerationsPage(); }
+function _enumSetSearch(q) { _enumState.search = q; _renderEnumerationsPage(); }
+
+function _enumToggleMenu(btn) {
+  const menu = btn.nextElementSibling;
+  const vis = menu.style.display === 'none';
+  document.querySelectorAll('.action-menu').forEach(m => m.style.display = 'none');
+  menu.style.display = vis ? 'block' : 'none';
+  if (vis) {
+    const handler = (ev) => { if (!menu.contains(ev.target) && ev.target !== btn) { menu.style.display = 'none'; document.removeEventListener('click', handler); } };
+    setTimeout(() => document.addEventListener('click', handler), 0);
+  }
+}
+
+function _esc(s) { const d = document.createElement('div'); d.textContent = s || ''; return d.innerHTML; }
+
+// ── Detail / Edit view ───────────────────────────────────────────────────────
+
+function _enumOpenDetail(id) {
+  const e = _enumState.data.find(x => x.id === id);
+  if (!e) return;
+  _enumState.editingId = id;
+  const content = document.getElementById('content');
+  content.innerHTML = `
+    <button class="enum-page-back" onclick="loadEnumerations()">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5"/><polyline points="12 19 5 12 12 5"/></svg>
+      Back to Enumerations
+    </button>
+
+    <div class="enum-card">
+      <div class="enum-card-header">
+        <div>
+          <h1 class="enum-card-title">${_esc(e.label)}</h1>
+          <div class="enum-card-meta">
+            <code>${_esc(e.name)}</code>
+            <span class="enum-card-badge enum-card-badge--${e.is_system ? 'system' : 'custom'}">${e.is_system ? 'System' : 'Custom'}</span>
+          </div>
+        </div>
+        <button class="btn btn-primary" onclick="_enumSaveFromDetail()">Save changes</button>
+      </div>
+      <div class="enum-form">
+        <div class="enum-form-group">
+          <label class="enum-form-label" for="enum-detail-label">Label</label>
+          <input type="text" id="enum-detail-label" class="enum-form-input" value="${_esc(e.label)}" placeholder="Display name">
+        </div>
+        <div class="enum-form-group">
+          <label class="enum-form-label">Internal name</label>
+          <input type="text" class="enum-form-input" value="${_esc(e.name)}" disabled>
+        </div>
+        <div class="enum-form-group enum-form-full">
+          <label class="enum-form-label" for="enum-detail-desc">Description</label>
+          <textarea id="enum-detail-desc" class="enum-form-input enum-form-textarea" rows="2" placeholder="Short description">${_esc(e.description || '')}</textarea>
+        </div>
+      </div>
+    </div>
+
+    <div class="enum-card">
+      <div class="enum-values-header">
+        <div>
+          <h2 class="enum-values-title">Values (${(e.values || []).length})</h2>
+          <p class="enum-values-hint">Color is optional — used for badges, tags, and charts across the app.</p>
+        </div>
+        <button class="btn btn-primary btn-sm" onclick="_enumAddValueRow()">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          Add value
+        </button>
+      </div>
+      <div class="enum-values-section">
+        <div class="enum-values-table-wrap">
+          <table class="enum-values-table" id="enum-values-table">
+            <thead>
+              <tr>
+                <th style="width:4%;" class="enum-th-center">#</th>
+                <th style="width:20%;">Key</th>
+                <th style="width:26%;">Label</th>
+                <th style="width:18%;">Color <span style="font-weight:400;color:var(--text-tertiary);">(optional)</span></th>
+                <th style="width:10%;" class="enum-th-center">Enabled</th>
+                <th style="width:12%;" class="enum-th-center">Order</th>
+                <th style="width:10%;" class="enum-th-center">Actions</th>
+              </tr>
+            </thead>
+            <tbody id="enum-values-body">
+              ${(e.values || []).map((v, i) => _enumValueRow(v, i)).join('')}
+            </tbody>
+          </table>
+        </div>
+        ${(e.values || []).length === 0 ? '<div class="enum-empty-values">No values yet. Click "Add value" to get started.</div>' : ''}
+      </div>
+    </div>
+  `;
+}
+
+function _enumValueRow(v, idx) {
+  return `
+    <tr data-idx="${idx}">
+      <td class="enum-td-center" style="color:var(--text-tertiary);font-size:12px;">${idx + 1}</td>
+      <td><input type="text" class="enum-form-input enum-v-key" value="${_esc(v.key)}" placeholder="value_key" style="font-family:ui-monospace,monospace;font-size:13px;"></td>
+      <td><input type="text" class="enum-form-input enum-v-label" value="${_esc(v.label)}" placeholder="Display label"></td>
+      <td>
+        <div class="enum-color-cell">
+          <input type="color" class="enum-color-swatch enum-v-color" value="${v.color || '#6B7280'}" title="Optional: for badges and charts">
+          <input type="text" class="enum-color-hex enum-v-color-text" value="${_esc(v.color || '')}" placeholder="#hex" oninput="this.previousElementSibling.value=this.value">
+        </div>
+      </td>
+      <td class="enum-td-center">
+        <label style="cursor:pointer;">
+          <input type="checkbox" class="enum-v-enabled" ${v.enabled !== false ? 'checked' : ''} style="width:18px;height:18px;cursor:pointer;">
+        </label>
+      </td>
+      <td class="enum-td-center">
+        <div style="display:flex;justify-content:center;gap:2px;">
+          <button class="btn btn-sm btn-outline" onclick="_enumMoveValue(${idx},-1)" title="Move up" style="padding:4px 8px;" ${idx === 0 ? 'disabled' : ''}>&#9650;</button>
+          <button class="btn btn-sm btn-outline" onclick="_enumMoveValue(${idx},1)" title="Move down" style="padding:4px 8px;">&#9660;</button>
+        </div>
+      </td>
+      <td class="enum-td-center">
+        <button class="btn btn-sm" onclick="_enumRemoveValue(${idx})" title="Remove value" style="color:#DC2626;padding:4px 8px;">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+        </button>
+      </td>
+    </tr>
+  `;
+}
+
+function _enumCollectValues() {
+  const rows = document.querySelectorAll('#enum-values-body tr');
+  const values = [];
+  rows.forEach((row, i) => {
+    const key = row.querySelector('.enum-v-key')?.value.trim();
+    const label = row.querySelector('.enum-v-label')?.value.trim();
+    const colorText = row.querySelector('.enum-v-color-text')?.value.trim();
+    const enabled = row.querySelector('.enum-v-enabled')?.checked !== false;
+    if (key || label) {
+      values.push({ key: key || `val_${i}`, label: label || key || `Value ${i + 1}`, order: i, enabled, color: colorText || '' });
+    }
+  });
+  return values;
+}
+
+function _enumAddValueRow() {
+  const tbody = document.getElementById('enum-values-body');
+  if (!tbody) return;
+  const idx = tbody.querySelectorAll('tr').length;
+  const tmp = document.createElement('tbody');
+  tmp.innerHTML = _enumValueRow({ key: '', label: '', color: '', enabled: true, order: idx }, idx);
+  tbody.appendChild(tmp.firstElementChild);
+  // focus the key input of the new row
+  const rows = tbody.querySelectorAll('tr');
+  const last = rows[rows.length - 1];
+  last.querySelector('.enum-v-key')?.focus();
+}
+
+function _enumRemoveValue(idx) {
+  // Rebuild from collected values minus idx
+  const values = _enumCollectValues();
+  values.splice(idx, 1);
+  const tbody = document.getElementById('enum-values-body');
+  if (tbody) tbody.innerHTML = values.map((v, i) => _enumValueRow(v, i)).join('');
+}
+
+function _enumMoveValue(idx, dir) {
+  const values = _enumCollectValues();
+  const newIdx = idx + dir;
+  if (newIdx < 0 || newIdx >= values.length) return;
+  [values[idx], values[newIdx]] = [values[newIdx], values[idx]];
+  values.forEach((v, i) => v.order = i);
+  const tbody = document.getElementById('enum-values-body');
+  if (tbody) tbody.innerHTML = values.map((v, i) => _enumValueRow(v, i)).join('');
+}
+
+async function _enumSaveFromDetail() {
+  const id = _enumState.editingId;
+  if (!id) return;
+  const label = document.getElementById('enum-detail-label')?.value.trim();
+  const description = document.getElementById('enum-detail-desc')?.value.trim();
+  const values = _enumCollectValues();
+
+  // Validate keys are unique
+  const keys = values.map(v => v.key);
+  const dupes = keys.filter((k, i) => keys.indexOf(k) !== i);
+  if (dupes.length > 0) {
+    showToast(`Duplicate key(s): ${dupes.join(', ')}`, 'error');
+    return;
+  }
+
+  try {
+    const res = await fetch(`${API_BASE}/enumerations/${id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ label, description, values })
+    });
+    if (!res.ok) { const e = await res.json(); throw new Error(e.error); }
+    showToast('Enumeration saved successfully', 'success');
+    await loadEnumerations();
+    _enumOpenDetail(id); // re-open detail with fresh data
+  } catch (e) {
+    showToast(`Error: ${e.message}`, 'error');
+  }
+}
+
+// ── Create modal ─────────────────────────────────────────────────────────────
+
+function _enumShowCreateModal() {
+  const overlay = document.createElement('div');
+  overlay.className = 'modal-overlay enum-create-modal';
+  overlay.id = 'enum-create-modal';
+  overlay.innerHTML = `
+    <div class="modal">
+      <div class="modal-header">
+        <h3 class="modal-title">Create enumeration</h3>
+        <button class="modal-close" onclick="document.getElementById('enum-create-modal').remove()" aria-label="Close">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="enum-form" style="grid-template-columns:1fr 1fr;">
+          <div class="enum-form-group">
+            <label class="enum-form-label" for="enum-create-label">Label <span style="color:#DC2626;">*</span></label>
+            <input type="text" id="enum-create-label" class="enum-form-input" placeholder="e.g. Product Category" oninput="_enumAutoName(this.value)">
+          </div>
+          <div class="enum-form-group">
+            <label class="enum-form-label" for="enum-create-name">Internal name <span style="color:#DC2626;">*</span></label>
+            <input type="text" id="enum-create-name" class="enum-form-input" placeholder="e.g. product_category" style="font-family:ui-monospace,monospace;">
+          </div>
+          <div class="enum-form-group enum-form-full">
+            <label class="enum-form-label" for="enum-create-desc">Description</label>
+            <textarea id="enum-create-desc" class="enum-form-input enum-form-textarea" rows="2" placeholder="Short description of this enumeration"></textarea>
+          </div>
+        </div>
+
+        <div class="enum-create-section">
+          <h3 class="enum-create-section-title">Initial values</h3>
+          <p class="enum-values-hint" style="margin-bottom:12px;">Optionally set a color per value for badges and charts.</p>
+          <div id="enum-create-values">
+            <div class="enum-create-vrow">
+              <input type="text" class="form-control enum-form-input ec-key" placeholder="key" style="font-family:ui-monospace,monospace;">
+              <input type="text" class="form-control enum-form-input ec-label" placeholder="Label">
+              <input type="color" class="enum-color-swatch ec-color" value="#6B7280" title="Optional">
+              <button class="btn btn-sm" onclick="this.parentElement.remove()" title="Remove" style="color:#DC2626;padding:6px 10px;">✕</button>
+            </div>
+          </div>
+          <button class="btn btn-outline btn-sm" onclick="_enumCreateAddValueRow()" style="margin-top:8px;">+ Add value</button>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" onclick="document.getElementById('enum-create-modal').remove()">Cancel</button>
+        <button class="btn btn-primary" onclick="_enumCreateSave()">Create</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(overlay);
+}
+
+function _enumAutoName(label) {
+  const nameInput = document.getElementById('enum-create-name');
+  if (nameInput && !nameInput.dataset.manual) {
+    nameInput.value = label.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '');
+  }
+}
+
+function _enumCreateAddValueRow() {
+  const container = document.getElementById('enum-create-values');
+  if (!container) return;
+  const row = document.createElement('div');
+  row.className = 'enum-create-vrow';
+  row.innerHTML = `
+    <input type="text" class="form-control enum-form-input ec-key" placeholder="key" style="font-family:ui-monospace,monospace;">
+    <input type="text" class="form-control enum-form-input ec-label" placeholder="Label">
+    <input type="color" class="enum-color-swatch ec-color" value="#6B7280" title="Optional">
+    <button class="btn btn-sm" onclick="this.parentElement.remove()" title="Remove" style="color:#DC2626;padding:6px 10px;">✕</button>
+  `;
+  container.appendChild(row);
+  row.querySelector('.ec-key')?.focus();
+}
+
+async function _enumCreateSave() {
+  const name = document.getElementById('enum-create-name')?.value.trim();
+  const label = document.getElementById('enum-create-label')?.value.trim();
+  const description = document.getElementById('enum-create-desc')?.value.trim();
+
+  if (!name || !label) { showToast('Name and label are required', 'error'); return; }
+
+  const rows = document.querySelectorAll('#enum-create-values .enum-create-vrow');
+  const values = [];
+  rows.forEach((row, i) => {
+    const key = row.querySelector('.ec-key')?.value.trim();
+    const lbl = row.querySelector('.ec-label')?.value.trim();
+    const color = row.querySelector('.ec-color')?.value || '';
+    if (key || lbl) {
+      values.push({ key: key || `val_${i}`, label: lbl || key, order: i, enabled: true, color: color === '#6B7280' ? '' : color });
+    }
+  });
+
+  try {
+    const res = await fetch(`${API_BASE}/enumerations`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name, label, description, values })
+    });
+    if (!res.ok) { const e = await res.json(); throw new Error(e.error); }
+    showToast('Enumeration created successfully', 'success');
+    document.getElementById('enum-create-modal')?.remove();
+    loadEnumerations();
+  } catch (e) {
+    showToast(`Error: ${e.message}`, 'error');
+  }
+}
+
+// ── Duplicate / Delete ───────────────────────────────────────────────────────
+
+async function _enumDuplicate(id) {
+  const e = _enumState.data.find(x => x.id === id);
+  if (!e) return;
+  try {
+    const res = await fetch(`${API_BASE}/enumerations`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        name: e.name + '_copy',
+        label: e.label + ' (Copy)',
+        description: e.description,
+        values: e.values || [],
+        is_system: false
+      })
+    });
+    if (!res.ok) { const err = await res.json(); throw new Error(err.error); }
+    showToast('Enumeration duplicated', 'success');
+    loadEnumerations();
+  } catch (err) {
+    showToast(`Error: ${err.message}`, 'error');
+  }
+}
+
+async function _enumDelete(id) {
+  if (!confirm('Are you sure you want to delete this enumeration?')) return;
+  try {
+    const res = await fetch(`${API_BASE}/enumerations/${id}`, { method: 'DELETE' });
+    if (!res.ok) { const e = await res.json(); throw new Error(e.error); }
+    showToast('Enumeration deleted', 'success');
+    loadEnumerations();
+  } catch (e) {
+    showToast(`Error: ${e.message}`, 'error');
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+//  CUSTOM OBJECTS
+// ═══════════════════════════════════════════════════════════════════════════════
+
 async function loadCustomObjects() {
   showLoading();
   try {
@@ -4650,36 +6081,90 @@ async function loadCustomObjects() {
       `;
     }).join('');
     
+    // Apply search filter
+    let filteredObjects = objects;
+    if (customObjectSearch) {
+      const s = customObjectSearch.toLowerCase();
+      filteredObjects = objects.filter(o => (o.label || '').toLowerCase().includes(s) || (o.name || '').toLowerCase().includes(s) || (o.description || '').toLowerCase().includes(s));
+    }
+
+    const filteredRows = filteredObjects.map(obj => {
+      const statusBadge = obj.is_active ? 'badge-success' : 'badge-secondary';
+      const actions = [
+        { icon: ICONS.blocks, label: 'Build UI', onclick: `buildObjectUI(${obj.id})` },
+        { icon: ICONS.monitor, label: 'Open UI', onclick: `openObjectUI(${obj.id})` },
+        { divider: true },
+        { icon: ICONS.barChart, label: 'View Data', onclick: `viewObjectData(${obj.id})` },
+        { icon: ICONS.upload || ICONS.edit, label: 'Import CSV', onclick: `showCSVImportModal(${obj.id}, '${(obj.label || obj.name).replace(/'/g, "\\'")}')` },
+        { icon: ICONS.edit, label: 'Edit', onclick: `navigateTo('custom-objects', 'edit', ${obj.id})` },
+        { divider: true },
+        { icon: ICONS.trash, label: 'Delete', onclick: `deleteCustomObject(${obj.id})`, danger: true }
+      ];
+      return `
+        <tr>
+          <td data-column-id="name">${createTableLink(`<strong>${obj.label}</strong> <small style="color:var(--text-secondary)">(${obj.name})</small>`, `navigateTo('custom-objects', 'edit', ${obj.id})`)}</td>
+          <td data-column-id="description">${obj.description || '-'}</td>
+          <td data-column-id="fields">${obj.fields.length} fields</td>
+          <td data-column-id="records">${obj.record_count || 0}</td>
+          <td data-column-id="status"><span class="badge ${statusBadge}">${obj.is_active ? 'Active' : 'Inactive'}</span></td>
+          <td>${createActionMenu(obj.id, actions)}</td>
+        </tr>
+      `;
+    }).join('');
+
+    const columns = [
+      { id: 'name', label: 'Name' },
+      { id: 'description', label: 'Description' },
+      { id: 'fields', label: 'Fields' },
+      { id: 'records', label: 'Records' },
+      { id: 'status', label: 'Status' }
+    ];
+
     const content = `
       <div class="card">
-        <div class="card-header" style="display:flex; align-items:center; justify-content:space-between; gap: 1rem;">
-          <h3 class="card-title">Custom Objects (${objects.length} total)</h3>
-          <button class="btn btn-secondary" onclick="showCustomObjectsER()">ER Diagram</button>
-        </div>
-        <div class="card-body">
-          <div class="data-table-container overflow-visible">
-            <table class="data-table">
-              <thead>
-                <tr>
-                  <th>ID</th>
-                  <th>Name</th>
-                  <th>Description</th>
-                  <th>Fields</th>
-                  <th>Records</th>
-                  <th>Status</th>
-                  <th style="width: 50px;"></th>
-                </tr>
-              </thead>
-              <tbody>
-                ${tableRows || '<tr><td colspan="7" style="text-align: center;">No custom objects yet</td></tr>'}
-              </tbody>
-            </table>
+        <div class="card-header">
+          <h3 class="card-title">${ICONS.database || ''} Custom Objects</h3>
+          <div style="display:flex;gap:8px;align-items:center">
+            <button class="btn btn-secondary" onclick="showCustomObjectsER()">ER Diagram</button>
+            <button class="btn btn-secondary" onclick="showDDLImportModal()">Import DDL</button>
+            <button class="btn btn-primary" onclick="navigateTo('custom-objects', 'create')">+ Create Object</button>
           </div>
+        </div>
+        
+        ${createTableToolbar({
+          resultCount: filteredObjects.length,
+          totalCount: objects.length,
+          showColumnSelector: true,
+          columns,
+          viewKey: 'custom-objects',
+          showSearch: true,
+          searchPlaceholder: 'Search custom objects...',
+          searchValue: customObjectSearch || '',
+          onSearch: 'updateCustomObjectSearch(this.value)'
+        })}
+        
+        <div class="data-table-container overflow-visible">
+          <table class="data-table" data-view="custom-objects">
+            <thead>
+              <tr>
+                ${createSortableHeader('name', 'Name', currentTableSort)}
+                <th data-column-id="description">Description</th>
+                <th data-column-id="fields">Fields</th>
+                ${createSortableHeader('records', 'Records', currentTableSort)}
+                <th data-column-id="status">Status</th>
+                <th style="width: 50px;"></th>
+              </tr>
+            </thead>
+            <tbody>
+              ${filteredRows || '<tr><td colspan="6" style="text-align: center; padding: 2rem; color: #6B7280;">No custom objects yet</td></tr>'}
+            </tbody>
+          </table>
         </div>
       </div>
     `;
     
     document.getElementById('content').innerHTML = content;
+    applyColumnVisibility('custom-objects');
   } catch (error) {
     showError('Failed to load custom objects');
   } finally {
@@ -4713,7 +6198,11 @@ let erDiagramState = {
   lanePairs: {
     def_mem: true,
     mem_exec: true,
-    exec_metrics: true
+    exec_metrics: true,
+    intra_def: true,
+    intra_mem: true,
+    intra_exec: true,
+    intra_metrics: true
   }
 };
 
@@ -4783,7 +6272,18 @@ function buildNormalizedERModel(customObjects = []) {
     addNode(`custom-${obj.name}`, obj.name, fieldList, 'definitions');
     (obj.relationships || []).forEach(rel => {
       if (!rel.to_table) return;
-      const targetId = rel.to_table === 'contacts' ? 'people' : `custom-${rel.to_table}`;
+      // Map to the correct node id — built-in tables use their name directly, contacts → people
+      const builtInTables = ['people','segments','groups','audiences','programs','deliveries',
+        'segment_memberships','group_memberships','audience_memberships','delivery_recipients',
+        'program_runs','program_metrics','execution_metrics','workflow_nodes','workflow_connections','activity_events'];
+      let targetId;
+      if (rel.to_table === 'contacts') {
+        targetId = 'people';
+      } else if (builtInTables.includes(rel.to_table)) {
+        targetId = rel.to_table;
+      } else {
+        targetId = `custom-${rel.to_table}`;
+      }
       addRel(`custom-${obj.name}`, targetId, rel.type || 'N:1');
     });
   });
@@ -4797,7 +6297,7 @@ async function showCustomObjectsER() {
     const response = await fetch(`${API_BASE}/custom-objects`);
     const data = await response.json();
     if (!response.ok) throw new Error(data.error || 'Failed to load objects');
-    const customObjects = Array.isArray(data) ? data : (data.objects || []);
+    const customObjects = Array.isArray(data) ? data : (data.objects || data.value || []);
     erDiagramModel = buildNormalizedERModel(customObjects);
     erDiagramState = {
       layers: { definitions: true, memberships: true, executions: true, metrics: true },
@@ -4809,7 +6309,7 @@ async function showCustomObjectsER() {
       hoveredEntityId: null,
       hoveredEdge: null,
       selectedEdge: null,
-      lanePairs: { def_mem: true, mem_exec: true, exec_metrics: true },
+      lanePairs: { def_mem: true, mem_exec: true, exec_metrics: true, intra_def: true, intra_mem: true, intra_exec: true, intra_metrics: true },
       exportOptions: {
         format: 'png',
         scope: 'visible',
@@ -4858,6 +6358,7 @@ async function showCustomObjectsER() {
           <div class="er-controls-group">
             <label class="er-control"><input type="checkbox" onchange="toggleEREntitiesOnly(this.checked)"> Entities only</label>
             <label class="er-control"><input type="checkbox" checked onchange="toggleERRelationships(this.checked)"> Relationships</label>
+            <label class="er-control"><input type="checkbox" checked onchange="toggleERIntraLane(this.checked)"> Intra-entity links</label>
             <label class="er-control"><input type="checkbox" onchange="toggleERAttributes(this.checked)"> Show attributes</label>
           </div>
         </div>
@@ -4963,6 +6464,7 @@ function drawCustomObjectERLines() {
   const height = Math.max(diagram.scrollHeight, diagramRect.height);
   svg.setAttribute('width', width);
   svg.setAttribute('height', height);
+  svg.setAttribute('style', 'overflow: visible;');
   svg.innerHTML = '';
   if (erDiagramState.entitiesOnly || !erDiagramState.showRelationships) {
     updateERFocusStyles();
@@ -5028,19 +6530,37 @@ function drawCustomObjectERLines() {
     const laneStep = 18;
     const laneOffset = spreadIndex(lane) * laneStep;
 
-    // Smooth cubic bezier curve
-    const dx = Math.abs(endX - startX);
-    const cpOffset = Math.max(40, dx * 0.4);
-    const outDir = goesRight ? 1 : -1;
-    const cp1x = startX + outDir * cpOffset;
-    const cp1y = startY + laneOffset;
-    const cp2x = endX - outDir * cpOffset;
-    const cp2y = endY + laneOffset;
-    const d = `M ${startX} ${startY} C ${cp1x} ${cp1y}, ${cp2x} ${cp2y}, ${endX} ${endY}`;
+    // Build path — special handling for same-column relationships
+    const sameColumn = fromCol === toCol;
+    let d;
+    if (sameColumn) {
+      // U-shaped curve that loops out to the left of both nodes
+      const fromElRect = fromEl.getBoundingClientRect();
+      const toElRect = toEl.getBoundingClientRect();
+      const leftEdgeFrom = fromElRect.left - diagramRect.left + diagram.scrollLeft;
+      const leftEdgeTo = toElRect.left - diagramRect.left + diagram.scrollLeft;
+      const sx = leftEdgeFrom;
+      const sy = startY;
+      const ex = leftEdgeTo;
+      const ey = endY;
+      const bulge = 55 + Math.abs(lane) * laneStep;
+      const cpx = Math.min(sx, ex) - bulge;
+      d = `M ${sx} ${sy} C ${cpx} ${sy + laneOffset}, ${cpx} ${ey + laneOffset}, ${ex} ${ey}`;
+    } else {
+      // Smooth cubic bezier curve between columns
+      const dx = Math.abs(endX - startX);
+      const cpOffset = Math.max(40, dx * 0.4);
+      const outDir = goesRight ? 1 : -1;
+      const cp1x = startX + outDir * cpOffset;
+      const cp1y = startY + laneOffset;
+      const cp2x = endX - outDir * cpOffset;
+      const cp2y = endY + laneOffset;
+      d = `M ${startX} ${startY} C ${cp1x} ${cp1y}, ${cp2x} ${cp2y}, ${endX} ${endY}`;
+    }
 
     const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
     path.setAttribute('d', d);
-    path.setAttribute('class', 'er-line');
+    path.setAttribute('class', `er-line${sameColumn ? ' er-line-intra' : ''}`);
     path.dataset.from = rel.from;
     path.dataset.to = rel.to;
     path.addEventListener('mouseenter', () => {
@@ -5062,10 +6582,11 @@ function drawCustomObjectERLines() {
       updateERFocusStyles();
     });
     svg.appendChild(path);
-
+    
     // Small dot at start of line
+    const dotX = sameColumn ? (fromEl.getBoundingClientRect().left - diagramRect.left + diagram.scrollLeft) : startX;
     const dot = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
-    dot.setAttribute('cx', startX);
+    dot.setAttribute('cx', dotX);
     dot.setAttribute('cy', startY);
     dot.setAttribute('r', '3');
     dot.setAttribute('class', 'er-line-dot');
@@ -5073,8 +6594,19 @@ function drawCustomObjectERLines() {
     svg.appendChild(dot);
 
     // Label badge at midpoint of bezier
-    const midX = (startX + endX) / 2;
-    const midY = (startY + endY) / 2 + laneOffset * 0.5;
+    let midX, midY;
+    if (sameColumn) {
+      const leftEdge = Math.min(
+        fromEl.getBoundingClientRect().left - diagramRect.left + diagram.scrollLeft,
+        toEl.getBoundingClientRect().left - diagramRect.left + diagram.scrollLeft
+      );
+      const bulge = 55 + Math.abs(lane) * laneStep;
+      midX = leftEdge - bulge + 10;
+      midY = (startY + endY) / 2 + laneOffset * 0.5;
+    } else {
+      midX = (startX + endX) / 2;
+      midY = (startY + endY) / 2 + laneOffset * 0.5;
+    }
     const label = document.createElementNS('http://www.w3.org/2000/svg', 'text');
     label.setAttribute('x', midX);
     label.setAttribute('y', midY - 2);
@@ -5123,6 +6655,14 @@ function getLanePairKey(fromColumn, toColumn) {
   const fromIdx = getLaneIndex(fromColumn);
   const toIdx = getLaneIndex(toColumn);
   if (fromIdx === -1 || toIdx === -1) return null;
+  // Same-column relationships (e.g. custom object → people, both in definitions)
+  if (fromIdx === toIdx) {
+    if (fromColumn === 'definitions') return 'intra_def';
+    if (fromColumn === 'memberships') return 'intra_mem';
+    if (fromColumn === 'executions') return 'intra_exec';
+    if (fromColumn === 'metrics') return 'intra_metrics';
+    return null;
+  }
   if (Math.abs(fromIdx - toIdx) !== 1) return null;
   const pair = fromIdx < toIdx ? `${fromColumn}_${toColumn}` : `${toColumn}_${fromColumn}`;
   if (pair === 'definitions_memberships') return 'def_mem';
@@ -5298,7 +6838,9 @@ function renderERDiagram() {
       hidden: !isVisible
     };
   });
-  diagram.style.gridTemplateColumns = `repeat(${laneOrder.length}, minmax(240px, 1fr))`;
+  diagram.style.gridTemplateColumns = laneOrder.length === 4
+    ? 'minmax(360px, 2fr) repeat(3, minmax(240px, 1fr))'
+    : `repeat(${laneOrder.length}, minmax(240px, 1fr))`;
   const nodeHtml = grouped.map(col => `
     <div class="er-column ${col.hidden ? 'is-hidden' : ''}" data-column="${col.id}">
       <div class="er-column-title">${col.label}</div>
@@ -5333,7 +6875,7 @@ function renderERDiagram() {
   `).join('');
   diagram.innerHTML = `<svg class="er-svg" id="er-svg"></svg>${nodeHtml}`;
   const visibleNodeIds = new Set(grouped.flatMap(col => col.nodes.map(n => n.id)));
-  erDiagramState.visibleRelationships = relationships.filter(rel => {
+  let filtered = relationships.filter(rel => {
     if (!visibleNodeIds.has(rel.from) || !visibleNodeIds.has(rel.to)) return false;
     const fromCol = erDiagramModel.nodes.find(n => n.id === rel.from)?.column;
     const toCol = erDiagramModel.nodes.find(n => n.id === rel.to)?.column;
@@ -5344,6 +6886,18 @@ function renderERDiagram() {
     }
     return true;
   });
+  // One line per entity pair: keep a single relationship per unordered (A,B), prefer N:1 so direction is many→one
+  const pairKey = (a, b) => a < b ? `${a}--${b}` : `${b}--${a}`;
+  const seen = new Map();
+  filtered.forEach(rel => {
+    const key = pairKey(rel.from, rel.to);
+    if (!seen.has(key)) seen.set(key, rel);
+    else {
+      const existing = seen.get(key);
+      if (rel.type === 'N:1' && existing.type !== 'N:1') seen.set(key, rel);
+    }
+  });
+  erDiagramState.visibleRelationships = Array.from(seen.values());
   drawCustomObjectERLines();
   applyERInteractions();
   updateERFocusStyles();
@@ -5363,6 +6917,14 @@ function toggleERRelationships(value) {
   erDiagramState.showRelationships = value;
   drawCustomObjectERLines();
   updateERFocusStyles();
+}
+
+function toggleERIntraLane(value) {
+  erDiagramState.lanePairs.intra_def = value;
+  erDiagramState.lanePairs.intra_mem = value;
+  erDiagramState.lanePairs.intra_exec = value;
+  erDiagramState.lanePairs.intra_metrics = value;
+  renderERDiagram();
 }
 
 function toggleERAttributes(value) {
@@ -5829,16 +7391,19 @@ async function initRelationshipMeta() {
 }
 
 function hydrateRelationshipRows() {
-  const rows = document.querySelectorAll('.relation-row');
-  rows.forEach((row, index) => {
+  const container = document.getElementById('relationships-container');
+  if (!container) return;
+  const rows = container.querySelectorAll('.relation-row');
+  rows.forEach(row => {
     const tableSelect = row.querySelector('.relation-table');
     const fieldSelect = row.querySelector('.relation-field');
     const currentTable = row.dataset.table || '';
     const currentField = row.dataset.field || '';
+    const index = row.dataset.index;
     if (!tableSelect || !fieldSelect) return;
     tableSelect.innerHTML = relationshipMeta.map(t => `<option value="${t.name}">${t.name}</option>`).join('');
     if (currentTable) tableSelect.value = currentTable;
-    updateRelationFieldOptions(index, currentField);
+    updateRelationFieldOptions(parseInt(index), currentField);
   });
 }
 
@@ -5965,6 +7530,251 @@ async function handleCustomObjectSubmit(event) {
 // View object data
 function viewObjectData(objectId) {
   window.location.href = `/object-data.html?objectId=${objectId}`;
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// DDL Import Modal
+// ═══════════════════════════════════════════════════════════════════════
+function showDDLImportModal() {
+  const overlay = document.createElement('div');
+  overlay.className = 'modal-overlay';
+  overlay.id = 'ddl-import-modal';
+  overlay.innerHTML = `
+    <div class="modal" style="max-width:640px;">
+      <div class="modal-header">
+        <h3>Import DDL</h3>
+        <button class="modal-close" onclick="document.getElementById('ddl-import-modal').remove()">&times;</button>
+      </div>
+      <div class="modal-body">
+        <p style="color:var(--text-secondary);font-size:13px;margin-bottom:16px;">
+          Upload a SQL DDL file or paste DDL statements to create custom objects.
+          Supports <code>CREATE TABLE</code> from MySQL, PostgreSQL, SQLite, etc.
+          Use <code>ENUM_REF(<em>internal_name</em>)</code> as a column type to reference an enumeration (e.g. <code>channel ENUM_REF(channel_type)</code>).
+        </p>
+        <div class="form-group">
+          <label class="form-label">Upload DDL file (.sql, .ddl, .txt)</label>
+          <input type="file" class="form-input" id="ddl-file-input" accept=".sql,.ddl,.txt,.SQL,.DDL">
+        </div>
+        <div class="form-group">
+          <label class="form-label">— or paste DDL statements —</label>
+          <textarea class="form-input" id="ddl-text-input" rows="10" placeholder="CREATE TABLE orders (
+  id INT PRIMARY KEY AUTO_INCREMENT,
+  customer_id INT NOT NULL,
+  total DECIMAL(10,2),
+  status VARCHAR(50) DEFAULT 'pending',
+  order_date DATE,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);" style="font-family:monospace;font-size:12px;"></textarea>
+        </div>
+        <div id="ddl-import-result" style="display:none;"></div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" onclick="document.getElementById('ddl-import-modal').remove()">Cancel</button>
+        <button class="btn btn-primary" id="ddl-import-btn" onclick="executeDDLImport()">Import</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(overlay);
+}
+
+async function executeDDLImport() {
+  const fileInput = document.getElementById('ddl-file-input');
+  const textInput = document.getElementById('ddl-text-input');
+  const resultDiv = document.getElementById('ddl-import-result');
+  const importBtn = document.getElementById('ddl-import-btn');
+
+  const file = fileInput?.files?.[0];
+  const textDdl = textInput?.value?.trim();
+
+  if (!file && !textDdl) {
+    showToast('Please upload a DDL file or paste DDL statements', 'warning');
+    return;
+  }
+
+  importBtn.disabled = true;
+  importBtn.textContent = 'Importing...';
+
+  try {
+    let response;
+    if (file) {
+      const formData = new FormData();
+      formData.append('file', file);
+      response = await fetch(`${API_BASE}/custom-objects/import-ddl`, {
+        method: 'POST',
+        body: formData
+      });
+    } else {
+      response = await fetch(`${API_BASE}/custom-objects/import-ddl`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ddl: textDdl })
+      });
+    }
+
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || 'Import failed');
+
+    // Show results
+    resultDiv.style.display = 'block';
+    let html = '<div style="margin-top:8px;">';
+    if (data.created && data.created.length > 0) {
+      html += '<div style="color:var(--status-success);font-weight:600;margin-bottom:8px;">Created objects:</div>';
+      html += '<ul style="margin:0 0 8px 16px;font-size:13px;">';
+      data.created.forEach(obj => {
+        let detail = `<strong>${obj.name}</strong> — ${obj.fields} fields, ${obj.relationships} relationship(s)`;
+        if (obj.linkedTables && obj.linkedTables.length > 0) {
+          detail += `<br><span style="font-size:11px;color:var(--status-success);">Linked to custom objects: ${obj.linkedTables.join(', ')}</span>`;
+        }
+        if (obj.systemLinked && obj.systemLinked.length > 0) {
+          detail += `<br><span style="font-size:11px;color:#2563EB;">Linked to system entities: ${obj.systemLinked.join(', ')}</span>`;
+        }
+        if (obj.missingTables && obj.missingTables.length > 0) {
+          detail += `<br><span style="font-size:11px;color:var(--status-warning);">Referenced but not found: ${obj.missingTables.join(', ')} (relationship saved, reverse link pending)</span>`;
+        }
+        html += `<li>${detail}</li>`;
+      });
+      html += '</ul>';
+    }
+    if (data.errors && data.errors.length > 0) {
+      html += '<div style="color:var(--status-warning);font-weight:600;margin-bottom:4px;">Warnings:</div>';
+      html += '<ul style="margin:0 0 0 16px;font-size:12px;color:var(--text-secondary);">';
+      data.errors.forEach(err => { html += `<li>${err}</li>`; });
+      html += '</ul>';
+    }
+    html += '</div>';
+    resultDiv.innerHTML = html;
+
+    if (data.created?.length > 0) {
+      showToast(data.summary, 'success');
+      // Refresh listing after a short delay
+      setTimeout(() => {
+        document.getElementById('ddl-import-modal')?.remove();
+        loadCustomObjects();
+      }, 2000);
+    } else {
+      showToast(data.summary || 'No objects were created', 'warning');
+      importBtn.disabled = false;
+      importBtn.textContent = 'Import';
+    }
+  } catch (error) {
+    showToast(error.message, 'error');
+    importBtn.disabled = false;
+    importBtn.textContent = 'Import';
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// CSV Import Modal (from listing page)
+// ═══════════════════════════════════════════════════════════════════════
+function showCSVImportModal(objectId, objectLabel) {
+  const overlay = document.createElement('div');
+  overlay.className = 'modal-overlay';
+  overlay.id = 'csv-import-modal';
+  overlay.innerHTML = `
+    <div class="modal" style="max-width:520px;">
+      <div class="modal-header">
+        <h3>Import CSV — ${objectLabel}</h3>
+        <button class="modal-close" onclick="document.getElementById('csv-import-modal').remove()">&times;</button>
+      </div>
+      <div class="modal-body">
+        <p style="color:var(--text-secondary);font-size:13px;margin-bottom:16px;">
+          Upload a CSV file to bulk-import records into <strong>${objectLabel}</strong>.
+          The CSV header row should match the field names defined on the object.
+        </p>
+        <div class="form-group">
+          <label class="form-label">CSV file</label>
+          <input type="file" class="form-input" id="csv-file-input" accept=".csv,.CSV,.tsv,.TSV,.txt">
+        </div>
+        <div id="csv-import-preview" style="display:none;margin-top:12px;"></div>
+        <div id="csv-import-result" style="display:none;margin-top:12px;"></div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" onclick="document.getElementById('csv-import-modal').remove()">Cancel</button>
+        <button class="btn btn-primary" id="csv-import-btn" onclick="executeCSVImport(${objectId})">Import</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(overlay);
+
+  // Show preview when file is selected
+  document.getElementById('csv-file-input').addEventListener('change', function() {
+    const file = this.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = function(e) {
+      const text = e.target.result;
+      const lines = text.split(/\r?\n/).filter(l => l.trim());
+      const preview = document.getElementById('csv-import-preview');
+      if (lines.length < 1) { preview.style.display = 'none'; return; }
+      const headers = lines[0].split(',').map(h => h.trim().replace(/^["']|["']$/g, ''));
+      const rowCount = lines.length - 1;
+      preview.style.display = 'block';
+      preview.innerHTML = `
+        <div style="font-size:12px;color:var(--text-secondary);margin-bottom:8px;">
+          <strong>${rowCount}</strong> row(s) detected · <strong>${headers.length}</strong> column(s)
+        </div>
+        <div style="overflow-x:auto;max-height:120px;border:1px solid var(--border-default);border-radius:6px;">
+          <table class="data-table" style="font-size:11px;margin:0;">
+            <thead><tr>${headers.map(h => `<th style="padding:4px 8px;white-space:nowrap;">${h}</th>`).join('')}</tr></thead>
+            <tbody>${lines.slice(1, 4).map(line => {
+              const cols = line.split(',').map(c => c.trim().replace(/^["']|["']$/g, ''));
+              return `<tr>${cols.map(c => `<td style="padding:4px 8px;white-space:nowrap;">${c}</td>`).join('')}</tr>`;
+            }).join('')}${rowCount > 3 ? `<tr><td colspan="${headers.length}" style="padding:4px 8px;text-align:center;color:var(--text-secondary);">... ${rowCount - 3} more row(s)</td></tr>` : ''}</tbody>
+          </table>
+        </div>
+      `;
+    };
+    reader.readAsText(file);
+  });
+}
+
+async function executeCSVImport(objectId) {
+  const fileInput = document.getElementById('csv-file-input');
+  const resultDiv = document.getElementById('csv-import-result');
+  const importBtn = document.getElementById('csv-import-btn');
+
+  const file = fileInput?.files?.[0];
+  if (!file) {
+    showToast('Please select a CSV file', 'warning');
+    return;
+  }
+
+  importBtn.disabled = true;
+  importBtn.textContent = 'Importing...';
+
+  try {
+    const formData = new FormData();
+    formData.append('file', file);
+
+    const response = await fetch(`${API_BASE}/custom-objects/${objectId}/import`, {
+      method: 'POST',
+      body: formData
+    });
+
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || 'Import failed');
+
+    resultDiv.style.display = 'block';
+    resultDiv.innerHTML = `
+      <div style="padding:12px;background:var(--status-success-bg, #f0fdf4);border:1px solid var(--status-success, #059669);border-radius:6px;font-size:13px;">
+        <strong>Import successful!</strong><br>
+        ${data.imported} record(s) imported · ${data.total} total record(s)
+      </div>
+    `;
+
+    showToast(`${data.imported} records imported successfully`, 'success');
+
+    setTimeout(() => {
+      document.getElementById('csv-import-modal')?.remove();
+      loadCustomObjects();
+    }, 1500);
+  } catch (error) {
+    showToast(error.message, 'error');
+    resultDiv.style.display = 'block';
+    resultDiv.innerHTML = `<div style="padding:8px;color:var(--status-error);font-size:13px;">${error.message}</div>`;
+    importBtn.disabled = false;
+    importBtn.textContent = 'Import';
+  }
 }
 
 // Delete custom object
@@ -6211,11 +8021,227 @@ function renderCampaignsDrillDown(data, period) {
 }
 
 // Audience Form Rendering
+// ── Audience Filter Builder: Attribute Schema ──
+const AUDIENCE_FILTER_ATTRIBUTES = [
+  { group: 'Profile', fields: [
+    { name: 'email', label: 'Email', type: 'text' },
+    { name: 'first_name', label: 'First Name', type: 'text' },
+    { name: 'last_name', label: 'Last Name', type: 'text' },
+    { name: 'phone', label: 'Phone', type: 'text' },
+    { name: 'status', label: 'Status', type: 'select', options: ['active','inactive'] },
+    { name: 'gender', label: 'Gender', type: 'select', options: ['male','female','other'] },
+    { name: 'city', label: 'City', type: 'text' },
+    { name: 'state', label: 'State', type: 'text' },
+    { name: 'country', label: 'Country', type: 'text' },
+    { name: 'language', label: 'Language', type: 'text' },
+  ]},
+  { group: 'Marketing', fields: [
+    { name: 'subscription_status', label: 'Subscription Status', type: 'select', options: ['subscribed','unsubscribed','bounced','pending'] },
+    { name: 'engagement_score', label: 'Engagement Score', type: 'number' },
+    { name: 'loyalty_tier', label: 'Loyalty Tier', type: 'select', options: ['bronze','silver','gold','platinum'] },
+    { name: 'loyalty_points', label: 'Loyalty Points', type: 'number' },
+    { name: 'preferred_channel', label: 'Preferred Channel', type: 'select', options: ['email','sms','push','whatsapp'] },
+    { name: 'communication_frequency', label: 'Communication Frequency', type: 'select', options: ['daily','weekly','bi-weekly','monthly'] },
+  ]},
+  { group: 'Commerce', fields: [
+    { name: 'total_purchases', label: 'Total Purchases', type: 'number' },
+    { name: 'lifetime_value', label: 'Lifetime Value', type: 'number' },
+    { name: 'average_order_value', label: 'Avg Order Value', type: 'number' },
+    { name: 'last_purchase_date', label: 'Last Purchase Date', type: 'date' },
+    { name: 'price_sensitivity', label: 'Price Sensitivity', type: 'select', options: ['low','medium','high'] },
+    { name: 'referral_count', label: 'Referral Count', type: 'number' },
+  ]},
+  { group: 'Consent', fields: [
+    { name: 'email_opt_in', label: 'Email Opt-in', type: 'boolean' },
+    { name: 'sms_opt_in', label: 'SMS Opt-in', type: 'boolean' },
+    { name: 'push_opt_in', label: 'Push Opt-in', type: 'boolean' },
+    { name: 'whatsapp_opt_in', label: 'WhatsApp Opt-in', type: 'boolean' },
+    { name: 'marketing_consent', label: 'Marketing Consent', type: 'boolean' },
+    { name: 'gdpr_consent', label: 'GDPR Consent', type: 'boolean' },
+    { name: 'email_verified', label: 'Email Verified', type: 'boolean' },
+    { name: 'phone_verified', label: 'Phone Verified', type: 'boolean' },
+  ]},
+  { group: 'Source & Dates', fields: [
+    { name: 'source', label: 'Source', type: 'text' },
+    { name: 'campaign_source', label: 'Campaign Source', type: 'text' },
+    { name: 'utm_source', label: 'UTM Source', type: 'text' },
+    { name: 'utm_medium', label: 'UTM Medium', type: 'text' },
+    { name: 'utm_campaign', label: 'UTM Campaign', type: 'text' },
+    { name: 'created_at', label: 'Created Date', type: 'date' },
+    { name: 'last_activity_at', label: 'Last Activity', type: 'date' },
+  ]},
+];
+
+const FILTER_OPERATORS = {
+  text:    [{ value: '$eq', label: 'equals' }, { value: '$ne', label: 'not equals' }, { value: '$contains', label: 'contains' }, { value: '$not_contains', label: 'does not contain' }, { value: '$starts_with', label: 'starts with' }, { value: '$ends_with', label: 'ends with' }, { value: '$exists_true', label: 'is not empty' }, { value: '$exists_false', label: 'is empty' }],
+  number:  [{ value: '$eq', label: 'equals' }, { value: '$ne', label: 'not equals' }, { value: '$gt', label: 'greater than' }, { value: '$gte', label: 'greater or equal' }, { value: '$lt', label: 'less than' }, { value: '$lte', label: 'less or equal' }],
+  select:  [{ value: '$eq', label: 'is' }, { value: '$ne', label: 'is not' }],
+  boolean: [{ value: '$eq_true', label: 'is true' }, { value: '$eq_false', label: 'is false' }],
+  date:    [{ value: '$gt', label: 'after' }, { value: '$lt', label: 'before' }, { value: '$exists_true', label: 'is set' }, { value: '$exists_false', label: 'is not set' }],
+};
+
+let audienceFilterRows = [];
+let audienceFilterIdCounter = 0;
+
+function getFilterFieldDef(fieldName) {
+  for (const group of AUDIENCE_FILTER_ATTRIBUTES) {
+    const found = group.fields.find(f => f.name === fieldName);
+    if (found) return found;
+  }
+  return null;
+}
+
+function addAudienceFilterRow(fieldName = '', operator = '', value = '') {
+  audienceFilterRows.push({ id: ++audienceFilterIdCounter, field: fieldName, operator, value });
+  renderAudienceFilterRows();
+}
+
+function removeAudienceFilterRow(id) {
+  audienceFilterRows = audienceFilterRows.filter(r => r.id !== id);
+  renderAudienceFilterRows();
+}
+
+function updateAudienceFilterField(id, fieldName) {
+  const row = audienceFilterRows.find(r => r.id === id);
+  if (!row) return;
+  row.field = fieldName;
+  const def = getFilterFieldDef(fieldName);
+  const ops = FILTER_OPERATORS[def?.type || 'text'] || FILTER_OPERATORS.text;
+  row.operator = ops[0]?.value || '$eq';
+  row.value = '';
+  renderAudienceFilterRows();
+}
+
+function updateAudienceFilterOperator(id, op) {
+  const row = audienceFilterRows.find(r => r.id === id);
+  if (row) { row.operator = op; row.value = ''; renderAudienceFilterRows(); }
+}
+
+function updateAudienceFilterValue(id, val) {
+  const row = audienceFilterRows.find(r => r.id === id);
+  if (row) row.value = val;
+}
+
+function renderAudienceFilterRows() {
+  const container = document.getElementById('audience-filter-rows');
+  if (!container) return;
+
+  if (audienceFilterRows.length === 0) {
+    container.innerHTML = `<div class="af-empty">No filters added. Click <strong>+ Add Filter</strong> to refine your audience.</div>`;
+    return;
+  }
+
+  container.innerHTML = audienceFilterRows.map((row, idx) => {
+    const def = getFilterFieldDef(row.field);
+    const fieldType = def?.type || 'text';
+    const ops = FILTER_OPERATORS[fieldType] || FILTER_OPERATORS.text;
+    const needsValue = !row.operator?.includes('exists') && !row.operator?.includes('eq_true') && !row.operator?.includes('eq_false');
+
+    // Build attribute optgroups
+    const fieldOptions = AUDIENCE_FILTER_ATTRIBUTES.map(g =>
+      `<optgroup label="${g.group}">${g.fields.map(f =>
+        `<option value="${f.name}" ${row.field === f.name ? 'selected' : ''}>${f.label}</option>`
+      ).join('')}</optgroup>`
+    ).join('');
+
+    // Build operator options
+    const opOptions = ops.map(o =>
+      `<option value="${o.value}" ${row.operator === o.value ? 'selected' : ''}>${o.label}</option>`
+    ).join('');
+
+    // Build value input based on type
+    let valueHtml = '';
+    if (needsValue) {
+      if (fieldType === 'select' && def?.options) {
+        valueHtml = `<select class="af-value" onchange="updateAudienceFilterValue(${row.id}, this.value)">
+          <option value="">Select...</option>
+          ${def.options.map(o => `<option value="${o}" ${row.value === o ? 'selected' : ''}>${o.charAt(0).toUpperCase() + o.slice(1)}</option>`).join('')}
+        </select>`;
+      } else if (fieldType === 'number') {
+        valueHtml = `<input type="number" class="af-value" value="${row.value}" placeholder="Value" oninput="updateAudienceFilterValue(${row.id}, this.value)">`;
+      } else if (fieldType === 'date') {
+        valueHtml = `<input type="date" class="af-value" value="${row.value}" oninput="updateAudienceFilterValue(${row.id}, this.value)">`;
+      } else {
+        valueHtml = `<input type="text" class="af-value" value="${row.value}" placeholder="Value" oninput="updateAudienceFilterValue(${row.id}, this.value)">`;
+      }
+    }
+
+    return `
+      <div class="af-row">
+        ${idx > 0 ? '<span class="af-logic">AND</span>' : '<span class="af-logic af-logic-first">WHERE</span>'}
+        <select class="af-field" onchange="updateAudienceFilterField(${row.id}, this.value)">
+          <option value="">Select attribute...</option>
+          ${fieldOptions}
+        </select>
+        <select class="af-operator" onchange="updateAudienceFilterOperator(${row.id}, this.value)">
+          ${opOptions}
+        </select>
+        ${valueHtml}
+        <button type="button" class="af-remove" onclick="removeAudienceFilterRow(${row.id})" title="Remove filter">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+      </div>`;
+  }).join('');
+}
+
+// Convert visual filter rows into the JSON format expected by the API
+function getAudienceFiltersJSON() {
+  const filters = {};
+  for (const row of audienceFilterRows) {
+    if (!row.field || !row.operator) continue;
+    const def = getFilterFieldDef(row.field);
+
+    if (row.operator === '$exists_true') {
+      filters[row.field] = { '$exists': true };
+    } else if (row.operator === '$exists_false') {
+      filters[row.field] = { '$exists': false };
+    } else if (row.operator === '$eq_true') {
+      filters[row.field] = true;
+    } else if (row.operator === '$eq_false') {
+      filters[row.field] = false;
+    } else if (row.operator === '$eq') {
+      // Simple equality – send flat value for straightforward matching
+      filters[row.field] = def?.type === 'number' ? Number(row.value) : row.value;
+    } else {
+      const val = def?.type === 'number' ? Number(row.value) : row.value;
+      if (!filters[row.field] || typeof filters[row.field] !== 'object') {
+        filters[row.field] = {};
+      }
+      filters[row.field][row.operator] = val;
+    }
+  }
+  return filters;
+}
+
+// Load existing filters (JSON object) into visual filter rows
+function loadAudienceFiltersFromJSON(filtersObj) {
+  audienceFilterRows = [];
+  audienceFilterIdCounter = 0;
+  if (!filtersObj || typeof filtersObj !== 'object') return;
+
+  for (const [field, condition] of Object.entries(filtersObj)) {
+    if (condition && typeof condition === 'object' && !Array.isArray(condition)) {
+      for (const [op, val] of Object.entries(condition)) {
+        let mappedOp = op;
+        if (op === '$exists') mappedOp = val ? '$exists_true' : '$exists_false';
+        audienceFilterRows.push({ id: ++audienceFilterIdCounter, field, operator: mappedOp, value: op === '$exists' ? '' : String(val) });
+      }
+    } else if (typeof condition === 'boolean') {
+      audienceFilterRows.push({ id: ++audienceFilterIdCounter, field, operator: condition ? '$eq_true' : '$eq_false', value: '' });
+    } else {
+      audienceFilterRows.push({ id: ++audienceFilterIdCounter, field, operator: '$eq', value: String(condition) });
+    }
+  }
+}
+
 function renderAudienceForm(audience = null) {
   const isEdit = !!audience;
   const content = document.getElementById('content');
   const includeContacts = (audience?.include_contacts || []).join(', ');
   const excludeContacts = (audience?.exclude_contacts || []).join(', ');
+
+  // Pre-load existing filters into visual rows
+  loadAudienceFiltersFromJSON(audience?.filters);
   
   content.innerHTML = `
     <div class="form-container">
@@ -6272,10 +8298,15 @@ function renderAudienceForm(audience = null) {
           </div>
           
           <div class="form-group">
-            <label class="form-label" for="audience-filters">Custom Filters (JSON)</label>
-            <textarea id="audience-filters" class="form-input" rows="5"
-                      placeholder='{"status": "active", "engagement_score": {"$gte": 50}}'>${audience?.filters ? JSON.stringify(audience.filters, null, 2) : ''}</textarea>
-            <small class="form-help">Define additional filter conditions in JSON format.</small>
+            <label class="form-label">Additional Filters</label>
+            <div class="af-builder">
+              <div id="audience-filter-rows"></div>
+              <button type="button" class="btn btn-secondary btn-sm af-add-btn" onclick="addAudienceFilterRow()">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                Add Filter
+              </button>
+            </div>
+            <small class="form-help">Narrow your audience with attribute-based conditions.</small>
           </div>
         </div>
         
@@ -6357,6 +8388,7 @@ function renderAudienceForm(audience = null) {
   // Load segments for dropdowns
   loadSegmentsForAudience(audience?.segment_id, audience?.include_segments || [], audience?.exclude_segments || []);
   updateAudienceTypeUI();
+  renderAudienceFilterRows();
 
   // Close pickers on outside click
   document.addEventListener('click', (e) => {
@@ -6502,7 +8534,9 @@ function updateSegmentHiddenInputs() {
   const excludeInput = document.getElementById('audience-exclude-segment-ids');
   if (includeInput) includeInput.value = Array.from(audienceCombinedState.include).join(',');
   if (excludeInput) excludeInput.value = Array.from(audienceCombinedState.exclude).join(',');
-  if (document.getElementById('audience-estimated-size')) {
+  // Only auto-estimate for combined type when segments are actively changed
+  const type = document.getElementById('audience-type')?.value;
+  if (type === 'combined' && document.getElementById('audience-estimated-size')) {
     debounce('audienceEstimate', () => refreshAudienceEstimate(true), 500);
   }
 }
@@ -6531,12 +8565,9 @@ async function refreshAudienceEstimate(silent = false) {
     payload = {
       segment_id: document.getElementById('audience-segment')?.value || null
     };
-    try {
-      const filtersText = document.getElementById('audience-filters')?.value?.trim() || '';
-      if (filtersText) payload.filters = JSON.parse(filtersText);
-    } catch (error) {
-      if (!silent) showToast('Invalid JSON in filters field', 'error');
-      return;
+    const filters = getAudienceFiltersJSON();
+    if (Object.keys(filters).length > 0) {
+      payload.filters = filters;
     }
   }
   
@@ -6548,8 +8579,19 @@ async function refreshAudienceEstimate(silent = false) {
     });
     const data = await response.json();
     if (!response.ok) throw new Error(data.error || 'Failed to calculate');
-    estimatedInput.value = data.count || 0;
-    if (!silent) showToast('Estimated size updated', 'success');
+    
+    const newCount = data.count != null ? data.count : 0;
+    estimatedInput.value = newCount;
+    
+    // Visual flash to indicate the value was updated
+    estimatedInput.style.transition = 'background-color 0.3s ease';
+    estimatedInput.style.backgroundColor = '#d1fae5';
+    setTimeout(() => { estimatedInput.style.backgroundColor = ''; }, 1200);
+    
+    if (!silent) {
+      const formatted = newCount.toLocaleString();
+      showToast(`Estimated size: ${formatted} contacts`, 'success');
+    }
   } catch (error) {
     if (!silent) showToast(error.message, 'error');
   }
@@ -6562,15 +8604,7 @@ async function handleAudienceSubmit(event) {
   const type = document.getElementById('audience-type').value;
   let filters = {};
   if (type !== 'combined') {
-    try {
-      const filtersText = document.getElementById('audience-filters').value.trim();
-      if (filtersText) {
-        filters = JSON.parse(filtersText);
-      }
-    } catch (error) {
-      showToast('Invalid JSON in filters field', 'error');
-      return;
-    }
+    filters = getAudienceFiltersJSON();
   }
   const includeSegmentsInput = document.getElementById('audience-include-segment-ids');
   const excludeSegmentsInput = document.getElementById('audience-exclude-segment-ids');
@@ -6625,6 +8659,8 @@ async function handleAudienceSubmit(event) {
 // Query Service
 let queryServiceTables = [];
 let queryAggregateState = [];
+/** Selected field names for the current table (empty = * all) */
+let queryServiceSelectedFields = [];
 
 async function loadQueryService() {
   showLoading();
@@ -6649,13 +8685,14 @@ async function loadQueryService() {
           <div class="form-grid">
             <div class="form-group">
               <label class="form-label">Table</label>
-              <select id="query-table" class="form-input" onchange="updateQueryFieldsHint()">
+              <select id="query-table" class="form-input" onchange="queryServiceOnTableChange()">
                 ${tableOptions}
               </select>
             </div>
             <div class="form-group">
-              <label class="form-label">Fields (comma-separated)</label>
-              <input type="text" id="query-fields" class="form-input" placeholder="e.g., id, email, status">
+              <label class="form-label">Fields</label>
+              <small class="form-help">Select fields to return, or leave empty for * (all).</small>
+              <div id="query-fields-container" class="query-fields-picker"></div>
             </div>
             <div class="form-group">
               <label class="form-label">Order By</label>
@@ -6687,6 +8724,7 @@ async function loadQueryService() {
 
           <div class="form-group">
             <label class="form-label">Aggregates</label>
+            <small class="form-help" style="display:block;margin-bottom:6px;">Choose function and field, then click <strong>Add aggregate</strong> to include it in the query (required for Group By counts).</small>
             <div class="form-inline">
               <select id="query-agg-fn" class="form-input">
                 <option value="count">count</option>
@@ -6695,18 +8733,23 @@ async function loadQueryService() {
                 <option value="min">min</option>
                 <option value="max">max</option>
               </select>
-              <input type="text" id="query-agg-field" class="form-input" placeholder="field (e.g., engagement_score)">
+              <input type="text" id="query-agg-field" class="form-input" placeholder="field (e.g. id or *)">
               <input type="text" id="query-agg-alias" class="form-input" placeholder="alias (optional)">
-              <button type="button" class="btn btn-secondary" onclick="addAggregate()">Add</button>
+              <button type="button" class="btn btn-primary btn-sm" onclick="addAggregate()">Add aggregate</button>
             </div>
             <div id="query-agg-list" class="form-help" style="margin-top: 0.5rem;">No aggregates added.</div>
           </div>
 
           <div class="form-group">
             <label class="form-label">Group By (comma-separated)</label>
-            <input type="text" id="query-group-by" class="form-input" placeholder="e.g., status, subscription_status">
+            <input type="text" id="query-group-by" class="form-input" placeholder="e.g., status, subscription_status" oninput="renderAggregateList()">
           </div>
           
+          <div class="form-group">
+            <label class="form-label">Current query (SQL)</label>
+            <pre id="query-sql-preview" class="query-sql-preview code-block">—</pre>
+            <small class="form-help">Shows the equivalent SQL; synced when you run from Structured or SQL tab.</small>
+          </div>
           <div class="form-actions">
             <button type="button" class="btn btn-secondary" onclick="runQueryService()">Run Query</button>
           </div>
@@ -6732,7 +8775,10 @@ async function loadQueryService() {
         </div>
         
         <div class="form-section">
-          <h3 class="form-section-title">Results</h3>
+          <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:8px;">
+            <h3 class="form-section-title" style="margin:0;">Results</h3>
+            <button type="button" class="btn btn-outline btn-sm" onclick="clearQueryResults()">Clear results</button>
+          </div>
           <div id="query-results-summary" class="form-help">No results yet.</div>
           <div class="data-table-container" id="query-results-table"></div>
           <pre class="code-block" id="query-results-json" style="margin-top: 1rem; max-height: 300px; overflow: auto;"></pre>
@@ -6742,9 +8788,11 @@ async function loadQueryService() {
     
     document.getElementById('content').innerHTML = content;
     queryAggregateState = [];
+    queryServiceSelectedFields = [];
     renderAggregateList();
     setQueryMode('builder');
     updateQueryFieldsHint();
+    renderQueryFieldsPicker();
     renderQueryTableSchema();
   } catch (error) {
     showToast(error.message, 'error');
@@ -6761,6 +8809,149 @@ function updateQueryFieldsHint() {
   if (!entry) return;
   const fields = (entry.fields || []).slice(0, 12).join(', ');
   hint.textContent = fields ? `Example fields: ${fields}` : 'Use field names from the selected table.';
+}
+
+function renderQueryFieldsPicker() {
+  const container = document.getElementById('query-fields-container');
+  if (!container) return;
+  const table = document.getElementById('query-table')?.value;
+  const entry = queryServiceTables.find(t => t.name === table);
+  const available = (entry?.fields || []).filter(f => !queryServiceSelectedFields.includes(f));
+
+  const selectedTags = queryServiceSelectedFields.length === 0
+    ? '<div class="query-fields-empty">No fields selected — query will return * (all columns).</div>'
+    : `<div class="query-fields-selected">
+         ${queryServiceSelectedFields.map(f => `
+           <span class="filter-tag query-field-tag">
+             <span class="filter-tag-label">${escapeHtml(f)}</span>
+             <button type="button" class="filter-tag-remove" data-field="${escapeHtml(f)}" onclick="queryServiceRemoveFieldFromEl(this)" aria-label="Remove">×</button>
+           </span>
+         `).join('')}
+       </div>`;
+
+  const isDisabled = !entry || available.length === 0;
+  const triggerLabel = !entry
+    ? 'Select a table first'
+    : available.length === 0
+      ? 'All fields selected'
+      : 'Add attributes…';
+
+  const checkboxesHtml = available.length === 0
+    ? ''
+    : `
+      <div class="query-fields-multi-actions">
+        <button type="button" class="btn btn-sm btn-outline" onclick="queryServiceSelectAllAvailable()">Select all</button>
+        <button type="button" class="btn btn-sm btn-outline" onclick="queryServiceClearMultiCheckboxes()">Clear</button>
+      </div>
+      <div class="query-fields-multi-list">
+        ${available.map(f => `
+          <label class="query-fields-multi-option">
+            <input type="checkbox" class="query-fields-multi-cb" data-field="${escapeHtml(f)}" value="${escapeHtml(f)}">
+            <span>${escapeHtml(f)}</span>
+          </label>
+        `).join('')}
+      </div>
+      <div class="query-fields-multi-footer">
+        <button type="button" class="btn btn-primary btn-sm" onclick="queryServiceAddCheckedFields()">Add selected</button>
+      </div>
+    `;
+
+  container.innerHTML = `
+    <div class="query-fields-row">
+      <div class="query-fields-dropdown-wrap">
+        <button type="button" id="query-fields-multi-trigger" class="form-input query-fields-multi-trigger" ${isDisabled ? 'disabled' : ''} onclick="queryServiceToggleMultiDropdown()">
+          ${triggerLabel}
+          <span class="query-fields-multi-caret">▾</span>
+        </button>
+        <div id="query-fields-multi-panel" class="query-fields-multi-panel hidden">
+          ${checkboxesHtml}
+        </div>
+      </div>
+    </div>
+    <div class="query-fields-tags-wrap">
+      ${selectedTags}
+    </div>
+  `;
+}
+
+function queryServiceToggleMultiDropdown() {
+  const panel = document.getElementById('query-fields-multi-panel');
+  if (!panel) return;
+  const isHidden = panel.classList.contains('hidden');
+  if (isHidden) {
+    panel.classList.remove('hidden');
+    document.addEventListener('click', queryServiceCloseMultiDropdownOnClickOutside);
+  } else {
+    panel.classList.add('hidden');
+    document.removeEventListener('click', queryServiceCloseMultiDropdownOnClickOutside);
+  }
+}
+
+function queryServiceCloseMultiDropdownOnClickOutside(e) {
+  const panel = document.getElementById('query-fields-multi-panel');
+  const trigger = document.getElementById('query-fields-multi-trigger');
+  if (!panel || !trigger) return;
+  if (panel.contains(e.target) || trigger.contains(e.target)) return;
+  panel.classList.add('hidden');
+  document.removeEventListener('click', queryServiceCloseMultiDropdownOnClickOutside);
+}
+
+function queryServiceAddCheckedFields() {
+  const checkboxes = document.querySelectorAll('.query-fields-multi-cb:checked');
+  const table = document.getElementById('query-table')?.value;
+  const entry = queryServiceTables.find(t => t.name === table);
+  const toAdd = [];
+  checkboxes.forEach(cb => {
+    const name = cb.getAttribute('data-field');
+    if (name && entry?.fields?.includes(name) && !queryServiceSelectedFields.includes(name)) toAdd.push(name);
+  });
+  queryServiceSelectedFields.push(...toAdd);
+  document.getElementById('query-fields-multi-panel')?.classList.add('hidden');
+  document.removeEventListener('click', queryServiceCloseMultiDropdownOnClickOutside);
+  renderQueryFieldsPicker();
+}
+
+function queryServiceSelectAllAvailable() {
+  document.querySelectorAll('.query-fields-multi-cb').forEach(cb => { cb.checked = true; });
+}
+
+function queryServiceClearMultiCheckboxes() {
+  document.querySelectorAll('.query-fields-multi-cb').forEach(cb => { cb.checked = false; });
+}
+
+function escapeHtml(s) {
+  const div = document.createElement('div');
+  div.textContent = s;
+  return div.innerHTML.replace(/'/g, '&#39;');
+}
+
+function queryServiceAddField(fieldName) {
+  const table = document.getElementById('query-table')?.value;
+  const entry = queryServiceTables.find(t => t.name === table);
+  if (!entry?.fields?.includes(fieldName) || queryServiceSelectedFields.includes(fieldName)) return;
+  queryServiceSelectedFields.push(fieldName);
+  renderQueryFieldsPicker();
+}
+
+function queryServiceAddFieldFromEl(btn) {
+  const name = btn.getAttribute('data-field');
+  if (name) queryServiceAddField(name);
+}
+
+function queryServiceRemoveField(fieldName) {
+  queryServiceSelectedFields = queryServiceSelectedFields.filter(f => f !== fieldName);
+  renderQueryFieldsPicker();
+}
+
+function queryServiceRemoveFieldFromEl(btn) {
+  const name = btn.getAttribute('data-field');
+  if (name) queryServiceRemoveField(name);
+}
+
+function queryServiceOnTableChange() {
+  queryServiceSelectedFields = [];
+  renderQueryFieldsPicker();
+  updateQueryFieldsHint();
 }
 
 function addAggregate() {
@@ -6786,8 +8977,14 @@ function removeAggregate(index) {
 function renderAggregateList() {
   const container = document.getElementById('query-agg-list');
   if (!container) return;
+  const groupByEl = document.getElementById('query-group-by');
+  const hasGroupBy = groupByEl && groupByEl.value.trim().length > 0;
   if (!queryAggregateState.length) {
-    container.innerHTML = 'No aggregates added.';
+    let msg = 'No aggregates added.';
+    if (hasGroupBy) {
+      msg += ' <span class="query-agg-warn">Group By is set — add an aggregate (e.g. count) above and click "Add aggregate" to get counts per group.</span>';
+    }
+    container.innerHTML = msg;
     return;
   }
   container.innerHTML = queryAggregateState.map((agg, idx) => {
@@ -6856,11 +9053,15 @@ function setQueryMode(mode) {
   sqlBtn.classList.toggle('btn-primary', isSql);
   builderBtn.classList.toggle('btn-secondary', isSql);
   sqlBtn.classList.toggle('btn-secondary', !isSql);
+  if (!isSql) {
+    const sqlInput = document.getElementById('query-sql-input');
+    const sqlPreview = document.getElementById('query-sql-preview');
+    if (sqlPreview && sqlInput) sqlPreview.textContent = sqlInput.value.trim() || '—';
+  }
 }
 
 async function runQueryService() {
   const table = document.getElementById('query-table').value;
-  const fieldsText = document.getElementById('query-fields').value.trim();
   const orderBy = document.getElementById('query-order-by').value.trim();
   const direction = document.getElementById('query-order-direction').value;
   const limit = parseInt(document.getElementById('query-limit').value, 10) || 50;
@@ -6882,10 +9083,18 @@ async function runQueryService() {
     limit,
     offset
   };
-  if (fieldsText) payload.fields = fieldsText.split(',').map(f => f.trim()).filter(Boolean);
+  if (queryServiceSelectedFields.length > 0) {
+    payload.fields = queryServiceSelectedFields.slice();
+  }
   if (orderBy) payload.orderBy = { field: orderBy, direction };
   if (groupByText) payload.groupBy = groupByText.split(',').map(f => f.trim()).filter(Boolean);
   if (queryAggregateState.length) payload.aggregates = queryAggregateState;
+
+  const sqlFromStructured = buildSqlFromStructuredPayload(payload);
+  const sqlInput = document.getElementById('query-sql-input');
+  const sqlPreview = document.getElementById('query-sql-preview');
+  if (sqlInput) sqlInput.value = sqlFromStructured;
+  if (sqlPreview) sqlPreview.textContent = sqlFromStructured || '—';
   
   showLoading();
   try {
@@ -6911,6 +9120,8 @@ async function runSqlQuery() {
     showToast('Enter a SQL query', 'warning');
     return;
   }
+  const sqlPreview = document.getElementById('query-sql-preview');
+  if (sqlPreview) sqlPreview.textContent = sql;
   showLoading();
   try {
     const response = await fetch(`${API_BASE}/query/sql`, {
@@ -6926,6 +9137,67 @@ async function runSqlQuery() {
   } finally {
     hideLoading();
   }
+}
+
+function clearQueryResults() {
+  const summary = document.getElementById('query-results-summary');
+  const tableContainer = document.getElementById('query-results-table');
+  const jsonContainer = document.getElementById('query-results-json');
+  if (summary) summary.textContent = 'No results yet.';
+  if (tableContainer) tableContainer.innerHTML = '';
+  if (jsonContainer) jsonContainer.textContent = '';
+}
+
+function buildSqlFromStructuredPayload(payload) {
+  const table = payload.table;
+  if (!table) return '';
+  const fields = payload.fields && payload.fields.length ? payload.fields : ['*'];
+  const hasAggregates = payload.aggregates && payload.aggregates.length;
+  const selectList = hasAggregates
+    ? [
+        ...(payload.groupBy || []),
+        ...payload.aggregates.map(a => {
+          const expr = a.field ? `${a.fn}(${a.field})` : `${a.fn}(*)`;
+          return a.alias ? `${expr} as ${a.alias}` : expr;
+        })
+      ]
+    : fields;
+  const selectClause = selectList.length ? selectList.join(', ') : '*';
+  let sql = `SELECT ${selectClause} FROM ${table}`;
+
+  const filters = payload.filters || {};
+  const whereParts = [];
+  Object.entries(filters).forEach(([key, cond]) => {
+    if (cond === null || cond === undefined) return;
+    if (typeof cond === 'object' && !Array.isArray(cond)) {
+      if (cond.$gte !== undefined) whereParts.push(`${key} >= ${formatSqlValue(cond.$gte)}`);
+      else if (cond.$gt !== undefined) whereParts.push(`${key} > ${formatSqlValue(cond.$gt)}`);
+      else if (cond.$lte !== undefined) whereParts.push(`${key} <= ${formatSqlValue(cond.$lte)}`);
+      else if (cond.$lt !== undefined) whereParts.push(`${key} < ${formatSqlValue(cond.$lt)}`);
+      else if (cond.$ne !== undefined) whereParts.push(`${key} != ${formatSqlValue(cond.$ne)}`);
+      else if (cond.$contains !== undefined) whereParts.push(`${key} contains ${formatSqlValue(cond.$contains)}`);
+      else if (Array.isArray(cond.$in)) whereParts.push(`${key} in (${cond.$in.map(formatSqlValue).join(', ')})`);
+    } else {
+      whereParts.push(`${key} = ${formatSqlValue(cond)}`);
+    }
+  });
+  if (whereParts.length) sql += ' WHERE ' + whereParts.join(' AND ');
+
+  if (payload.groupBy && payload.groupBy.length) sql += ' GROUP BY ' + payload.groupBy.join(', ');
+  if (payload.orderBy && payload.orderBy.field) {
+    const dir = (payload.orderBy.direction || 'asc').toLowerCase();
+    sql += ` ORDER BY ${payload.orderBy.field} ${dir}`;
+  }
+  sql += ` LIMIT ${Math.max(1, parseInt(payload.limit, 10) || 50)}`;
+  if (payload.offset) sql += ` OFFSET ${Math.max(0, parseInt(payload.offset, 10))}`;
+  return sql + ';';
+}
+
+function formatSqlValue(v) {
+  if (v === null || v === undefined) return 'null';
+  if (typeof v === 'number') return String(v);
+  if (typeof v === 'boolean') return v ? 'true' : 'false';
+  return "'" + String(v).replace(/'/g, "''") + "'";
 }
 
 function renderQueryResults(data) {

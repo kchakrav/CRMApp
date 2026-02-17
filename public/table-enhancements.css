@@ -12,21 +12,58 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: var(--spacing-300) var(--spacing-400);
-  gap: var(--spacing-400);
+  padding: var(--spacing-200) var(--spacing-400);
+  gap: var(--spacing-300);
 }
 
-.table-toolbar-left {
+.toolbar-left {
   display: flex;
   align-items: center;
   gap: var(--spacing-300);
-  flex: 1;
 }
 
-.table-toolbar-right {
-  display: flex;
+/* Filter funnel button */
+.toolbar-filter-btn {
+  display: inline-flex;
   align-items: center;
-  gap: var(--spacing-300);
+  justify-content: center;
+  position: relative;
+  background: none;
+  border: 1px solid var(--border-medium);
+  color: var(--text-secondary);
+  padding: 6px 8px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.toolbar-filter-btn:hover {
+  background: var(--gray-100);
+  border-color: var(--border-dark);
+  color: var(--text-primary);
+}
+
+.toolbar-filter-btn.has-active {
+  border-color: var(--blue-500);
+  color: var(--blue-500);
+}
+
+.toolbar-filter-badge {
+  position: absolute;
+  top: -5px;
+  right: -5px;
+  background: var(--blue-500);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 600;
+  min-width: 16px;
+  height: 16px;
+  line-height: 16px;
+  text-align: center;
+  border-radius: 8px;
+  padding: 0 4px;
 }
 
 /* Inline Search */
@@ -41,7 +78,7 @@
   border: 1px solid var(--border-default);
   border-radius: 4px;
   font-size: var(--font-size-sm);
-  min-width: 200px;
+  width: 260px;
   transition: border-color var(--transition-fast);
 }
 
@@ -111,7 +148,7 @@
   min-width: 150px;
 }
 
-/* Browse/Templates Tabs */
+/* Browse/Templates Tabs (legacy, kept for compatibility) */
 .table-tabs {
   display: flex;
   gap: var(--spacing-300);
