@@ -44,9 +44,32 @@ function resolveCollection(collectionId) {
     }
   }
 
-  return [...matchingOfferIds]
+  let results = [...matchingOfferIds]
     .map(oid => query.get('offers', oid))
     .filter(o => o && o.status === 'live' && o.type === 'personalized');
+
+  // Apply attribute-based conditions if defined
+  const conditions = collection.attribute_conditions || [];
+  if (conditions.length > 0) {
+    results = results.filter(offer => {
+      const attrs = offer.custom_attributes || {};
+      return conditions.every(cond => {
+        const val = attrs[cond.attribute];
+        const target = cond.value;
+        switch (cond.operator) {
+          case 'equals': return String(val) === String(target);
+          case 'not_equals': return String(val) !== String(target);
+          case 'contains': return val != null && String(val).toLowerCase().includes(String(target).toLowerCase());
+          case 'gt': return Number(val) > Number(target);
+          case 'lt': return Number(val) < Number(target);
+          case 'exists': return val != null && val !== '';
+          default: return true;
+        }
+      });
+    });
+  }
+
+  return results;
 }
 
 /** Check if offer is within its valid date range */
@@ -59,18 +82,36 @@ function isWithinDateRange(offer) {
 
 /** Evaluate eligibility rule against a contact profile */
 function evaluateEligibility(ruleId, contact) {
-  if (!ruleId) return true; // No rule = everyone eligible
+  if (!ruleId) return true;
 
   const rule = query.get('decision_rules', ruleId);
   if (!rule || !rule.conditions || rule.conditions.length === 0) return true;
 
-  const logic = rule.logic || 'AND';
+  const hasMixedConnectors = rule.conditions.some(c => c.connector);
 
+  if (hasMixedConnectors || rule.logic === 'MIXED') {
+    // Per-condition connectors: split into AND-groups separated by OR.
+    // AND binds tighter than OR, so: A AND B OR C AND D = (A AND B) OR (C AND D)
+    const groups = [[]];
+    rule.conditions.forEach((cond, i) => {
+      if (i > 0 && (cond.connector || 'AND') === 'OR') {
+        groups.push([]);
+      }
+      groups[groups.length - 1].push(cond);
+    });
+    return groups.some(group =>
+      group.every(cond => {
+        const value = getNestedValue(contact, cond.entity, cond.attribute);
+        return evaluateCondition(value, cond.operator, cond.value);
+      })
+    );
+  }
+
+  const logic = rule.logic || 'AND';
   const results = rule.conditions.map(cond => {
     const value = getNestedValue(contact, cond.entity, cond.attribute);
     return evaluateCondition(value, cond.operator, cond.value);
   });
-
   return logic === 'AND' ? results.every(Boolean) : results.some(Boolean);
 }
 
@@ -124,6 +165,19 @@ function evaluateCondition(actual, operator, expected) {
   }
 }
 
+/** Evaluate audience/segment-based eligibility */
+function evaluateAudienceEligibility(contact, audienceIds, logic = 'OR') {
+  if (!audienceIds || audienceIds.length === 0) return true;
+  const segments = query.all('segments');
+  const results = audienceIds.map(segId => {
+    const segment = segments.find(s => s.id === segId);
+    if (!segment) return false;
+    // Simple membership check - in a real system this would evaluate segment conditions
+    return true; // Assume contact is in all segments for simulation
+  });
+  return logic === 'AND' ? results.every(Boolean) : results.some(Boolean);
+}
+
 /** Check constraint caps */
 function checkConstraints(offer, contactId, placementId) {
   const constraint = query.get('offer_constraints', c => c.offer_id === offer.id);
@@ -157,41 +211,167 @@ function checkConstraints(offer, contactId, placementId) {
     }
   }
 
+  // Advanced capping rules (GAP 3)
+  if (constraint.capping_rules && Array.isArray(constraint.capping_rules)) {
+    const events = query.all('offer_events');
+    for (const rule of constraint.capping_rules) {
+      let relevantCount = 0;
+      if (rule.event === 'decision') {
+        const pool = rule.cap_type === 'per_profile'
+          ? propositions.filter(p => p.contact_id === contactId)
+          : propositions;
+        relevantCount = filterByResetPeriod(pool, rule.reset_period, rule.reset_count).length;
+      } else {
+        const offerEvents = events.filter(e => {
+          const prop = query.get('offer_propositions', e.proposition_id);
+          if (!prop || prop.offer_id !== offer.id) return false;
+          if (rule.cap_type === 'per_profile' && prop.contact_id !== contactId) return false;
+          return e.event_type === rule.event;
+        });
+        relevantCount = filterByResetPeriod(offerEvents, rule.reset_period, rule.reset_count).length;
+      }
+      let effectiveLimit = rule.limit;
+      if (rule.limit_expression) {
+        try {
+          const attrs = offer.custom_attributes || {};
+          const expr = rule.limit_expression
+            .replace(/\b([a-zA-Z_]\w*)\b/g, (m) => attrs[m] !== undefined ? Number(attrs[m]) : m);
+          effectiveLimit = Math.floor(Function('"use strict"; return (' + expr + ')')());
+        } catch (_e) { effectiveLimit = rule.limit || 10; }
+      }
+      if (effectiveLimit && relevantCount >= effectiveLimit) return false;
+    }
+  }
+
   return true;
 }
 
-function getPeriodStart(period) {
+function filterByResetPeriod(items, period, count) {
+  if (!period || period === 'none') return items;
+  const start = getPeriodStart(period, count || 1);
+  return items.filter(item => {
+    const ts = item.timestamp || item.created_at;
+    return ts && new Date(ts) >= start;
+  });
+}
+
+function getPeriodStart(period, count = 1) {
   const now = new Date();
+  const n = Math.max(1, count || 1);
   switch (period) {
-    case 'daily': return new Date(now.getFullYear(), now.getMonth(), now.getDate());
-    case 'weekly': {
+    case 'daily': {
       const d = new Date(now);
-      d.setDate(d.getDate() - d.getDay());
+      d.setDate(d.getDate() - (n - 1));
       d.setHours(0, 0, 0, 0);
       return d;
     }
-    case 'monthly': return new Date(now.getFullYear(), now.getMonth(), 1);
+    case 'weekly': {
+      const d = new Date(now);
+      d.setDate(d.getDate() - d.getDay() - (n - 1) * 7);
+      d.setHours(0, 0, 0, 0);
+      return d;
+    }
+    case 'monthly': {
+      const d = new Date(now.getFullYear(), now.getMonth() - (n - 1), 1);
+      return d;
+    }
     default: return new Date(0);
   }
+}
+
+// ── Arbitration helpers ──
+
+/** Apply tiebreak when multiple offers have the same score/priority */
+function applyTiebreak(offers, tiebreakRule, contactId) {
+  if (offers.length <= 1) return offers;
+  switch (tiebreakRule) {
+    case 'most_recent':
+      return [...offers].sort((a, b) => {
+        const aDate = new Date(a.updated_at || a.created_at || 0);
+        const bDate = new Date(b.updated_at || b.created_at || 0);
+        return bDate - aDate;
+      });
+    case 'least_shown': {
+      const propCounts = {};
+      for (const o of offers) {
+        propCounts[o.id] = query.count('offer_propositions', p =>
+          p.offer_id === o.id && p.contact_id === contactId
+        );
+      }
+      return [...offers].sort((a, b) => (propCounts[a.id] || 0) - (propCounts[b.id] || 0));
+    }
+    case 'offer_id_asc':
+      return [...offers].sort((a, b) => a.id - b.id);
+    case 'random':
+    default:
+      return [...offers].sort(() => Math.random() - 0.5);
+  }
+}
+
+/** Check suppression window — skip offers shown to this contact recently */
+function isWithinSuppressionWindow(offerId, contactId, windowHours) {
+  if (!windowHours || windowHours <= 0) return false;
+  const cutoff = new Date(Date.now() - windowHours * 60 * 60 * 1000);
+  const recentProp = query.get('offer_propositions', p =>
+    p.offer_id === offerId &&
+    p.contact_id === contactId &&
+    new Date(p.timestamp) >= cutoff
+  );
+  return !!recentProp;
+}
+
+/** Compute weighted arbitration score */
+function computeArbitrationScore(offer, contactId, arb) {
+  const priorityW = (arb.priority_weight || 60) / 100;
+  const recencyW = (arb.recency_weight || 20) / 100;
+  const perfW = (arb.performance_weight || 20) / 100;
+
+  // Priority score (0–100)
+  const priorityScore = offer.priority || 0;
+
+  // Recency score: newer offers score higher (based on created_at)
+  const age = (Date.now() - new Date(offer.created_at || 0).getTime()) / (1000 * 60 * 60 * 24);
+  const recencyScore = Math.max(0, 100 - age);
+
+  // Performance score: based on historical proposition outcomes
+  const props = query.all('offer_propositions', p => p.offer_id === offer.id);
+  const total = props.length || 1;
+  const clicks = props.filter(p => p.status === 'clicked' || p.status === 'converted').length;
+  const perfScore = (clicks / total) * 100;
+
+  return priorityScore * priorityW + recencyScore * recencyW + perfScore * perfW;
 }
 
 // ── Main resolve function ──
 
 /**
- * Resolve the best offers for a contact given a decision
+ * Resolve the best offers for a contact given a decision.
+ * Applies arbitration rules for cross-placement deduplication,
+ * suppression windows, global offer limits, and tiebreaking.
  * @param {number} contactId
  * @param {number} decisionId
  * @param {Object} contextData - real-time context (weather, device, time, etc.)
- * @returns {Object} { placements: [{ placement, offers: [...], fallback_used }] }
+ * @param {boolean} [traceMode=false] - if true, returns detailed arbitration trace
+ * @returns {Object} { placements: [{ placement, offers: [...], fallback_used }], arbitration_trace? }
  */
-function resolve(contactId, decisionId, contextData = {}) {
+function resolve(contactId, decisionId, contextData = {}, traceMode = false) {
   const decision = query.get('decisions', decisionId);
   if (!decision) throw new Error('Decision not found');
 
   const contact = query.get('contacts', contactId);
   if (!contact) throw new Error('Contact not found');
 
+  const arb = decision.arbitration || {};
+  const dedupPolicy = arb.dedup_policy || 'no_duplicates';
+  const tiebreakRule = arb.tiebreak_rule || 'random';
+  const arbMethod = arb.method || 'priority_order';
+  const suppressionHours = arb.suppression_window_hours || 0;
+  const globalLimit = arb.global_offer_limit || 0;
+
   const results = [];
+  const usedOfferIds = new Set(); // for cross-placement deduplication
+  let totalOffersSelected = 0;
+  const trace = traceMode ? [] : null;
 
   for (const slotConfig of (decision.placement_configs || [])) {
     const placement = query.get('placements', slotConfig.placement_id);
@@ -202,46 +382,112 @@ function resolve(contactId, decisionId, contextData = {}) {
       : null;
 
     let qualifiedOffers = [];
+    const slotTrace = traceMode ? {
+      placement_id: placement.id,
+      placement_name: placement.name,
+      steps: []
+    } : null;
 
     if (strategy) {
       // 1. Resolve collection
       let candidates = strategy.collection_id
         ? resolveCollection(strategy.collection_id)
         : query.all('offers', o => o.status === 'live' && o.type === 'personalized');
+      if (slotTrace) slotTrace.steps.push({ step: 'collection_resolve', count: candidates.length, detail: `${candidates.length} candidate(s) from collection` });
 
       // 2. Filter by date range
+      const beforeDate = candidates.length;
       candidates = candidates.filter(isWithinDateRange);
+      if (slotTrace) slotTrace.steps.push({ step: 'date_range', count: candidates.length, removed: beforeDate - candidates.length });
 
       // 3. Filter offers that have a representation for this placement
       const reps = query.all('offer_representations', r => r.placement_id === placement.id);
       const repOfferIds = new Set(reps.map(r => r.offer_id));
+      const beforeRep = candidates.length;
       candidates = candidates.filter(o => repOfferIds.has(o.id));
+      if (slotTrace) slotTrace.steps.push({ step: 'representation_check', count: candidates.length, removed: beforeRep - candidates.length });
 
-      // 4. Apply eligibility rule
-      if (strategy.eligibility_rule_id) {
+      // 4. Strategy eligibility (rule-based or audience-based)
+      if (strategy.eligibility_type === 'audiences' && strategy.eligibility_audience_ids?.length > 0) {
+        const beforeElig = candidates.length;
+        const eligible = evaluateAudienceEligibility(contact, strategy.eligibility_audience_ids, strategy.audience_logic);
+        if (!eligible) candidates = [];
+        if (slotTrace) slotTrace.steps.push({ step: 'strategy_eligibility', count: candidates.length, removed: beforeElig - candidates.length, detail: `Audience-based (${strategy.audience_logic})` });
+      } else if (strategy.eligibility_rule_id) {
+        const beforeElig = candidates.length;
         candidates = candidates.filter(o => evaluateEligibility(strategy.eligibility_rule_id, contact));
+        if (slotTrace) slotTrace.steps.push({ step: 'strategy_eligibility', count: candidates.length, removed: beforeElig - candidates.length });
       }
 
-      // Also apply per-offer eligibility rules
+      // 5. Per-offer eligibility (rule-based or audience-based)
+      const beforeOfferElig = candidates.length;
       candidates = candidates.filter(o => {
+        if (o.eligibility_type === 'audiences' && o.eligibility_audience_ids?.length > 0) {
+          return evaluateAudienceEligibility(contact, o.eligibility_audience_ids, o.audience_logic);
+        }
         if (!o.eligibility_rule_id) return true;
         return evaluateEligibility(o.eligibility_rule_id, contact);
       });
+      if (slotTrace) slotTrace.steps.push({ step: 'offer_eligibility', count: candidates.length, removed: beforeOfferElig - candidates.length });
 
-      // 5. Apply constraint checks
+      // 6. Constraint checks (capping)
+      const beforeCap = candidates.length;
       candidates = candidates.filter(o => checkConstraints(o, contactId, placement.id));
+      if (slotTrace) slotTrace.steps.push({ step: 'capping_constraints', count: candidates.length, removed: beforeCap - candidates.length });
 
-      // 6. Rank
-      qualifiedOffers = rankOffers(candidates, strategy.ranking_method || 'priority', {
-        formulaId: strategy.ranking_formula_id,
-        modelId: strategy.ranking_model_id,
-        profile: contact,
-        context: contextData
-      });
+      // ── ARBITRATION: Suppression window ──
+      if (suppressionHours > 0) {
+        const beforeSup = candidates.length;
+        candidates = candidates.filter(o => !isWithinSuppressionWindow(o.id, contactId, suppressionHours));
+        if (slotTrace) slotTrace.steps.push({ step: 'suppression_window', count: candidates.length, removed: beforeSup - candidates.length, detail: `${suppressionHours}h window` });
+      }
+
+      // ── ARBITRATION: Cross-placement deduplication ──
+      if (dedupPolicy === 'no_duplicates' && usedOfferIds.size > 0) {
+        const beforeDedup = candidates.length;
+        candidates = candidates.filter(o => !usedOfferIds.has(o.id));
+        if (slotTrace) slotTrace.steps.push({ step: 'deduplication', count: candidates.length, removed: beforeDedup - candidates.length, detail: `Removed offers already used in prior placements` });
+      }
+
+      // ── ARBITRATION: Global offer limit ──
+      if (globalLimit > 0 && totalOffersSelected >= globalLimit) {
+        candidates = [];
+        if (slotTrace) slotTrace.steps.push({ step: 'global_limit', count: 0, detail: `Global limit of ${globalLimit} already reached` });
+      }
+
+      // 7. Rank (using arbitration method)
+      if (arbMethod === 'weighted_score') {
+        qualifiedOffers = candidates.map(o => ({
+          ...o,
+          _score: computeArbitrationScore(o, contactId, arb)
+        })).sort((a, b) => b._score - a._score);
+        qualifiedOffers = applyTiebreak(qualifiedOffers, tiebreakRule, contactId);
+      } else if (arbMethod === 'ai_optimized') {
+        qualifiedOffers = rankOffers(candidates, 'ai', {
+          profile: contact,
+          context: contextData
+        });
+        qualifiedOffers = applyTiebreak(qualifiedOffers, tiebreakRule, contactId);
+      } else {
+        // priority_order (default) — use strategy ranking method
+        qualifiedOffers = rankOffers(candidates, strategy.ranking_method || 'priority', {
+          formulaId: strategy.ranking_formula_id,
+          modelId: strategy.ranking_model_id,
+          profile: contact,
+          context: contextData
+        });
+        qualifiedOffers = applyTiebreak(qualifiedOffers, tiebreakRule, contactId);
+      }
+
+      if (slotTrace) slotTrace.steps.push({ step: 'ranking', count: qualifiedOffers.length, detail: `Method: ${arbMethod}, tiebreak: ${tiebreakRule}` });
     }
 
-    // Limit to placement max_items
-    const maxItems = placement.max_items || 1;
+    // Limit to placement max_items (and global limit)
+    let maxItems = placement.max_items || 1;
+    if (globalLimit > 0) {
+      maxItems = Math.min(maxItems, globalLimit - totalOffersSelected);
+      if (maxItems <= 0) maxItems = 0;
+    }
     const topOffers = qualifiedOffers.slice(0, maxItems);
 
     let fallbackUsed = false;
@@ -253,7 +499,14 @@ function resolve(contactId, decisionId, contextData = {}) {
       if (fallback) {
         finalOffers = [fallback];
         fallbackUsed = true;
+        if (slotTrace) slotTrace.steps.push({ step: 'fallback', detail: `Using fallback offer: ${fallback.name}` });
       }
+    }
+
+    // Track used offers for deduplication
+    for (const o of finalOffers) {
+      usedOfferIds.add(o.id);
+      totalOffersSelected++;
     }
 
     // Get representations for the final offers
@@ -292,6 +545,8 @@ function resolve(contactId, decisionId, contextData = {}) {
       });
     }
 
+    if (slotTrace) slotTrace.steps.push({ step: 'final_selection', count: offersWithContent.length, offers: offersWithContent.map(o => ({ id: o.offer_id, name: o.offer_name, score: o.score, is_fallback: o.is_fallback })) });
+
     results.push({
       placement_id: placement.id,
       placement_name: placement.name,
@@ -300,23 +555,28 @@ function resolve(contactId, decisionId, contextData = {}) {
       fallback_used: fallbackUsed,
       candidates_evaluated: qualifiedOffers.length + (fallbackUsed ? 0 : topOffers.length),
     });
+
+    if (slotTrace) trace.push(slotTrace);
   }
 
-  return {
+  const result = {
     decision_id: decisionId,
     contact_id: contactId,
     resolved_at: new Date().toISOString(),
+    arbitration_settings: arb,
     placements: results
   };
+  if (traceMode) result.arbitration_trace = trace;
+  return result;
 }
 
 /**
  * Simulate resolution for a decision (doesn't log propositions)
+ * @param {boolean} [trace=false] - if true, returns detailed arbitration trace
  */
-function simulate(contactId, decisionId, contextData = {}) {
-  // Temporarily capture propositions length before resolve
+function simulate(contactId, decisionId, contextData = {}, trace = false) {
   const beforeCount = query.count('offer_propositions');
-  const result = resolve(contactId, decisionId, contextData);
+  const result = resolve(contactId, decisionId, contextData, trace);
 
   // Remove any propositions that were logged during simulation
   const allProps = query.all('offer_propositions');
@@ -328,4 +588,4 @@ function simulate(contactId, decisionId, contextData = {}) {
   return { ...result, simulated: true };
 }
 
-module.exports = { resolve, simulate, resolveCollection, evaluateEligibility, checkConstraints };
+module.exports = { resolve, simulate, resolveCollection, evaluateEligibility, evaluateAudienceEligibility, checkConstraints };

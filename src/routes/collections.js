@@ -81,6 +81,70 @@ router.delete('/qualifiers/:id', (req, res) => {
 });
 
 // ══════════════════════════════════════════════════════
+// CATALOG SCHEMA (Custom Attributes)
+// ══════════════════════════════════════════════════════
+
+router.get('/catalog-schema', (req, res) => {
+  try {
+    const attrs = query.all('catalog_schema');
+    attrs.sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0));
+    res.json({ attributes: attrs });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+router.post('/catalog-schema', (req, res) => {
+  try {
+    const { name, label, type = 'string', required = false, default_value, options, description } = req.body;
+    if (!name || !label) return res.status(400).json({ error: 'name and label are required' });
+    const validTypes = ['string', 'integer', 'boolean', 'date', 'datetime', 'object'];
+    if (!validTypes.includes(type)) return res.status(400).json({ error: `type must be one of: ${validTypes.join(', ')}` });
+
+    const existing = query.all('catalog_schema');
+    if (existing.find(a => a.name === name)) return res.status(400).json({ error: 'Attribute name already exists' });
+
+    const result = query.insert('catalog_schema', {
+      name, label, type, required: !!required,
+      default_value: default_value !== undefined ? default_value : null,
+      options: options || null,
+      description: description || '',
+      sort_order: existing.length
+    });
+    res.status(201).json(result.record);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+router.put('/catalog-schema/:id', (req, res) => {
+  try {
+    const id = parseInt(req.params.id);
+    const attr = query.get('catalog_schema', id);
+    if (!attr) return res.status(404).json({ error: 'Attribute not found' });
+
+    const updates = {};
+    ['label', 'type', 'required', 'default_value', 'options', 'description', 'sort_order'].forEach(f => {
+      if (req.body[f] !== undefined) updates[f] = req.body[f];
+    });
+    query.update('catalog_schema', id, updates);
+    res.json(query.get('catalog_schema', id));
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+router.delete('/catalog-schema/:id', (req, res) => {
+  try {
+    const id = parseInt(req.params.id);
+    query.delete('catalog_schema', id);
+    res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// ══════════════════════════════════════════════════════
 // COLLECTIONS
 // ══════════════════════════════════════════════════════
 
@@ -165,7 +229,7 @@ router.get('/:id', (req, res) => {
 
 router.post('/', (req, res) => {
   try {
-    const { name, description, type = 'static', offer_ids = [], qualifier_ids = [] } = req.body;
+    const { name, description, type = 'static', offer_ids = [], qualifier_ids = [], attribute_conditions = [], folder_id = null } = req.body;
     if (!name) return res.status(400).json({ error: 'name is required' });
     if (!['static', 'dynamic'].includes(type)) {
       return res.status(400).json({ error: 'type must be static or dynamic' });
@@ -177,6 +241,8 @@ router.post('/', (req, res) => {
       type,
       offer_ids: type === 'static' ? offer_ids.map(Number) : [],
       qualifier_ids: type === 'dynamic' ? qualifier_ids.map(Number) : [],
+      attribute_conditions: type === 'dynamic' ? attribute_conditions : [],
+      folder_id: folder_id ? parseInt(folder_id) : null,
       status: 'active'
     });
 
@@ -193,11 +259,13 @@ router.put('/:id', (req, res) => {
     if (!collection) return res.status(404).json({ error: 'Collection not found' });
 
     const updates = {};
-    ['name', 'description', 'type', 'status'].forEach(f => {
+    ['name', 'description', 'type', 'status', 'folder_id'].forEach(f => {
       if (req.body[f] !== undefined) updates[f] = req.body[f];
     });
     if (req.body.offer_ids !== undefined) updates.offer_ids = req.body.offer_ids.map(Number);
     if (req.body.qualifier_ids !== undefined) updates.qualifier_ids = req.body.qualifier_ids.map(Number);
+    if (req.body.attribute_conditions !== undefined) updates.attribute_conditions = req.body.attribute_conditions;
+    if (updates.folder_id !== undefined) updates.folder_id = updates.folder_id ? parseInt(updates.folder_id) : null;
 
     query.update('collections', id, updates);
     res.json(query.get('collections', id));

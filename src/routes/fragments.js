@@ -81,8 +81,10 @@ router.post('/', (req, res) => {
       version = 1,
       tags = [],
       folder = '',
-      created_by = 'System'
+      created_by = 'System',
+      theme_compatible = false
     } = req.body;
+    const folder_id = req.body.folder_id || null;
     if (!name) return res.status(400).json({ error: 'name is required' });
     const result = query.insert('fragments', {
       name,
@@ -93,6 +95,8 @@ router.post('/', (req, res) => {
       html,
       tags,
       folder,
+      folder_id,
+      theme_compatible: !!theme_compatible,
       created_by: created_by || 'System',
       updated_by: created_by || 'System',
       versions: []

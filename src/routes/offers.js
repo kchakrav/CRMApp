@@ -119,7 +119,10 @@ router.post('/', (req, res) => {
     const {
       name, description, type = 'personalized', priority = 0,
       start_date, end_date, tags = [], attributes = {},
-      eligibility_rule_id, image_url, status = 'draft'
+      eligibility_rule_id, image_url, status = 'draft',
+      folder_id = null, eligibility_type = 'all',
+      eligibility_audience_ids = [], audience_logic = 'OR',
+      custom_attributes = {}
     } = req.body;
 
     if (!name) return res.status(400).json({ error: 'name is required' });
@@ -133,8 +136,13 @@ router.post('/', (req, res) => {
       start_date: start_date || null,
       end_date: end_date || null,
       attributes: attributes || {},
+      custom_attributes: custom_attributes || {},
+      eligibility_type: eligibility_type || 'all',
       eligibility_rule_id: eligibility_rule_id ? parseInt(eligibility_rule_id) : null,
+      eligibility_audience_ids: eligibility_audience_ids || [],
+      audience_logic: audience_logic || 'OR',
       image_url: image_url || null,
+      folder_id: folder_id ? parseInt(folder_id) : null,
       created_by: req.body.created_by || 'System'
     });
 
@@ -174,9 +182,14 @@ router.put('/:id', (req, res) => {
     if (start_date !== undefined) updates.start_date = start_date;
     if (end_date !== undefined) updates.end_date = end_date;
     if (attributes !== undefined) updates.attributes = attributes;
+    if (req.body.custom_attributes !== undefined) updates.custom_attributes = req.body.custom_attributes;
     if (eligibility_rule_id !== undefined) updates.eligibility_rule_id = eligibility_rule_id ? parseInt(eligibility_rule_id) : null;
+    if (req.body.eligibility_type !== undefined) updates.eligibility_type = req.body.eligibility_type;
+    if (req.body.eligibility_audience_ids !== undefined) updates.eligibility_audience_ids = req.body.eligibility_audience_ids;
+    if (req.body.audience_logic !== undefined) updates.audience_logic = req.body.audience_logic;
     if (image_url !== undefined) updates.image_url = image_url;
     if (status !== undefined) updates.status = status;
+    if (req.body.folder_id !== undefined) updates.folder_id = req.body.folder_id ? parseInt(req.body.folder_id) : null;
 
     query.update('offers', id, updates);
 
@@ -204,7 +217,25 @@ router.delete('/:id', (req, res) => {
     const offer = query.get('offers', id);
     if (!offer) return res.status(404).json({ error: 'Offer not found' });
 
-    // Clean up related data
+    if (['approved', 'live'].includes(offer.status)) {
+      const usedInCollections = query.all('collections', c =>
+        c.type === 'static' && (c.offer_ids || []).includes(id)
+      );
+      const usedInDecisions = query.all('decisions', d =>
+        (d.placement_configs || []).some(pc => pc.fallback_offer_id === id)
+      );
+      if (usedInCollections.length > 0 || usedInDecisions.length > 0) {
+        const refs = [
+          ...usedInCollections.map(c => `Collection: ${c.name}`),
+          ...usedInDecisions.map(d => `Decision: ${d.name}`)
+        ];
+        return res.status(400).json({
+          error: 'Cannot delete an approved/live offer that is in use. Revert to draft first.',
+          used_in: refs
+        });
+      }
+    }
+
     query.all('offer_tags', t => t.offer_id === id).forEach(t => query.delete('offer_tags', t.id));
     query.all('offer_representations', r => r.offer_id === id).forEach(r => query.delete('offer_representations', r.id));
     const constraint = query.get('offer_constraints', c => c.offer_id === id);
@@ -252,6 +283,19 @@ router.post('/:id/archive', (req, res) => {
     const offer = query.get('offers', id);
     if (!offer) return res.status(404).json({ error: 'Offer not found' });
     query.update('offers', id, { status: 'archived', archived_at: new Date().toISOString() });
+    res.json(query.get('offers', id));
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+router.post('/:id/undo-approve', (req, res) => {
+  try {
+    const id = parseInt(req.params.id);
+    const offer = query.get('offers', id);
+    if (!offer) return res.status(404).json({ error: 'Offer not found' });
+    if (offer.status !== 'approved') return res.status(400).json({ error: 'Only approved offers can be reverted to draft' });
+    query.update('offers', id, { status: 'draft', approved_at: null });
     res.json(query.get('offers', id));
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -387,7 +431,8 @@ router.put('/:id/constraints', (req, res) => {
       per_user_cap: parseInt(req.body.per_user_cap) || 0,
       frequency_period: req.body.frequency_period || 'lifetime',
       total_cap: parseInt(req.body.total_cap) || 0,
-      per_placement_caps: req.body.per_placement_caps || {}
+      per_placement_caps: req.body.per_placement_caps || {},
+      capping_rules: req.body.capping_rules || []
     };
 
     if (existing) {

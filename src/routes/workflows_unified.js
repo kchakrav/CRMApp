@@ -58,7 +58,8 @@ router.post('/', (req, res) => {
       orchestration = {},
       audience_config = {},
       status = 'draft',
-      created_by = 'System'
+      created_by = 'System',
+      folder_id = null
     } = req.body;
     
     if (!name) {
@@ -81,6 +82,8 @@ router.post('/', (req, res) => {
       created_by: created_by || 'System',
       updated_by: created_by || 'System',
       
+      folder_id: folder_id ? parseInt(folder_id) : null,
+
       // Metadata
       entry_count: 0,
       completion_count: 0,
@@ -473,17 +476,49 @@ router.get('/:id/report', (req, res) => {
       };
     });
 
-    // Delivery breakdown – find delivery nodes in orchestration
+    // Deliveries linked to this workflow (orchestration nodes with config.delivery_id)
+    const linkedDeliveryIds = new Set();
+    nodes.forEach(n => {
+      if (['email', 'sms', 'push'].includes(n.type) && n.config?.delivery_id) {
+        linkedDeliveryIds.add(parseInt(n.config.delivery_id));
+      }
+    });
+    const allDeliveries = query.all('deliveries');
+    const workflowDeliveries = allDeliveries
+      .filter(d => linkedDeliveryIds.has(d.id))
+      .map(d => ({
+        id: d.id,
+        name: d.name,
+        channel: d.channel || d.channel_key || 'email',
+        status: d.status || 'draft',
+        sent: d.sent || 0,
+        delivered: d.delivered || d.sent || 0,
+        opens: d.opens || 0,
+        clicks: d.clicks || 0,
+        scheduled_at: d.scheduled_at,
+        sent_at: d.sent_at,
+        delivery_rate: (d.sent > 0 && (d.delivered != null || d.sent != null))
+          ? (((d.delivered ?? d.sent) / d.sent) * 100).toFixed(1) : '0',
+        open_rate: ((d.delivered ?? d.sent) > 0)
+          ? ((d.opens || 0) / (d.delivered ?? d.sent) * 100).toFixed(1) : '0',
+        click_rate: ((d.delivered ?? d.sent) > 0)
+          ? ((d.clicks || 0) / (d.delivered ?? d.sent) * 100).toFixed(1) : '0'
+      }));
+
+    // Delivery breakdown – from linked delivery records when available, else from nodes with synthetic metrics
     const deliveryNodes = nodes.filter(n => ['email', 'sms', 'push'].includes(n.type));
     const deliveryBreakdown = deliveryNodes.map(n => {
-      const dsent = Math.round((totalSent || 1000) * (0.4 + Math.random() * 0.6));
-      const ddeliv = Math.round(dsent * 0.97);
-      const dop = n.type === 'email' ? Math.round(ddeliv * 0.32) : 0;
-      const dcl = n.type !== 'email' ? Math.round(ddeliv * 0.05) : Math.round(dop * 0.22);
+      const deliveryId = n.config?.delivery_id ? parseInt(n.config.delivery_id) : null;
+      const linkedDelivery = deliveryId ? workflowDeliveries.find(wd => wd.id === deliveryId) : null;
+      const dsent = linkedDelivery ? linkedDelivery.sent : Math.round((totalSent || 1000) * (0.4 + Math.random() * 0.6));
+      const ddeliv = linkedDelivery ? linkedDelivery.delivered : Math.round(dsent * 0.97);
+      const dop = linkedDelivery ? linkedDelivery.opens : (n.type === 'email' ? Math.round(ddeliv * 0.32) : 0);
+      const dcl = linkedDelivery ? linkedDelivery.clicks : (n.type !== 'email' ? Math.round(ddeliv * 0.05) : Math.round(dop * 0.22));
       return {
         node_id: n.id,
         label: n.label || n.type,
         channel: n.type,
+        delivery_id: deliveryId,
         sent: dsent,
         delivered: ddeliv,
         opens: dop,
@@ -542,6 +577,7 @@ router.get('/:id/report', (req, res) => {
       execution_history: executionHistory,
       activity_metrics: activityMetrics,
       delivery_breakdown: deliveryBreakdown,
+      workflow_deliveries: workflowDeliveries,
       workflow_errors: wfErrorCount,
       recipients: {
         engaged: topRecipients,
@@ -641,6 +677,180 @@ router.get('/templates/list', (req, res) => {
     ];
     
     res.json(templates);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// ══════════════════════════════════════════════════════
+// HEATMAP DATA
+// ══════════════════════════════════════════════════════
+
+router.get('/:id/heatmap', (req, res) => {
+  try {
+    const id = parseInt(req.params.id);
+    const workflow = query.get('workflows', id);
+    if (!workflow) return res.status(404).json({ error: 'Workflow not found' });
+
+    const seed = id * 13 + 47;
+    const rng = (i) => { const x = Math.sin(seed + i) * 10000; return x - Math.floor(x); };
+
+    const metrics = query.get('workflow_metrics', m => m.workflow_id === id) || {};
+    const totalSent = metrics.sent || workflow.entry_count || 100;
+    const totalDelivered = metrics.delivered || Math.round(totalSent * 0.95);
+    const totalOpened = metrics.opened || Math.round(totalSent * 0.38);
+    const totalClicked = metrics.clicked || Math.round(totalSent * 0.12);
+    const totalConverted = metrics.converted || Math.round(totalSent * 0.04);
+
+    const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+    const hours = Array.from({ length: 24 }, (_, i) => i);
+
+    // ── Execution heatmap: when workflows fire ──
+    const executionGrid = [];
+    let execMax = 0;
+    const hourTotals = new Array(24).fill(0);
+    const dayTotals = new Array(7).fill(0);
+    let idx = 0;
+    const isRecurring = workflow.workflow_type === 'recurring';
+
+    for (const day of days) {
+      for (const hour of hours) {
+        const peakMul = (hour >= 8 && hour <= 10) ? 2.8 : (hour >= 13 && hour <= 15) ? 2.2 : (hour >= 18 && hour <= 20) ? 1.6 : (hour < 5 || hour > 23) ? 0.1 : 1.0;
+        const dayMul = (day === 'Tue' || day === 'Wed' || day === 'Thu') ? 1.3 : (day === 'Sat' || day === 'Sun') ? (isRecurring ? 0.8 : 0.3) : 1.0;
+        const base = (totalSent / 168) * peakMul * dayMul;
+        const entries = Math.round(base * (0.5 + rng(idx) * 1.0));
+        const completions = Math.round(entries * (0.6 + rng(idx + 500) * 0.35));
+        const errors = Math.round(entries * rng(idx + 600) * 0.05);
+        executionGrid.push({ day, hour, entries, completions, errors });
+        if (entries > execMax) execMax = entries;
+        hourTotals[hour] += entries;
+        dayTotals[days.indexOf(day)] += entries;
+        idx++;
+      }
+    }
+
+    // ── Conversion funnel heatmap (by stage × day) ──
+    const stages = ['Sent', 'Delivered', 'Opened', 'Clicked', 'Converted'];
+    const stageValues = [totalSent, totalDelivered, totalOpened, totalClicked, totalConverted];
+    const conversionFunnel = stages.map((stage, si) => {
+      const dayBreakdown = days.map((day, di) => {
+        const dayShare = dayTotals[di] / (dayTotals.reduce((a, b) => a + b, 1));
+        return { day, value: Math.round(stageValues[si] * dayShare * (0.85 + rng(si * 7 + di + 700) * 0.3)) };
+      });
+      return { stage, total: stageValues[si], days: dayBreakdown };
+    });
+
+    // ── Node performance heatmap ──
+    const nodes = (workflow.orchestration?.nodes || []).filter(n => n.type !== 'start' && n.type !== 'end');
+    const nodePerformance = nodes.map((n, ni) => {
+      const processed = Math.round(totalSent * (0.3 + rng(ni + 800) * 0.7));
+      const success = Math.round(processed * (0.7 + rng(ni + 900) * 0.25));
+      const errCount = Math.round(processed * rng(ni + 950) * 0.08);
+      const avgDuration = Math.round(200 + rng(ni + 960) * 3000);
+      return {
+        node_id: n.id,
+        node_type: n.type,
+        node_label: n.label || n.type,
+        processed,
+        success,
+        errors: errCount,
+        success_rate: processed > 0 ? ((success / processed) * 100).toFixed(1) : '0.0',
+        avg_duration_ms: avgDuration
+      };
+    });
+
+    // ── Drop-off heatmap: hour × funnel stage ──
+    const dropoffGrid = [];
+    for (const hour of hours) {
+      const hourShare = hourTotals[hour] / (hourTotals.reduce((a, b) => a + b, 1));
+      for (let si = 0; si < stages.length; si++) {
+        const val = Math.round(stageValues[si] * hourShare * (0.8 + rng(hour * stages.length + si + 1100) * 0.4));
+        dropoffGrid.push({ hour, stage: stages[si], value: val });
+      }
+    }
+
+    // ── AI Recommendations ──
+    const bestHour = hourTotals.indexOf(Math.max(...hourTotals));
+    const bestDay = dayTotals.indexOf(Math.max(...dayTotals));
+    const worstDay = dayTotals.indexOf(Math.min(...dayTotals));
+    const convRate = totalConverted / (totalSent || 1);
+    const openToClick = totalClicked / (totalOpened || 1);
+    const dropoff = 1 - (totalConverted / (totalSent || 1));
+    const biggestDrop = stageValues.reduce((worst, val, i) => {
+      if (i === 0) return worst;
+      const rate = 1 - val / (stageValues[i - 1] || 1);
+      return rate > worst.rate ? { stage: stages[i], rate, prev: stages[i - 1] } : worst;
+    }, { stage: '', rate: 0, prev: '' });
+
+    const slowNode = nodePerformance.length > 0 ? nodePerformance.reduce((s, n) => n.avg_duration_ms > s.avg_duration_ms ? n : s) : null;
+    const errorNode = nodePerformance.length > 0 ? nodePerformance.reduce((s, n) => n.errors > s.errors ? n : s) : null;
+
+    const recommendations = [
+      {
+        type: 'timing', priority: 'high', icon: 'clock',
+        title: 'Peak Execution Window',
+        description: `Workflow entries peak on <strong>${days[bestDay]}</strong> at <strong>${bestHour}:00</strong>. Schedule trigger campaigns and batch runs during this window for optimal audience reach.`,
+        metric: `${days[bestDay]} ${bestHour}:00`, impact: '+15-22% engagement'
+      },
+      {
+        type: 'timing', priority: 'medium', icon: 'alert',
+        title: 'Low-Activity Period',
+        description: `<strong>${days[worstDay]}</strong> has the fewest entries. ${isRecurring ? 'Consider pausing recurring runs on this day to save resources.' : 'Avoid scheduling one-time sends for this day.'}`,
+        metric: days[worstDay], impact: 'Resource optimization'
+      },
+      {
+        type: 'funnel', priority: biggestDrop.rate > 0.5 ? 'high' : 'medium', icon: 'target',
+        title: 'Biggest Funnel Drop-off',
+        description: `The largest drop occurs between <strong>${biggestDrop.prev}</strong> → <strong>${biggestDrop.stage}</strong> (<strong>${(biggestDrop.rate * 100).toFixed(0)}%</strong> loss). Focus optimization efforts on this transition.`,
+        metric: `${(biggestDrop.rate * 100).toFixed(0)}% drop`, impact: `+${Math.round(biggestDrop.rate * 15)}% conversion`
+      },
+      {
+        type: 'conversion', priority: convRate < 0.03 ? 'high' : 'low', icon: 'sparkle',
+        title: 'Conversion Rate',
+        description: convRate < 0.03
+          ? `Overall conversion rate is <strong>${(convRate * 100).toFixed(1)}%</strong>, below the 3% benchmark. Consider A/B testing subject lines, content, and CTAs.`
+          : `Conversion rate of <strong>${(convRate * 100).toFixed(1)}%</strong> is healthy. Continue monitoring for regression.`,
+        metric: `${(convRate * 100).toFixed(1)}%`, impact: convRate < 0.03 ? '+1-3% conversion' : 'On track'
+      },
+      ...(slowNode ? [{
+        type: 'performance', priority: slowNode.avg_duration_ms > 2000 ? 'high' : 'low', icon: 'zap',
+        title: 'Slow Activity Node',
+        description: `The <strong>"${slowNode.node_label}"</strong> node averages <strong>${slowNode.avg_duration_ms}ms</strong> execution time. ${slowNode.avg_duration_ms > 2000 ? 'This bottleneck is slowing overall workflow throughput.' : 'Execution time is acceptable.'}`,
+        metric: `${slowNode.avg_duration_ms}ms`, impact: slowNode.avg_duration_ms > 2000 ? 'Reduce latency' : 'OK'
+      }] : []),
+      ...(errorNode && errorNode.errors > 0 ? [{
+        type: 'errors', priority: errorNode.errors > 10 ? 'high' : 'medium', icon: 'alert',
+        title: 'Error-Prone Node',
+        description: `The <strong>"${errorNode.node_label}"</strong> node has <strong>${errorNode.errors}</strong> errors (${errorNode.success_rate}% success). Review configuration and error logs.`,
+        metric: `${errorNode.errors} errors`, impact: 'Reduce failures'
+      }] : []),
+      {
+        type: 'engagement', priority: openToClick < 0.2 ? 'high' : 'low', icon: 'target',
+        title: 'Open-to-Click Ratio',
+        description: openToClick < 0.2
+          ? `Only <strong>${(openToClick * 100).toFixed(1)}%</strong> of openers click through. Improve CTA visibility, personalize content, or add urgency.`
+          : `<strong>${(openToClick * 100).toFixed(1)}%</strong> open-to-click ratio is strong. Current content resonates with the audience.`,
+        metric: `${(openToClick * 100).toFixed(1)}%`, impact: openToClick < 0.2 ? '+5-10% clicks' : 'On track'
+      }
+    ];
+
+    res.json({
+      workflow_id: id,
+      workflow_name: workflow.name,
+      workflow_type: workflow.workflow_type,
+      total_sent: totalSent,
+      total_delivered: totalDelivered,
+      total_opened: totalOpened,
+      total_clicked: totalClicked,
+      total_converted: totalConverted,
+      execution_heatmap: { grid: executionGrid, max: execMax, days, hours },
+      conversion_funnel: conversionFunnel,
+      node_performance: nodePerformance,
+      dropoff_grid: dropoffGrid,
+      hour_totals: hourTotals,
+      day_totals: dayTotals,
+      ai_recommendations: recommendations
+    });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }

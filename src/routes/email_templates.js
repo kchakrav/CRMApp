@@ -1,6 +1,15 @@
 const express = require('express');
 const router = express.Router();
 const { query } = require('../database');
+const multer = require('multer');
+const path = require('path');
+const fs = require('fs');
+const JSZip = require('jszip');
+
+// Multer for zip/html uploads
+const uploadDir = path.join(__dirname, '../../public/uploads');
+if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
+const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 50 * 1024 * 1024 } });
 
 // ── Lightweight server-side block→HTML renderer ──────────────────────
 const _PH_IMG = `data:image/svg+xml,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="640" height="200" viewBox="0 0 640 200"><rect fill="#f3f4f6" width="640" height="200"/><g fill="#9ca3af"><rect x="280" y="60" width="80" height="60" rx="6"/><polygon points="290,110 310,85 330,110"/><polygon points="315,110 340,75 370,110"/><circle cx="340" cy="72" r="8"/></g><text x="320" y="145" text-anchor="middle" fill="#9ca3af" font-family="Arial" font-size="14">Image placeholder</text></svg>`)}`;
@@ -87,6 +96,70 @@ router.get('/:id', (req, res) => {
   }
 });
 
+// Import HTML from zip or HTML file upload
+router.post('/import-html', upload.single('file'), async (req, res) => {
+  try {
+    if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
+
+    const ext = path.extname(req.file.originalname).toLowerCase();
+    let html = '';
+    const assetUrls = {};
+
+    if (ext === '.zip') {
+      const zip = await JSZip.loadAsync(req.file.buffer);
+      const entries = Object.keys(zip.files).map(name => zip.files[name]).filter(e => !e.dir);
+
+      // Find the HTML file
+      const htmlEntry = entries.find(e => /\.(html?|xhtml)$/i.test(e.name));
+      if (!htmlEntry) return res.status(400).json({ error: 'No HTML file found in the zip archive' });
+      html = await htmlEntry.async('text');
+
+      // Extract and save image assets
+      for (const entry of entries) {
+        if (/\.(png|jpe?g|gif|webp|svg|ico)$/i.test(entry.name)) {
+          const imgBuffer = await entry.async('nodebuffer');
+          const safeName = entry.name.split('/').pop().replace(/[^a-zA-Z0-9._-]/g, '_');
+          const fileName = `${Date.now()}_${safeName}`;
+          const filePath = path.join(uploadDir, fileName);
+          fs.writeFileSync(filePath, imgBuffer);
+          const publicUrl = `/uploads/${fileName}`;
+          // Map both full path and basename for replacement
+          assetUrls[entry.name] = publicUrl;
+          const base = entry.name.split('/').pop();
+          if (base) assetUrls[base] = publicUrl;
+        }
+      }
+
+      // Replace asset paths in HTML
+      for (const [origPath, newUrl] of Object.entries(assetUrls)) {
+        if (!origPath) continue;
+        const escaped = origPath.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        // Replace src="images/foo.png", url('images/foo.png'), etc.
+        const regex = new RegExp(`(src=["']|url\\(["']?)((?:\\.?\\/?)(?:[\\w\\-./]*\\/)?${escaped})`, 'gi');
+        html = html.replace(regex, `$1${newUrl}`);
+        // Also replace bare references like "images/foo.png"
+        const simpleRegex = new RegExp(`(["'])${escaped}\\1`, 'gi');
+        html = html.replace(simpleRegex, `$1${newUrl}$1`);
+      }
+    } else if (['.html', '.htm', '.txt'].includes(ext)) {
+      html = req.file.buffer.toString('utf-8');
+    } else {
+      return res.status(400).json({ error: 'Unsupported file type. Use .zip, .html, or .htm' });
+    }
+
+    res.json({
+      html,
+      assets: assetUrls,
+      asset_count: Object.keys(assetUrls).length,
+      file_name: req.file.originalname,
+      file_size: req.file.size
+    });
+  } catch (error) {
+    console.error('[Template Import Error]', error);
+    res.status(500).json({ error: error.message || 'Failed to process uploaded file' });
+  }
+});
+
 // Create template
 router.post('/', (req, res) => {
   try {
@@ -103,6 +176,7 @@ router.post('/', (req, res) => {
       sample = false
     } = req.body;
     if (!name) return res.status(400).json({ error: 'name is required' });
+    const folder_id = req.body.folder_id || null;
     const result = query.insert('content_templates', {
       name,
       description,
@@ -114,6 +188,7 @@ router.post('/', (req, res) => {
       html,
       status,
       sample: !!sample,
+      folder_id,
       created_by: created_by || 'System',
       updated_by: created_by || 'System'
     });

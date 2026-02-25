@@ -55,7 +55,13 @@ const editorState = {
   assetSearch: '',
   offerPlacements: [],
   offerDecisions: [],
-  offerDecisionCache: {}
+  offerDecisionCache: {},
+  themes: [],
+  brands: [],
+  brandAlignmentResult: null,
+  appliedThemeId: null,
+  appliedThemeVariantIndex: 0,
+  canvasDarkMode: false
 };
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -73,7 +79,11 @@ document.addEventListener('DOMContentLoaded', () => {
   editorState.repId = parseInt(params.get('repId'), 10);
   initRail();
   setDevicePreview(editorState.previewDevice, { silent: true });
+  try {
+    editorState.canvasDarkMode = localStorage.getItem('emailEditorCanvasDarkMode') === 'true';
+  } catch (_) {}
   loadEditorData();
+  applyCanvasDarkModeUI();
   const simulateBtn = document.getElementById('simulate-content-btn');
   if (simulateBtn) simulateBtn.textContent = 'Simulated';
   // Failsafe: clear loading if stuck
@@ -166,13 +176,14 @@ async function loadEditorData() {
   try {
     showLoading();
     const fragmentType = editorState.fragmentType || (editorState.landingPageMode ? 'landing' : 'email');
-    const [fragmentsRes, segmentsRes, audiencesRes, assetsRes, placementsRes, decisionsRes] = await Promise.all([
+    const [fragmentsRes, segmentsRes, audiencesRes, assetsRes, placementsRes, decisionsRes, themesRes] = await Promise.all([
       fetchWithTimeout(`${API_BASE}/fragments?type=${encodeURIComponent(fragmentType)}`),
       fetchWithTimeout(`${API_BASE}/segments`),
       fetchWithTimeout(`${API_BASE}/audiences`),
       fetchWithTimeout(`${API_BASE}/assets`),
       fetchWithTimeout(`${API_BASE}/placements`).catch(() => null),
-      fetchWithTimeout(`${API_BASE}/decisions`).catch(() => null)
+      fetchWithTimeout(`${API_BASE}/decisions`).catch(() => null),
+      fetchWithTimeout(`${API_BASE}/email-themes`).catch(() => null)
     ]);
     const fragmentsPayload = await fragmentsRes.json();
     editorState.fragments = fragmentsPayload.fragments || fragmentsPayload || [];
@@ -198,6 +209,12 @@ async function loadEditorData() {
       const allDecisions = d.decisions || [];
       editorState.offerDecisions = allDecisions.filter(dec => dec.status === 'live');
       editorState._allOfferDecisions = allDecisions; // keep full list for diagnostics
+    }
+    if (themesRes && themesRes.ok) {
+      const themesData = await themesRes.json();
+      editorState.themes = themesData.themes || [];
+    } else {
+      editorState.themes = [];
     }
 
     if (editorState.templateMode) {
@@ -506,10 +523,11 @@ function renderFragmentItem(fragment) {
   const status = fragment?.status || 'Draft';
   const type = fragment?.type || 'email';
   const folder = fragment?.folder ? ` · ${fragment.folder}` : '';
+  const themedBadge = fragment?.theme_compatible ? '<span class="fragment-badge-themed" title="Theme-compatible">Themed</span>' : '';
   return `
     <div class="email-fragment-item" draggable="true" data-fragment-id="${fragment?.id || ''}">
       <div class="email-fragment-main">
-        <div class="email-fragment-title">${name}</div>
+        <div class="email-fragment-title">${name} ${themedBadge}</div>
         <div class="email-fragment-meta">${type.toUpperCase()} · ${status} · Locked${folder}</div>
       </div>
       <div class="email-fragment-actions">
@@ -597,16 +615,25 @@ function renderAssetsPanel() {
   `;
 }
 
+function escapeHtmlAttr(s) {
+  if (s == null || s === '') return '';
+  return String(s)
+    .replace(/&/g, '&amp;')
+    .replace(/"/g, '&quot;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+}
+
 function renderAssetItem(asset) {
   const name = asset?.name || asset?.filename || 'Asset';
   const typeLabel = asset?.type || 'file';
   const url = asset?.url || asset?.path || '';
   const isImage = typeLabel === 'image' || (asset?.mime_type || '').startsWith('image/');
   const thumb = isImage && url
-    ? `<div class="asset-thumb" style="background-image:url('${url}'); background-size: cover; background-position: center;"></div>`
+    ? `<div class="asset-thumb" style="background-image:url('${url.replace(/"/g, '&quot;')}'); background-size: cover; background-position: center;"></div>`
     : `<div class="asset-thumb"><div class="asset-thumb-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M10 9H8"/><path d="M16 13H8"/><path d="M16 17H8"/></svg></div></div>`;
   return `
-    <div class="asset-card" onclick="copyAssetUrlToClipboard('${url}')">
+    <div class="asset-card" draggable="true" data-asset-url="${escapeHtmlAttr(url)}" title="Drag onto image or click to copy URL">
       ${thumb}
       <div class="asset-title">${name}</div>
       <div class="asset-meta">${typeLabel.toUpperCase()}</div>
@@ -815,6 +842,63 @@ function initEmailDesigner() {
   canvas.addEventListener('dragleave', () => {
     clearDropIndicator();
   });
+  if (!editorState.assetPickerInitialized) {
+    editorState.assetPickerInitialized = true;
+    const pickerList = document.getElementById('asset-picker-list');
+    if (pickerList) {
+      pickerList.addEventListener('click', (e) => {
+        const card = e.target.closest('.asset-picker-card');
+        if (!card) return;
+        const url = card.getAttribute('data-asset-url');
+        if (url != null) selectAssetForImage(url);
+      });
+    }
+    const uploadZone = document.getElementById('asset-picker-upload-zone');
+    const uploadInput = document.getElementById('asset-picker-file-input');
+    const uploadBtn = document.getElementById('asset-picker-upload-btn');
+    if (uploadBtn && uploadInput) {
+      uploadBtn.addEventListener('click', () => uploadInput.click());
+      uploadInput.addEventListener('change', (e) => {
+        const file = e.target.files?.[0];
+        if (file) handleAssetPickerUpload(file);
+        uploadInput.value = '';
+      });
+    }
+    if (uploadZone) {
+      uploadZone.addEventListener('dragover', (e) => { e.preventDefault(); e.stopPropagation(); uploadZone.classList.add('drag-over'); });
+      uploadZone.addEventListener('dragleave', () => uploadZone.classList.remove('drag-over'));
+      uploadZone.addEventListener('drop', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        uploadZone.classList.remove('drag-over');
+        const file = e.dataTransfer?.files?.[0];
+        if (file && file.type.startsWith('image/')) handleAssetPickerUpload(file);
+        else if (file) showToast('Please drop an image file', 'error');
+      });
+    }
+    const leftPanel = document.getElementById('email-left-panel');
+    if (leftPanel) {
+      leftPanel.addEventListener('dragstart', (e) => {
+        const card = e.target.closest('.asset-card[data-asset-url]');
+        if (!card) return;
+        const url = card.getAttribute('data-asset-url');
+        if (url) {
+          e.dataTransfer.setData('text/plain', JSON.stringify({ kind: 'asset', url: url }));
+          e.dataTransfer.effectAllowed = 'copy';
+          editorState.currentDragType = 'asset';
+        }
+      });
+      leftPanel.addEventListener('click', (e) => {
+        const card = e.target.closest('.asset-card[data-asset-url]');
+        if (!card || card.classList.contains('asset-picker-card')) return;
+        const url = card.getAttribute('data-asset-url');
+        if (url) copyAssetUrlToClipboard(url);
+      });
+    }
+    document.addEventListener('dragend', () => {
+      if (editorState.currentDragType === 'asset') editorState.currentDragType = null;
+    });
+  }
   renderEmailBlocks();
 }
 
@@ -898,6 +982,9 @@ function addFragmentBlock(fragmentId, targetContainer = null, insertIndex = null
   if (!fragment) {
     showToast('Fragment not found', 'error');
     return null;
+  }
+  if (editorState.appliedThemeId && !fragment.theme_compatible) {
+    showToast('This fragment is not marked as theme-compatible. Styling may not match your email theme.', 'warning');
   }
   const block = {
     id: `fragment-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
@@ -1043,8 +1130,10 @@ function renderEmailBlocks(options = {}) {
   const canvasShell = document.querySelector('.email-designer-canvas');
   if (!actualCanvas || !simulatedCanvas) return;
   const bodyStyle = editorState.bodyStyle || {};
-  actualCanvas.style.background = bodyStyle.viewportColor || '#f0f0f0';
-  simulatedCanvas.style.background = bodyStyle.viewportColor || '#f0f0f0';
+  const viewportBg = editorState.canvasDarkMode ? '#1a1a2e' : (bodyStyle.viewportColor || '#f0f0f0');
+  actualCanvas.style.background = viewportBg;
+  simulatedCanvas.style.background = viewportBg;
+  if (canvasShell) canvasShell.classList.toggle('canvas-dark-mode', editorState.canvasDarkMode);
   if (!editorState.blocks.length) {
     if (canvasShell) canvasShell.classList.add('is-empty');
     actualCanvas.innerHTML = `
@@ -1514,6 +1603,35 @@ function updateSocialLinkCommit(id, field, value) {
   updateSocialLink(id, field, value);
 }
 
+function renderAssetPickerList(assets) {
+  if (!assets.length) return '<div>No assets found.</div>';
+  const imageAssets = assets.filter(a => (a.type || a.mime_type || '').toLowerCase().startsWith('image') || (a.mime_type || '').startsWith('image/'));
+  const listToShow = imageAssets.length ? imageAssets : assets;
+  return listToShow.map(asset => {
+    const url = asset.url || asset.path || '';
+    const safeUrl = escapeHtmlAttr(url);
+    return `
+      <div class="asset-card asset-picker-card" data-asset-url="${safeUrl}">
+        <div class="asset-thumb" style="background-image:url('${url.replace(/'/g, '&#39;')}'); background-size: cover;"></div>
+        <div class="asset-title">${(asset.name || asset.filename || 'Asset').replace(/</g, '&lt;')}</div>
+      </div>
+    `;
+  }).join('');
+}
+
+async function refreshAssetPickerList() {
+  const list = document.getElementById('asset-picker-list');
+  if (!list) return;
+  try {
+    const response = await fetch(`${API_BASE}/assets`);
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || 'Failed to load assets');
+    list.innerHTML = renderAssetPickerList(data.assets || []);
+  } catch (error) {
+    list.innerHTML = `<div>${error.message}</div>`;
+  }
+}
+
 async function openAssetPickerForImage(blockId) {
   editorState.pendingImageBlockId = blockId;
   const modal = document.getElementById('asset-picker-modal');
@@ -1528,17 +1646,7 @@ async function openAssetPickerForImage(blockId) {
     const response = await fetch(`${API_BASE}/assets`);
     const data = await response.json();
     if (!response.ok) throw new Error(data.error || 'Failed to load assets');
-    const assets = data.assets || [];
-    if (!assets.length) {
-      list.innerHTML = '<div>No assets found.</div>';
-      return;
-    }
-    list.innerHTML = assets.map(asset => `
-      <div class="asset-card" onclick="selectAssetForImage('${asset.url || asset.path || ''}')">
-        <div class="asset-thumb" style="background-image:url('${asset.url || asset.path || ''}'); background-size: cover;"></div>
-        <div class="asset-title">${asset.name || asset.filename || 'Asset'}</div>
-      </div>
-    `).join('');
+    list.innerHTML = renderAssetPickerList(data.assets || []);
   } catch (error) {
     list.innerHTML = `<div>${error.message}</div>`;
   }
@@ -1551,12 +1659,73 @@ function closeAssetPicker() {
   editorState.pendingImageBlockId = null;
 }
 
+async function handleAssetPickerUpload(file) {
+  if (!file.type.startsWith('image/')) {
+    showToast('Please select an image file', 'error');
+    return;
+  }
+  const form = new FormData();
+  form.append('file', file);
+  try {
+    showToast('Uploading…', 'info');
+    const res = await fetch(`${API_BASE}/assets`, { method: 'POST', body: form });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Upload failed');
+    const url = data.url || data.path || (data.filename ? `/uploads/${data.filename}` : '');
+    if (url && editorState.pendingImageBlockId) {
+      selectAssetForImage(url);
+      showToast('Image uploaded and applied', 'success');
+    } else if (url) {
+      showToast('Image uploaded', 'success');
+      refreshAssetPickerList();
+    }
+  } catch (err) {
+    showToast(err.message || 'Upload failed', 'error');
+  }
+}
+
 function selectAssetForImage(url) {
   const context = findBlockContext(editorState.pendingImageBlockId);
   if (!context?.block || context.block.type !== 'image') return;
   context.block.src = url;
   renderEmailBlocks();
   closeAssetPicker();
+}
+
+async function uploadImageForBlock(blockId) {
+  const context = findBlockContext(blockId);
+  if (!context?.block || context.block.type !== 'image') return;
+  const input = document.createElement('input');
+  input.type = 'file';
+  input.accept = 'image/*';
+  input.multiple = false;
+  input.onchange = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith('image/')) {
+      showToast('Please select an image file', 'error');
+      return;
+    }
+    const form = new FormData();
+    form.append('file', file);
+    try {
+      showToast('Uploading…', 'info');
+      const res = await fetch(`${API_BASE}/assets`, { method: 'POST', body: form });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Upload failed');
+      const url = data.url || data.path || (data.filename ? `/uploads/${data.filename}` : '');
+      if (url) {
+        context.block.src = url;
+        renderEmailBlocks();
+        pushHistory();
+        showToast('Image uploaded', 'success');
+      }
+    } catch (err) {
+      showToast(err.message || 'Upload failed', 'error');
+    }
+    input.remove();
+  };
+  input.click();
 }
 
 function renderContainerHtml(block) {
@@ -1744,6 +1913,8 @@ function applyTemplateUI() {
   if (docTitleGroup) docTitleGroup.style.display = 'none';
   const docLangGroup = document.getElementById('delivery-document-language-input')?.closest('.form-group');
   if (docLangGroup) docLangGroup.style.display = 'none';
+  const fragmentSettings = document.getElementById('fragment-settings');
+  if (fragmentSettings) fragmentSettings.classList.add('hidden');
 
   // Update the page title
   const delivName = document.getElementById('email-editor-delivery-name');
@@ -1799,7 +1970,8 @@ async function saveFragmentContent() {
       status: editorState.fragment?.status || 'draft',
       version: editorState.fragment?.version || 1,
       blocks: editorState.blocks,
-      html: editorState.htmlOverride || generateEmailHtml(editorState.blocks)
+      html: editorState.htmlOverride || generateEmailHtml(editorState.blocks),
+      theme_compatible: document.getElementById('fragment-theme-compatible') ? document.getElementById('fragment-theme-compatible').checked : !!editorState.fragment?.theme_compatible
     };
     let response;
     if (editorState.fragmentId) {
@@ -1869,10 +2041,12 @@ function hydrateLandingPageFields(page) {
 function applyLandingPageUI(isLanding) {
   const deliverySettings = document.getElementById('email-delivery-settings');
   const landingSettings = document.getElementById('landing-page-settings');
-  const title = document.querySelector('.email-editor-title span');
-  const backBtn = document.querySelector('.email-editor-toolbar .btn-back.preview-keep');
+  const fragmentSettings = document.getElementById('fragment-settings');
   if (deliverySettings) deliverySettings.classList.toggle('hidden', isLanding);
   if (landingSettings) landingSettings.classList.toggle('hidden', !isLanding);
+  if (fragmentSettings) fragmentSettings.classList.add('hidden');
+  const title = document.querySelector('.email-editor-title span');
+  const backBtn = document.querySelector('.email-editor-toolbar .btn-back.preview-keep');
   if (title) title.textContent = isLanding ? 'Landing Page Designer' : 'Email Designer';
   if (backBtn) backBtn.title = isLanding ? 'Back to Landing Pages' : 'Back to Delivery';
 }
@@ -1938,8 +2112,12 @@ function setupLandingPageNameListener() {
 function applyFragmentUI() {
   const deliverySettings = document.getElementById('email-delivery-settings');
   const landingSettings = document.getElementById('landing-page-settings');
+  const fragmentSettings = document.getElementById('fragment-settings');
   if (deliverySettings) deliverySettings.classList.add('hidden');
   if (landingSettings) landingSettings.classList.add('hidden');
+  if (fragmentSettings) fragmentSettings.classList.remove('hidden');
+  const cb = document.getElementById('fragment-theme-compatible');
+  if (cb) cb.checked = !!editorState.fragment?.theme_compatible;
 }
 
 function getValue(id) {
@@ -2024,33 +2202,64 @@ function handleImportFileChange(input) {
 }
 
 async function importZipFile(file, textarea) {
-  if (!window.JSZip) {
-    showToast('Zip support failed to load. Please try again.', 'error');
-    return;
-  }
   try {
     showLoading();
-    const zip = await JSZip.loadAsync(file);
-    const entries = Object.keys(zip.files).map(name => zip.files[name]).filter(entry => !entry.dir);
-    const htmlEntry = entries.find(entry => /\.(html?|xhtml)$/i.test(entry.name));
-    if (!htmlEntry) {
-      throw new Error('No HTML file found in the zip.');
-    }
-    const html = await htmlEntry.async('text');
-    const assets = {};
-    for (const entry of entries) {
-      if (/\.(png|jpe?g|gif|webp|svg)$/i.test(entry.name)) {
-        const blob = await entry.async('blob');
-        const url = URL.createObjectURL(blob);
-        assets[entry.name] = url;
-        const base = entry.name.split('/').pop();
-        if (base) assets[base] = url;
+
+    // Try client-side JSZip first, fall back to server-side
+    if (window.JSZip) {
+      const zip = await JSZip.loadAsync(file);
+      const entries = Object.keys(zip.files).map(name => zip.files[name]).filter(entry => !entry.dir);
+      const htmlEntry = entries.find(entry => /\.(html?|xhtml)$/i.test(entry.name));
+      if (!htmlEntry) {
+        throw new Error('No HTML file found in the zip.');
       }
+      const html = await htmlEntry.async('text');
+      const assets = {};
+      for (const entry of entries) {
+        if (/\.(png|jpe?g|gif|webp|svg)$/i.test(entry.name)) {
+          const blob = await entry.async('blob');
+          const url = URL.createObjectURL(blob);
+          assets[entry.name] = url;
+          const base = entry.name.split('/').pop();
+          if (base) assets[base] = url;
+        }
+      }
+      editorState.importAssets = assets;
+      textarea.value = html;
+      showToast('Zip loaded. HTML and ' + Object.keys(assets).length + ' images extracted.', 'success');
+    } else {
+      // Server-side fallback
+      const formData = new FormData();
+      formData.append('file', file);
+      const resp = await fetch(`${API_BASE}/email-templates/import-html`, {
+        method: 'POST',
+        body: formData
+      });
+      const data = await resp.json();
+      if (!resp.ok) throw new Error(data.error || 'Server failed to process zip');
+      editorState.importAssets = data.assets || {};
+      textarea.value = data.html || '';
+      showToast(`Zip processed. HTML extracted with ${data.asset_count || 0} images.`, 'success');
     }
-    editorState.importAssets = assets;
-    textarea.value = html;
-    showToast('Zip loaded. HTML extracted.', 'success');
   } catch (error) {
+    // Last resort: try server-side if client-side failed for a non-JSZip reason
+    if (window.JSZip && error.message !== 'No HTML file found in the zip.') {
+      try {
+        const formData = new FormData();
+        formData.append('file', file);
+        const resp = await fetch(`${API_BASE}/email-templates/import-html`, {
+          method: 'POST',
+          body: formData
+        });
+        const data = await resp.json();
+        if (resp.ok) {
+          editorState.importAssets = data.assets || {};
+          textarea.value = data.html || '';
+          showToast(`Zip processed via server. ${data.asset_count || 0} images extracted.`, 'success');
+          return;
+        }
+      } catch (e) { /* fall through to error toast */ }
+    }
     showToast(error.message || 'Failed to import zip.', 'error');
   } finally {
     hideLoading();
@@ -2677,37 +2886,65 @@ function scrollToBlock(id) {
 }
 
 function attachBlockDragHandlers() {
-  document.querySelectorAll('.email-block').forEach(block => {
-    const id = block.dataset.blockId;
+  document.querySelectorAll('.email-block').forEach(blockEl => {
+    const id = blockEl.dataset.blockId;
     if (!id) return;
-    block.setAttribute('draggable', 'true');
-    block.addEventListener('dragstart', (e) => {
+    blockEl.setAttribute('draggable', 'true');
+    blockEl.addEventListener('dragstart', (e) => {
       e.dataTransfer.setData('text/plain', JSON.stringify({ kind: 'move', blockId: id }));
       e.dataTransfer.effectAllowed = 'move';
-      block.classList.add('dragging');
+      blockEl.classList.add('dragging');
     });
-    block.addEventListener('dragend', () => {
-      block.classList.remove('dragging');
+    blockEl.addEventListener('dragend', () => {
+      blockEl.classList.remove('dragging');
+      blockEl.classList.remove('image-drop-over');
       clearDropIndicator();
     });
-    block.addEventListener('dragover', (e) => {
+    blockEl.addEventListener('dragover', (e) => {
+      const isAssetDrag = editorState.currentDragType === 'asset';
+      const ctx = findBlockContext(id);
+      const isImageBlock = ctx?.block?.type === 'image';
+      if (isAssetDrag && isImageBlock) {
+        e.preventDefault();
+        e.stopPropagation();
+        blockEl.classList.add('image-drop-over');
+        e.dataTransfer.dropEffect = 'copy';
+        return;
+      }
+      blockEl.classList.remove('image-drop-over');
       const isStructureDrag = editorState.currentDragType === 'structure';
       if (!isStructureDrag && e.target.closest('.structure-drop, .container-drop')) return;
       e.preventDefault();
-      const rect = block.getBoundingClientRect();
+      const rect = blockEl.getBoundingClientRect();
       const before = e.clientY < rect.top + rect.height / 2;
-      showDropIndicator(block.parentElement, before ? getBlockIndex(block) : getBlockIndex(block) + 1);
+      showDropIndicator(blockEl.parentElement, before ? getBlockIndex(blockEl) : getBlockIndex(blockEl) + 1);
     });
-    block.addEventListener('drop', (e) => {
-      const isStructureDrag = editorState.currentDragType === 'structure';
-      if (!isStructureDrag && e.target.closest('.structure-drop, .container-drop')) return;
-      e.preventDefault();
-      const container = block.parentElement;
-      const rect = block.getBoundingClientRect();
-      const before = e.clientY < rect.top + rect.height / 2;
-      const index = before ? getBlockIndex(block) : getBlockIndex(block) + 1;
+    blockEl.addEventListener('dragleave', () => {
+      blockEl.classList.remove('image-drop-over');
+    });
+    blockEl.addEventListener('drop', (e) => {
       const payload = parseDragPayload(e);
       clearDropIndicator();
+      blockEl.classList.remove('image-drop-over');
+      if (payload?.kind === 'asset') {
+        const ctx = findBlockContext(id);
+        if (ctx?.block?.type === 'image') {
+          e.preventDefault();
+          e.stopPropagation();
+          ctx.block.src = payload.url || '';
+          renderEmailBlocks();
+          pushHistory();
+          editorState.currentDragType = null;
+          return;
+        }
+      }
+      const isStructureDrag = editorState.currentDragType === 'structure';
+      if (!isStructureDrag && e.target.closest('.structure-drop, .container-drop')) return;
+      e.preventDefault();
+      const container = blockEl.parentElement;
+      const rect = blockEl.getBoundingClientRect();
+      const before = e.clientY < rect.top + rect.height / 2;
+      const index = before ? getBlockIndex(blockEl) : getBlockIndex(blockEl) + 1;
       if (payload) {
         const targetContainer = resolveCanvasContainerFromElement(container) || editorState.blocks;
         handleDropToContainer(targetContainer, index, payload);
@@ -2717,7 +2954,9 @@ function attachBlockDragHandlers() {
 }
 
 function getBlockIndex(blockEl) {
-  const siblings = Array.from(blockEl.parentElement.querySelectorAll('.email-block'));
+  const parent = blockEl.parentElement;
+  if (!parent) return 0;
+  const siblings = Array.from(parent.children).filter(c => c.classList.contains('email-block'));
   return siblings.indexOf(blockEl);
 }
 
@@ -2739,6 +2978,7 @@ function parseDragPayload(event) {
     const parsed = JSON.parse(raw);
     if (parsed?.blockId) return { kind: 'move', blockId: parsed.blockId };
     if (parsed?.fragmentId) return { kind: 'fragment', fragmentId: parsed.fragmentId };
+    if (parsed?.kind === 'asset' && parsed?.url) return { kind: 'asset', url: parsed.url };
     if (parsed?.type) return { kind: 'new', type: parsed.type, variant: parsed.variant || '' };
     return null;
   } catch (error) {
@@ -2746,8 +2986,13 @@ function parseDragPayload(event) {
   }
 }
 
+function getTopLevelBlocks(containerEl) {
+  if (!containerEl) return [];
+  return Array.from(containerEl.children).filter(el => el.classList.contains('email-block'));
+}
+
 function getDropIndex(containerEl, clientY) {
-  const blocks = Array.from(containerEl.querySelectorAll('.email-block'));
+  const blocks = getTopLevelBlocks(containerEl);
   for (let i = 0; i < blocks.length; i += 1) {
     const rect = blocks[i].getBoundingClientRect();
     if (clientY < rect.top + rect.height / 2) return i;
@@ -2760,7 +3005,7 @@ function showDropIndicator(containerEl, index) {
   clearDropIndicator();
   const indicator = document.createElement('div');
   indicator.className = 'email-drop-indicator';
-  const blocks = containerEl.querySelectorAll('.email-block');
+  const blocks = getTopLevelBlocks(containerEl);
   if (index >= blocks.length) {
     containerEl.appendChild(indicator);
   } else {
@@ -2783,6 +3028,17 @@ function handleDropToContainer(container, index, payload) {
   }
   if (payload.kind === 'fragment') {
     addFragmentBlock(payload.fragmentId, container, index);
+    return;
+  }
+  if (payload.kind === 'asset') {
+    editorState.currentDragType = null;
+    const block = createBlock('image', '');
+    block.src = payload.url || '';
+    block.alt = 'Image';
+    container.splice(Math.max(0, Math.min(index, container.length)), 0, block);
+    editorState.selectedBlockId = block.id;
+    renderEmailBlocks();
+    pushHistory();
     return;
   }
   if (payload.kind === 'move') {
@@ -2921,8 +3177,112 @@ function switchEditorTab(tab) {
     styles.classList.toggle('hidden', tab !== 'styles');
   }
   document.querySelectorAll('.editor-tab').forEach(btn => {
-    btn.classList.toggle('active', btn.textContent.toLowerCase() === tab);
+    const key = btn.dataset.editorTab || btn.textContent.toLowerCase().replace(/\s+/g, '-');
+    btn.classList.toggle('active', key === tab);
   });
+  if (typeof updateThemeRailState === 'function') updateThemeRailState();
+}
+
+function extractBodyTextFromBlocks(blocks) {
+  if (!Array.isArray(blocks)) return '';
+  return blocks.map(block => {
+    if (block.type === 'text') return (block.content || '').replace(/\n/g, ' ');
+    if (block.type === 'button') return block.text || '';
+    if (block.type === 'structure' && block.columns) {
+      return block.columns.map(col => extractBodyTextFromBlocks(col.blocks || [])).join(' ');
+    }
+    if (block.type === 'container' && block.columns?.[0]?.blocks) {
+      return extractBodyTextFromBlocks(block.columns[0].blocks);
+    }
+    return '';
+  }).filter(Boolean).join(' ');
+}
+
+async function renderBrandAlignmentPanel() {
+  const panel = document.getElementById('email-brand-alignment-content');
+  if (!panel) return;
+  if (!editorState.brands || editorState.brands.length === 0) {
+    try {
+      const res = await fetch(`${API_BASE}/brands`);
+      const data = await res.json();
+      editorState.brands = data.brands || [];
+    } catch (_) {
+      editorState.brands = [];
+    }
+  }
+  const brands = editorState.brands || [];
+  const result = editorState.brandAlignmentResult;
+  const brandOptions = brands.map(b => `<option value="${b.id}">${(b.name || 'Brand').replace(/</g, '&lt;')}</option>`).join('');
+  let resultHtml = '';
+  if (result) {
+    const scoreColor = result.overallScore >= 80 ? '#059669' : result.overallScore >= 60 ? '#D97706' : '#DC2626';
+    const section = (label, data) => {
+      if (!data || !data.items || !data.items.length) return '';
+      const items = data.items.map(item => {
+        const statusClass = item.status === 'fail' ? 'fail' : item.status === 'warning' ? 'warning' : 'pass';
+        return `<div class="brand-alignment-item brand-alignment-${statusClass}">
+          <div class="brand-alignment-item-title">${(item.guideline || item.category || '').replace(/</g, '&lt;')} <span class="brand-alignment-status">${item.status || ''}</span></div>
+          <div class="brand-alignment-item-feedback">${(item.feedback || '').replace(/</g, '&lt;')}</div>
+        </div>`;
+      }).join('');
+      return `<details class="inspector-section brand-alignment-details" open><summary>${label} (${data.score != null ? data.score + '%' : '—'})</summary><div class="brand-alignment-section-items">${items}</div></details>`;
+    };
+    resultHtml = `
+      <div class="brand-alignment-score-card" style="--score-color:${scoreColor}">
+        <div class="brand-alignment-score-label">Overall brand alignment</div>
+        <div class="brand-alignment-score-value">${result.overallScore != null ? result.overallScore : '—'}%</div>
+        ${result.brandName ? `<div class="brand-alignment-score-brand">vs. ${(result.brandName || '').replace(/</g, '&lt;')}</div>` : ''}
+      </div>
+      ${section('Writing style', result.writingStyle)}
+      ${section('Visual content', result.visualContent)}
+      ${section('Overall quality', result.overallQuality)}
+      <button type="button" class="btn btn-secondary brand-alignment-reeval-btn" onclick="evaluateBrandAlignment();">Re-evaluate score</button>
+    `;
+  } else {
+    resultHtml = '<p class="brand-alignment-empty-copy">Select a brand and click Evaluate score to check your content against brand guidelines.</p>';
+  }
+  panel.innerHTML = `
+    <div class="form-group">
+      <label class="form-label">Brand</label>
+      <select class="form-input" id="brand-alignment-brand-select">
+        <option value="">— Select brand —</option>
+        ${brandOptions}
+      </select>
+    </div>
+    <div class="form-group">
+      <button type="button" class="btn btn-primary" id="brand-alignment-evaluate-btn" onclick="evaluateBrandAlignment()">Evaluate score</button>
+    </div>
+    <div id="brand-alignment-result">${resultHtml}</div>
+  `;
+}
+
+async function evaluateBrandAlignment() {
+  const select = document.getElementById('brand-alignment-brand-select');
+  const brandId = select && select.value ? select.value : null;
+  if (!brandId) {
+    showToast('Select a brand first', 'info');
+    return;
+  }
+  const subject = getValue('delivery-subject-input') || '';
+  const preheader = getValue('delivery-preheader-input') || '';
+  const bodyText = extractBodyTextFromBlocks(editorState.blocks || []);
+  const btn = document.getElementById('brand-alignment-evaluate-btn');
+  if (btn) { btn.disabled = true; btn.textContent = 'Evaluating…'; }
+  try {
+    const res = await fetch(`${API_BASE}/ai/brand-alignment`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ brandId: parseInt(brandId, 10), subject, preheader, bodyText })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Evaluation failed');
+    editorState.brandAlignmentResult = data;
+    renderBrandAlignmentPanel();
+  } catch (e) {
+    showToast(e.message || 'Brand alignment evaluation failed', 'error');
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = 'Evaluate score'; }
+  }
 }
 
 function switchPreviewTab(tab) {
@@ -2955,6 +3315,29 @@ function setDevicePreview(device, options = {}) {
       if (btn) btn.classList.toggle('active', key === device);
     });
   }
+}
+
+function applyCanvasDarkModeUI() {
+  const toggle = document.getElementById('canvas-dark-mode-toggle');
+  const shell = document.getElementById('email-designer-canvas');
+  const center = document.getElementById('email-editor-center');
+  if (toggle) toggle.setAttribute('aria-checked', editorState.canvasDarkMode ? 'true' : 'false');
+  if (shell) shell.classList.toggle('canvas-dark-mode', editorState.canvasDarkMode);
+  if (center) center.classList.toggle('canvas-dark-mode', editorState.canvasDarkMode);
+  const actual = document.getElementById('email-designer-actual');
+  const simulated = document.getElementById('email-designer-simulated');
+  const bodyStyle = editorState.bodyStyle || {};
+  const viewportBg = editorState.canvasDarkMode ? '#1a1a2e' : (bodyStyle.viewportColor || '#f0f0f0');
+  if (actual) actual.style.background = viewportBg;
+  if (simulated) simulated.style.background = viewportBg;
+}
+
+function toggleCanvasDarkMode() {
+  editorState.canvasDarkMode = !editorState.canvasDarkMode;
+  try {
+    localStorage.setItem('emailEditorCanvasDarkMode', editorState.canvasDarkMode ? 'true' : 'false');
+  } catch (_) {}
+  applyCanvasDarkModeUI();
 }
 
 function togglePreviewMode() {
@@ -3234,12 +3617,36 @@ function toggleRightPanel() {
   if (editorState.aiPanelOpen) {
     closeAiPanel();
     editorState.rightPanelOpen = true;
+  } else if (editorState.brandAlignmentPanelOpen) {
+    closeBrandAlignmentPanel();
+    editorState.rightPanelOpen = true;
   } else {
     editorState.rightPanelOpen = !editorState.rightPanelOpen;
   }
   const body = document.getElementById('email-editor-body');
   if (!body) return;
   body.classList.toggle('right-collapsed', !editorState.rightPanelOpen);
+  if (editorState.rightPanelOpen) {
+    try {
+      const w = parseInt(localStorage.getItem('emailEditorRightWidth'), 10);
+      if (w && w >= RIGHT_PANEL_MIN && w <= RIGHT_PANEL_MAX) setRightPanelWidth(w);
+    } catch (_) {}
+  }
+  if (typeof updateThemeRailState === 'function') updateThemeRailState();
+  updateRightPanelToggleButton();
+}
+
+function toggleRightPanelCollapse() {
+  toggleRightPanel();
+}
+
+function updateRightPanelToggleButton() {
+  const btn = document.getElementById('email-right-panel-toggle');
+  if (!btn) return;
+  const collapsed = !editorState.rightPanelOpen;
+  btn.title = collapsed ? 'Expand panel' : 'Collapse panel';
+  btn.setAttribute('aria-label', collapsed ? 'Expand right panel' : 'Collapse right panel');
+  btn.classList.toggle('right-panel-collapsed', collapsed);
 }
 
 function toggleAiPanel() {
@@ -3251,6 +3658,7 @@ function toggleAiPanel() {
 }
 
 function openAiPanel() {
+  if (editorState.brandAlignmentPanelOpen) closeBrandAlignmentPanel();
   editorState.aiPanelOpen = true;
   editorState.rightPanelOpen = true;
   const body = document.getElementById('email-editor-body');
@@ -3271,9 +3679,219 @@ function closeAiPanel() {
   updateAiRailState();
 }
 
+function openBrandAlignmentPanel() {
+  if (editorState.aiPanelOpen) closeAiPanel();
+  editorState.brandAlignmentPanelOpen = true;
+  editorState.rightPanelOpen = true;
+  const body = document.getElementById('email-editor-body');
+  if (body) {
+    body.classList.remove('right-collapsed');
+    body.classList.add('brand-alignment-panel-open');
+  }
+  renderBrandAlignmentPanel();
+  updateBrandAlignmentRailState();
+  updateThemeRailState();
+}
+
+function closeBrandAlignmentPanel() {
+  editorState.brandAlignmentPanelOpen = false;
+  const body = document.getElementById('email-editor-body');
+  if (body) body.classList.remove('brand-alignment-panel-open');
+  updateBrandAlignmentRailState();
+  updateThemeRailState();
+}
+
+function toggleBrandAlignmentPanel() {
+  if (editorState.brandAlignmentPanelOpen) {
+    closeBrandAlignmentPanel();
+  } else {
+    openBrandAlignmentPanel();
+  }
+}
+
+function updateBrandAlignmentRailState() {
+  const railBtn = document.querySelector('.email-right-rail-btn[data-rail="brand-alignment"]');
+  if (railBtn) railBtn.classList.toggle('active', editorState.brandAlignmentPanelOpen);
+}
+
+function openThemeFromRail() {
+  if (editorState.aiPanelOpen) closeAiPanel();
+  if (editorState.brandAlignmentPanelOpen) closeBrandAlignmentPanel();
+  editorState.rightPanelOpen = true;
+  const body = document.getElementById('email-editor-body');
+  if (body) body.classList.remove('right-collapsed');
+  switchEditorTab('styles');
+  if (typeof renderStylesPanel === 'function') renderStylesPanel();
+  updateThemeRailState();
+  updateAiRailState();
+  updateBrandAlignmentRailState();
+}
+
+function updateThemeRailState() {
+  const themeRailBtn = document.querySelector('.email-right-rail-btn[data-rail="theme"]');
+  if (!themeRailBtn) return;
+  const themeActive = editorState.rightPanelOpen && !editorState.aiPanelOpen && !editorState.brandAlignmentPanelOpen && editorState.activeTab === 'styles';
+  themeRailBtn.classList.toggle('active', themeActive);
+}
+
 function updateAiRailState() {
   const aiButton = document.querySelector('.email-right-rail-btn[data-rail="ai"]');
   if (aiButton) aiButton.classList.toggle('active', editorState.aiPanelOpen);
+}
+
+const LEFT_PANEL_MIN = 220;
+const LEFT_PANEL_MAX = 480;
+const LEFT_PANEL_RAIL = 48;
+const LEFT_PANEL_DEFAULT = 260;
+
+function getLeftPanelWidth() {
+  const body = document.getElementById('email-editor-body');
+  if (!body) return LEFT_PANEL_DEFAULT;
+  const v = body.style.getPropertyValue('--email-left-width');
+  if (v) return parseInt(v.replace('px', ''), 10) || LEFT_PANEL_DEFAULT;
+  return LEFT_PANEL_DEFAULT;
+}
+
+function setLeftPanelWidth(px) {
+  const body = document.getElementById('email-editor-body');
+  if (body) body.style.setProperty('--email-left-width', Math.min(LEFT_PANEL_MAX, Math.max(LEFT_PANEL_MIN, px)) + 'px');
+}
+
+function toggleLeftPanelCollapse() {
+  const body = document.getElementById('email-editor-body');
+  if (!body) return;
+  const collapsed = body.classList.toggle('left-collapsed');
+  if (collapsed) {
+    body.style.setProperty('--email-left-width', LEFT_PANEL_RAIL + 'px');
+  } else {
+    const w = parseInt(localStorage.getItem('emailEditorLeftWidth'), 10);
+    if (w && w >= LEFT_PANEL_MIN && w <= LEFT_PANEL_MAX) setLeftPanelWidth(w);
+    else body.style.removeProperty('--email-left-width');
+  }
+  const btn = document.getElementById('email-left-panel-toggle');
+  if (btn) {
+    btn.title = collapsed ? 'Expand panel' : 'Collapse panel';
+    btn.setAttribute('aria-label', collapsed ? 'Expand left panel' : 'Collapse left panel');
+  }
+  try {
+    localStorage.setItem('emailEditorLeftCollapsed', collapsed ? '1' : '0');
+  } catch (_) {}
+}
+
+function initLeftPanelResize() {
+  const body = document.getElementById('email-editor-body');
+  const resizeEl = document.getElementById('email-left-resize');
+  if (!body || !resizeEl) return;
+  try {
+    const collapsed = localStorage.getItem('emailEditorLeftCollapsed');
+    if (collapsed === '1') {
+      body.classList.add('left-collapsed');
+      body.style.setProperty('--email-left-width', LEFT_PANEL_RAIL + 'px');
+    } else {
+      const w = localStorage.getItem('emailEditorLeftWidth');
+      if (w) {
+        const n = parseInt(w, 10);
+        if (n >= LEFT_PANEL_MIN && n <= LEFT_PANEL_MAX) setLeftPanelWidth(n);
+      }
+    }
+  } catch (_) {}
+  const toggleBtn = document.getElementById('email-left-panel-toggle');
+  if (toggleBtn) toggleBtn.title = body.classList.contains('left-collapsed') ? 'Expand panel' : 'Collapse panel';
+
+  if (typeof updateRightPanelToggleButton === 'function') updateRightPanelToggleButton();
+
+  let startX = 0, startWidth = 0;
+  function onMove(e) {
+    if (!body) return;
+    const bodyRect = body.getBoundingClientRect();
+    const newW = Math.round(Math.min(LEFT_PANEL_MAX, Math.max(LEFT_PANEL_MIN, e.clientX - bodyRect.left)));
+    setLeftPanelWidth(newW);
+  }
+  function onUp() {
+    document.removeEventListener('mousemove', onMove);
+    document.removeEventListener('mouseup', onUp);
+    document.body.style.cursor = '';
+    document.body.style.userSelect = '';
+    try {
+      localStorage.setItem('emailEditorLeftWidth', String(getLeftPanelWidth()));
+    } catch (_) {}
+  }
+  resizeEl.addEventListener('mousedown', function (e) {
+    if (e.button !== 0 || body.classList.contains('left-collapsed')) return;
+    e.preventDefault();
+    startX = e.clientX;
+    startWidth = getLeftPanelWidth();
+    document.body.style.cursor = 'col-resize';
+    document.body.style.userSelect = 'none';
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+  });
+}
+
+const RIGHT_PANEL_MIN = 280;
+const RIGHT_PANEL_MAX = 560;
+const RIGHT_PANEL_RAIL = 44;
+const RIGHT_PANEL_DEFAULT = 380;
+
+function getRightPanelWidth() {
+  const body = document.getElementById('email-editor-body');
+  if (!body) return RIGHT_PANEL_DEFAULT;
+  const v = body.style.getPropertyValue('--email-right-width');
+  if (v) return parseInt(v.replace('px', ''), 10) || RIGHT_PANEL_DEFAULT;
+  return RIGHT_PANEL_DEFAULT;
+}
+
+function setRightPanelWidth(px) {
+  const body = document.getElementById('email-editor-body');
+  if (body) body.style.setProperty('--email-right-width', Math.min(RIGHT_PANEL_MAX, Math.max(RIGHT_PANEL_MIN, px)) + 'px');
+}
+
+function initRightPanelResize() {
+  const body = document.getElementById('email-editor-body');
+  const resizeEl = document.getElementById('email-right-resize');
+  if (!body || !resizeEl) return;
+  try {
+    if (!body.classList.contains('right-collapsed')) {
+      const w = localStorage.getItem('emailEditorRightWidth');
+      if (w) {
+        const n = parseInt(w, 10);
+        if (n >= RIGHT_PANEL_MIN && n <= RIGHT_PANEL_MAX) setRightPanelWidth(n);
+      }
+    }
+  } catch (_) {}
+  function onMove(e) {
+    if (!body) return;
+    const bodyRect = body.getBoundingClientRect();
+    const newW = Math.round(Math.min(RIGHT_PANEL_MAX, Math.max(RIGHT_PANEL_MIN, bodyRect.right - e.clientX)));
+    setRightPanelWidth(newW);
+  }
+  function onUp() {
+    document.removeEventListener('mousemove', onMove);
+    document.removeEventListener('mouseup', onUp);
+    document.body.style.cursor = '';
+    document.body.style.userSelect = '';
+    try {
+      localStorage.setItem('emailEditorRightWidth', String(getRightPanelWidth()));
+    } catch (_) {}
+  }
+  resizeEl.addEventListener('mousedown', function (e) {
+    if (e.button !== 0 || body.classList.contains('right-collapsed')) return;
+    e.preventDefault();
+    document.body.style.cursor = 'col-resize';
+    document.body.style.userSelect = 'none';
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+  });
+}
+
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', function () {
+    initLeftPanelResize();
+    initRightPanelResize();
+  });
+} else {
+  initLeftPanelResize();
+  initRightPanelResize();
 }
 
 function setAiTarget(target, options = {}) {
@@ -3652,6 +4270,7 @@ function renderBlockContentPanel(block) {
             <div class="form-inline-actions">
               <input class="form-input" type="text" value="${block.src || ''}" placeholder="https://… or choose from assets" oninput="updateEmailBlockLivePreview('${block.id}','src', this.value)" onblur="updateEmailBlockCommit('${block.id}','src', this.value)">
               <button class="btn btn-icon" type="button" title="Choose from assets" onclick="openAssetPickerForImage('${block.id}')"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg></button>
+              <button class="btn btn-icon" type="button" title="Upload from computer" onclick="uploadImageForBlock('${block.id}')"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg></button>
             </div>
           </div>
           <div class="form-group">
@@ -3948,14 +4567,77 @@ function renderStylesPanel() {
     </details>
   `;
   if (!block) {
-    container.innerHTML = bodySection + '<div class="inspector-empty">Select a block to edit styles.</div>';
+    const themes = editorState.themes || [];
+    const themeSelectEl = document.getElementById('email-editor-theme-select');
+    const currentThemeId = (themeSelectEl && themeSelectEl.value) ? parseInt(themeSelectEl.value, 10) : editorState.appliedThemeId;
+    const themeOptions = themes.map(t => `<option value="${t.id}" ${t.id === currentThemeId ? 'selected' : ''}>${(t.name || 'Untitled theme').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}</option>`).join('');
+    const selectedTheme = currentThemeId ? themes.find(t => t.id === currentThemeId) : null;
+    const variants = selectedTheme && selectedTheme.variants && selectedTheme.variants.length ? selectedTheme.variants : [];
+    const variantIdx = Math.min(editorState.appliedThemeVariantIndex || 0, Math.max(0, variants.length - 1));
+    const variantOptions = variants.map((v, i) => `<option value="${i}" ${i === variantIdx ? 'selected' : ''}>${(v.name || 'Variant ' + (i + 1)).replace(/</g, '&lt;')}</option>`).join('');
+    const variantRow = variants.length ? `
+        <div class="form-group">
+          <label class="form-label">Color variant</label>
+          <select class="form-input" id="email-editor-theme-variant-select">${variantOptions}</select>
+        </div>
+    ` : '';
+    const themesSection = `
+    <details class="inspector-section" open>
+      <summary>Themes</summary>
+      <div class="inspector-fields">
+        <div class="form-group">
+          <label class="form-label">Apply theme</label>
+          <select class="form-input" id="email-editor-theme-select" onchange="renderStylesPanel()">
+            <option value="">— Select a theme —</option>
+            ${themeOptions}
+          </select>
+        </div>
+        ${variantRow}
+        <div class="form-group">
+          <button type="button" class="btn btn-secondary btn-sm" onclick="applyThemeToEditorById()">Apply theme</button>
+        </div>
+        <div class="form-group">
+          <button type="button" class="btn btn-ghost btn-sm" onclick="generateThemeFromContent()" title="Create a new theme from current body and block styles">Generate theme from content</button>
+        </div>
+      </div>
+    </details>
+    `;
+    container.innerHTML = themesSection + bodySection + '<div class="inspector-empty">Select a block to edit styles.</div>';
     return;
   }
   const contentSection = renderBlockContentPanel(block);
   const style = block.style || {};
   const hasMarginSides = !!style.marginTop || !!style.marginRight || !!style.marginBottom || !!style.marginLeft;
   const hasPaddingSides = !!style.paddingTop || !!style.paddingRight || !!style.paddingBottom || !!style.paddingLeft;
+  const unlockRow = `
+    <details class="inspector-section" open>
+      <summary>Theme</summary>
+      <div class="inspector-fields">
+        <label class="form-checkbox">
+          <input type="checkbox" ${block.styleUnlocked ? 'checked' : ''} onchange="toggleBlockStyleUnlock('${block.id}', this.checked)">
+          Unlock styles (theme won't override)
+        </label>
+      </div>
+    </details>
+  `;
+  const headingRow = block.type === 'text' ? `
+    <details class="inspector-section" open>
+      <summary>Heading level</summary>
+      <div class="inspector-fields">
+        <div class="form-group">
+          <select class="form-input" onchange="updateBlockHeadingLevel('${block.id}', this.value)">
+            <option value="" ${!block.headingLevel ? 'selected' : ''}>Body text</option>
+            <option value="1" ${block.headingLevel === 1 ? 'selected' : ''}>H1</option>
+            <option value="2" ${block.headingLevel === 2 ? 'selected' : ''}>H2</option>
+            <option value="3" ${block.headingLevel === 3 ? 'selected' : ''}>H3</option>
+          </select>
+        </div>
+      </div>
+    </details>
+  ` : '';
   const common = `
+    ${unlockRow}
+    ${headingRow}
     <details class="inspector-section" open>
       <summary>Background</summary>
       <div class="inspector-fields">
@@ -4355,6 +5037,23 @@ function renderStylesPanel() {
   `;
 }
 
+function toggleBlockStyleUnlock(blockId, unlocked) {
+  const block = editorState.blocks.find(b => b.id === blockId);
+  if (!block) return;
+  block.styleUnlocked = !!unlocked;
+  pushHistory();
+  renderStylesPanel();
+}
+
+function updateBlockHeadingLevel(blockId, value) {
+  const block = editorState.blocks.find(b => b.id === blockId);
+  if (!block) return;
+  block.headingLevel = value === '' || value == null ? undefined : parseInt(value, 10);
+  pushHistory();
+  renderEmailBlocks();
+  renderStylesPanel();
+}
+
 function updateBodyStyle(field, value) {
   editorState.bodyStyle = editorState.bodyStyle || {};
   editorState.bodyStyle[field] = value;
@@ -4365,6 +5064,158 @@ function updateBodyStyle(field, value) {
   renderEmailBlocks();
   pushHistory();
   syncBodyWidthControls();
+}
+
+async function applyThemeToEditorById() {
+  const select = document.getElementById('email-editor-theme-select');
+  const variantSelect = document.getElementById('email-editor-theme-variant-select');
+  const id = select && select.value ? parseInt(select.value, 10) : null;
+  const variantIndex = variantSelect && variantSelect.value !== '' ? parseInt(variantSelect.value, 10) : 0;
+  if (!id) {
+    showToast('Select a theme first', 'info');
+    return;
+  }
+  const theme = (editorState.themes || []).find(t => t.id === id);
+  if (theme) {
+    applyThemeToEditor(theme, variantIndex);
+    editorState.appliedThemeId = theme.id;
+    editorState.appliedThemeVariantIndex = variantIndex;
+    showToast(`Applied theme: ${theme.name || 'Theme'}`);
+    return;
+  }
+  try {
+    const res = await fetch(`${API_BASE}/email-themes/${id}`);
+    const data = await res.json();
+    if (res.ok && data) {
+      editorState.themes = editorState.themes || [];
+      if (!editorState.themes.some(t => t.id === data.id)) editorState.themes.push(data);
+      applyThemeToEditor(data, variantIndex);
+      editorState.appliedThemeId = data.id;
+      editorState.appliedThemeVariantIndex = variantIndex;
+      showToast(`Applied theme: ${data.name || 'Theme'}`);
+    } else {
+      showToast('Theme not found', 'error');
+    }
+  } catch (e) {
+    showToast('Failed to load theme', 'error');
+  }
+}
+
+function applyThemeToEditor(theme, variantIndex) {
+  if (!theme) return;
+  const variant = (theme.variants && theme.variants[variantIndex]) ? theme.variants[variantIndex] : null;
+  const body = (variant && variant.body) ? { ...theme.body, ...variant.body } : (theme.body || {});
+  const colors = (variant && variant.colors) ? { ...theme.colors, ...variant.colors } : (theme.colors || {});
+  const comp = (variant && variant.components) ? { ...theme.components, ...variant.components } : (theme.components || {});
+  const typography = theme.typography || {};
+  editorState.bodyStyle = editorState.bodyStyle || {};
+  editorState.bodyStyle.backgroundColor = body.backgroundColor || editorState.bodyStyle.backgroundColor;
+  editorState.bodyStyle.viewportColor = body.viewportColor || editorState.bodyStyle.viewportColor;
+  editorState.bodyStyle.padding = body.padding || editorState.bodyStyle.padding;
+  editorState.bodyStyle.maxWidth = body.maxWidth != null ? (String(body.maxWidth) + (body.widthUnit || 'px')) : editorState.bodyStyle.maxWidth;
+  editorState.bodyStyle.widthUnit = body.widthUnit || editorState.bodyStyle.widthUnit;
+  editorState.bodyStyle.align = body.align || editorState.bodyStyle.align;
+  editorState.bodyStyle.fontFamily = body.fontFamily || editorState.bodyStyle.fontFamily;
+  editorState.blocks.forEach(block => {
+    if (block.styleUnlocked) return;
+    block.style = block.style || {};
+    if (block.type === 'button') {
+      const btn = comp.button || {};
+      block.style.buttonColor = btn.backgroundColor || block.style.buttonColor || colors.primary;
+      block.style.color = btn.color || block.style.color || '#ffffff';
+      block.style.borderRadius = btn.borderRadius || block.style.borderRadius;
+      block.style.padding = btn.padding || block.style.padding;
+    } else if (block.type === 'divider') {
+      const div = comp.divider || {};
+      block.style.borderColor = div.borderColor || block.style.borderColor;
+      if (div.thickness != null) block.thickness = div.thickness;
+    } else if (block.type === 'text') {
+      const hl = block.headingLevel;
+      const headingStyle = (hl === 1 && typography.heading1) ? typography.heading1 : (hl === 2 && typography.heading2) ? typography.heading2 : (hl === 3 && typography.heading3) ? typography.heading3 : null;
+      if (headingStyle) {
+        block.style.fontSize = headingStyle.fontSize || block.style.fontSize;
+        block.style.fontFamily = headingStyle.fontFamily || block.style.fontFamily;
+        block.style.fontWeight = headingStyle.fontWeight || block.style.fontWeight;
+      }
+      const txt = comp.text || {};
+      block.style.color = txt.color || block.style.color || colors.text;
+      block.style.fontFamily = block.style.fontFamily || txt.fontFamily || typography.fontFamily;
+      block.style.fontSize = block.style.fontSize || txt.fontSize || typography.fontSizeBase;
+      block.style.lineHeight = txt.lineHeight || block.style.lineHeight;
+    }
+  });
+  renderEmailBlocks();
+  pushHistory();
+  syncBodyWidthControls();
+  renderStylesPanel();
+}
+
+async function generateThemeFromContent() {
+  const body = editorState.bodyStyle || {};
+  const blocks = editorState.blocks || [];
+  const firstButton = blocks.find(b => b.type === 'button');
+  const firstDivider = blocks.find(b => b.type === 'divider');
+  const firstText = blocks.find(b => b.type === 'text');
+  const btnStyle = firstButton && firstButton.style ? firstButton.style : {};
+  const divStyle = firstDivider && firstDivider.style ? firstDivider.style : {};
+  const txtStyle = firstText && firstText.style ? firstText.style : {};
+  const theme = {
+    name: 'From content ' + new Date().toLocaleDateString(),
+    description: 'Generated from current email content',
+    body: {
+      backgroundColor: body.backgroundColor || '#ffffff',
+      viewportColor: body.viewportColor || '#f0f0f0',
+      padding: body.padding || '24px',
+      maxWidth: String(parseInt(body.maxWidth || '640', 10)),
+      widthUnit: body.widthUnit || 'px',
+      align: body.align || 'center',
+      fontFamily: body.fontFamily || 'Arial, sans-serif'
+    },
+    colors: {
+      primary: btnStyle.buttonColor || '#1473E6',
+      secondary: '#6B7280',
+      text: txtStyle.color || '#1f2933',
+      textMuted: '#6B7280'
+    },
+    typography: {
+      fontFamily: body.fontFamily || 'Arial, sans-serif',
+      fontSizeBase: txtStyle.fontSize || '14px',
+      heading1: { fontSize: '28px', fontFamily: 'Arial, sans-serif', fontWeight: 'bold' },
+      heading2: { fontSize: '22px', fontFamily: 'Arial, sans-serif', fontWeight: 'bold' },
+      heading3: { fontSize: '18px', fontFamily: 'Arial, sans-serif', fontWeight: '600' }
+    },
+    components: {
+      button: {
+        backgroundColor: btnStyle.buttonColor || '#1473E6',
+        color: btnStyle.color || '#ffffff',
+        borderRadius: btnStyle.borderRadius || '6px',
+        padding: btnStyle.padding || '12px 24px',
+        fontFamily: 'Arial, sans-serif'
+      },
+      divider: { borderColor: divStyle.borderColor || '#E5E7EB', thickness: firstDivider && firstDivider.thickness != null ? firstDivider.thickness : 1 },
+      text: {
+        color: txtStyle.color || '#1f2933',
+        fontFamily: txtStyle.fontFamily || 'Arial, sans-serif',
+        fontSize: txtStyle.fontSize || '14px',
+        lineHeight: txtStyle.lineHeight || '1.5'
+      }
+    }
+  };
+  try {
+    const res = await fetch(`${API_BASE}/email-themes`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(theme) });
+    const created = await res.json();
+    if (res.ok && created && created.id) {
+      editorState.themes = editorState.themes || [];
+      editorState.themes.unshift(created);
+      applyThemeToEditor(created);
+      showToast('Theme created and applied');
+      renderStylesPanel();
+    } else {
+      showToast('Failed to create theme', 'error');
+    }
+  } catch (e) {
+    showToast('Failed to create theme', 'error');
+  }
 }
 
 function updateBodyStyleLivePreview(field, value) {
@@ -4535,17 +5386,50 @@ function getSelectedDeliveryAudienceLabel() {
   return 'General audience';
 }
 
+/** Extract a plain-text summary of email content for AI (strip HTML, max length). */
+function getEmailContentSummary(blocks) {
+  if (!Array.isArray(blocks) || !blocks.length) return '';
+  const parts = [];
+  const stripHtml = (s) => (s || '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+  const add = (text, maxLen = 200) => {
+    const t = stripHtml(text);
+    if (t) parts.push(maxLen ? t.slice(0, maxLen) + (t.length > maxLen ? '…' : '') : t);
+  };
+  function walk(list) {
+    (list || []).forEach(block => {
+      if (block.type === 'text') add(block.content, 300);
+      if (block.type === 'image') add(block.alt || 'Image', 80);
+      if (block.type === 'button') {
+        add(block.text, 60);
+        if (block.url) add(`(link: ${block.url})`, 80);
+      }
+      if (block.type === 'form') add(block.formTitle, 80);
+      if (block.type === 'html') add(block.html, 150);
+      if (block.type === 'social') add('Social links', 20);
+      if (block.type === 'offer') add('Offer decision block', 20);
+      if (block.type === 'fragment') add(`Fragment: ${block.fragmentName || 'Untitled'}`, 60);
+      if (block.type === 'structure' || block.type === 'container') {
+        (block.columns || []).forEach(col => walk(col.blocks || []));
+      }
+    });
+  }
+  walk(blocks);
+  const full = parts.join(' | ');
+  return full.length > 1500 ? full.slice(0, 1500) + '…' : full;
+}
+
 async function generateSubjectForDelivery() {
   const output = document.getElementById('delivery-subject-suggestions');
   if (!output) return;
   const productName = (editorState.delivery && editorState.delivery.name) || 'Campaign';
   const targetAudience = getSelectedDeliveryAudienceLabel();
+  const contentSummary = getEmailContentSummary(editorState.blocks || []);
   try {
     showLoading();
     const response = await fetch(`${API_BASE}/ai/generate-subject`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ productName, targetAudience, count: 5 })
+      body: JSON.stringify({ productName, targetAudience, contentSummary, count: 5 })
     });
     const data = await response.json();
     if (!response.ok) throw new Error(data.error || 'Failed to generate subject lines');

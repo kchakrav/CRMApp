@@ -51,6 +51,7 @@ router.post('/', (req, res) => {
       folder = '',
       created_by = 'System'
     } = req.body;
+    const folder_id = req.body.folder_id || null;
     if (!name) return res.status(400).json({ error: 'name is required' });
     const result = query.insert('landing_pages', {
       name,
@@ -62,6 +63,7 @@ router.post('/', (req, res) => {
       body_style,
       tags,
       folder,
+      folder_id,
       created_by: created_by || 'System',
       updated_by: created_by || 'System',
       versions: []
@@ -117,4 +119,92 @@ router.delete('/:id', (req, res) => {
   }
 });
 
+function seedSampleLandingPages() {
+  const existing = query.all('landing_pages');
+  if (existing.length > 0) return;
+
+  const samples = [
+    { name: 'Summer Sale 2026', slug: 'summer-sale-2026', status: 'published', category: 'promotional',
+      content_blocks: [
+        { id: 'b1', type: 'hero', content: 'Summer Sale — Up to 50% Off', style: { textAlign: 'center', fontSize: '36px', fontWeight: 'bold' } },
+        { id: 'b2', type: 'text', content: 'Shop the hottest deals of the season before they are gone.' },
+        { id: 'b3', type: 'button', text: 'Shop Now', url: '/shop/summer' }
+      ] },
+    { name: 'Newsletter Signup', slug: 'newsletter-signup', status: 'published', category: 'lead-gen',
+      content_blocks: [
+        { id: 'b1', type: 'hero', content: 'Stay in the Loop', style: { textAlign: 'center', fontSize: '32px', fontWeight: 'bold' } },
+        { id: 'b2', type: 'text', content: 'Get exclusive offers, new arrivals, and insider tips delivered to your inbox.' },
+        { id: 'b3', type: 'form', fields: ['email', 'first_name'] }
+      ] },
+    { name: 'Product Launch — AeroFit Pro', slug: 'aerofit-pro-launch', status: 'published', category: 'product',
+      content_blocks: [
+        { id: 'b1', type: 'hero', content: 'Introducing AeroFit Pro', style: { textAlign: 'center', fontSize: '36px', fontWeight: 'bold' } },
+        { id: 'b2', type: 'text', content: 'Engineered for performance. Designed for comfort. Available now.' },
+        { id: 'b3', type: 'image', src: '', alt: 'AeroFit Pro product shot' },
+        { id: 'b4', type: 'button', text: 'Learn More', url: '/products/aerofit-pro' }
+      ] },
+    { name: 'Black Friday Early Access', slug: 'black-friday-early', status: 'draft', category: 'promotional',
+      content_blocks: [
+        { id: 'b1', type: 'hero', content: 'Black Friday Early Access', style: { textAlign: 'center', fontSize: '36px', fontWeight: 'bold', color: '#ffffff', background: '#111' } },
+        { id: 'b2', type: 'text', content: 'VIP members get 24-hour early access to our biggest deals.' },
+        { id: 'b3', type: 'button', text: 'Unlock Deals', url: '/black-friday' }
+      ] },
+    { name: 'Customer Referral Program', slug: 'refer-a-friend', status: 'published', category: 'loyalty',
+      content_blocks: [
+        { id: 'b1', type: 'hero', content: 'Give $20, Get $20', style: { textAlign: 'center', fontSize: '32px', fontWeight: 'bold' } },
+        { id: 'b2', type: 'text', content: 'Share your unique link with friends. When they make their first purchase, you both earn $20.' },
+        { id: 'b3', type: 'button', text: 'Start Referring', url: '/referral' }
+      ] },
+    { name: 'Holiday Gift Guide', slug: 'holiday-gift-guide', status: 'draft', category: 'editorial',
+      content_blocks: [
+        { id: 'b1', type: 'hero', content: 'Holiday Gift Guide 2026', style: { textAlign: 'center', fontSize: '36px', fontWeight: 'bold' } },
+        { id: 'b2', type: 'text', content: 'Curated picks for everyone on your list — from stocking stuffers to show-stoppers.' },
+        { id: 'b3', type: 'image', src: '', alt: 'Gift guide header' }
+      ] },
+    { name: 'Loyalty Rewards Hub', slug: 'loyalty-rewards', status: 'published', category: 'loyalty',
+      content_blocks: [
+        { id: 'b1', type: 'hero', content: 'Your Rewards Dashboard', style: { textAlign: 'center', fontSize: '32px', fontWeight: 'bold' } },
+        { id: 'b2', type: 'text', content: 'Check your points balance, redeem rewards, and discover new ways to earn.' },
+        { id: 'b3', type: 'button', text: 'View My Rewards', url: '/loyalty' }
+      ] },
+    { name: 'Spring Collection Preview', slug: 'spring-preview', status: 'draft', category: 'product',
+      content_blocks: [
+        { id: 'b1', type: 'hero', content: 'Spring 2026 Preview', style: { textAlign: 'center', fontSize: '36px', fontWeight: 'bold' } },
+        { id: 'b2', type: 'text', content: 'Fresh colors, new silhouettes, and limited-edition collaborations.' },
+        { id: 'b3', type: 'button', text: 'Preview Collection', url: '/spring-2026' }
+      ] },
+    { name: 'Webinar Registration — Marketing Trends', slug: 'webinar-marketing-trends', status: 'published', category: 'lead-gen',
+      content_blocks: [
+        { id: 'b1', type: 'hero', content: 'Free Webinar: 2026 Marketing Trends', style: { textAlign: 'center', fontSize: '32px', fontWeight: 'bold' } },
+        { id: 'b2', type: 'text', content: 'Join our panel of experts as they break down the trends shaping digital marketing this year.' },
+        { id: 'b3', type: 'form', fields: ['email', 'first_name', 'company'] }
+      ] },
+    { name: 'Contest — Win a $500 Gift Card', slug: 'win-gift-card', status: 'published', category: 'engagement',
+      content_blocks: [
+        { id: 'b1', type: 'hero', content: 'Enter to Win a $500 Gift Card', style: { textAlign: 'center', fontSize: '36px', fontWeight: 'bold' } },
+        { id: 'b2', type: 'text', content: 'Tell us your favorite product and you could win big. Contest ends March 31.' },
+        { id: 'b3', type: 'form', fields: ['email', 'first_name', 'favorite_product'] }
+      ] }
+  ];
+
+  samples.forEach(lp => {
+    query.insert('landing_pages', {
+      name: lp.name,
+      slug: lp.slug,
+      status: lp.status,
+      version: lp.status === 'published' ? 1 : 0,
+      content_blocks: lp.content_blocks,
+      html_output: '',
+      tags: [lp.category],
+      folder: '',
+      created_by: 'System',
+      updated_by: 'System',
+      versions: [],
+      sample: true
+    });
+  });
+  console.log(`🌐 Seeded ${samples.length} sample landing pages`);
+}
+
 module.exports = router;
+module.exports.seedSampleLandingPages = seedSampleLandingPages;

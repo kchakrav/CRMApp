@@ -11,6 +11,9 @@ function createTableToolbar(options = {}) {
     showFilter = true,
     showSearch = true,
     showColumnSelector = false,
+    showViewModeToggle = false,
+    viewMode = 'list',
+    viewKeyForMode = '',
     searchPlaceholder = 'Search...',
     searchValue = '',
     columns = [],
@@ -24,6 +27,17 @@ function createTableToolbar(options = {}) {
   const hasFilters = filters.length > 0;
   const activeFilterCount = filterTags.length;
   
+  const viewModeToggleHtml = showViewModeToggle && viewKeyForMode ? `
+    <div class="view-mode-toggle" role="group" aria-label="View mode">
+      <button type="button" class="view-mode-btn${viewMode === 'grid' ? ' active' : ''}" onclick="setContentViewMode('${viewKeyForMode}', 'grid')" title="Grid view">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+      </button>
+      <button type="button" class="view-mode-btn${viewMode === 'list' ? ' active' : ''}" onclick="setContentViewMode('${viewKeyForMode}', 'list')" title="List view">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="8" x2="21" y1="6" y2="6"/><line x1="8" x2="21" y1="12" y2="12"/><line x1="8" x2="21" y1="18" y2="18"/><line x1="3" x2="3.01" y1="6" y2="6"/><line x1="3" x2="3.01" y1="12" y2="12"/><line x1="3" x2="3.01" y1="18" y2="18"/></svg>
+      </button>
+    </div>
+  ` : '';
+
   return `
     <div class="table-toolbar">
       <div class="table-toolbar-top">
@@ -53,9 +67,11 @@ function createTableToolbar(options = {}) {
           </div>
         </div>
         
+        <div class="toolbar-right">
+          ${viewModeToggleHtml}
         ${showColumnSelector && columns.length ? `
           <div class="column-selector">
-            <button class="column-selector-btn" onclick="toggleColumnSelector(event, '${viewKey}')" title="Columns"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg></button>
+            <button class="column-selector-btn" onclick="toggleColumnSelector(event, '${viewKey}')" title="Columns"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v18"/><path d="M3 3h18v18H3z"/><path d="M3 9h18"/><path d="M3 15h18"/></svg></button>
             <div class="column-selector-dropdown" id="column-selector-${viewKey}" onclick="event.stopPropagation()">
               ${columns.map(col => `
                 <label class="column-selector-item">
@@ -66,6 +82,7 @@ function createTableToolbar(options = {}) {
             </div>
           </div>
         ` : ''}
+        </div>
       </div>
       
       ${hasFilters ? `
@@ -325,6 +342,18 @@ function sortTable(column) {
     case 'decisions':
       if (typeof window.loadDecisions === 'function') window.loadDecisions();
       break;
+    case 'content-templates':
+      if (typeof window._renderContentTemplatesPage === 'function') window._renderContentTemplatesPage();
+      break;
+    case 'landing-pages':
+      if (typeof window.loadLandingPages === 'function') window.loadLandingPages();
+      break;
+    case 'fragments':
+      if (typeof window.loadFragments === 'function') window.loadFragments();
+      break;
+    case 'brands':
+      if (typeof window.loadBrands === 'function') window.loadBrands();
+      break;
   }
 }
 
@@ -391,6 +420,15 @@ function clearAllFilters() {
         loadAssets();
       }
       break;
+    case 'content-templates':
+      if (typeof clearCtFilters === 'function') clearCtFilters();
+      break;
+    case 'landing-pages':
+      if (typeof clearLpFilters === 'function') clearLpFilters();
+      break;
+    case 'fragments':
+      if (typeof clearFragFilters === 'function') clearFragFilters();
+      break;
     case 'offers':
       if (typeof clearOdOffersFilters === 'function') clearOdOffersFilters();
       break;
@@ -451,6 +489,18 @@ function refreshCurrentView() {
       break;
     case 'decisions':
       if (typeof window.loadDecisions === 'function') window.loadDecisions();
+      break;
+    case 'content-templates':
+      if (typeof window.loadContentTemplates === 'function') window.loadContentTemplates();
+      break;
+    case 'landing-pages':
+      if (typeof window.loadLandingPages === 'function') window.loadLandingPages();
+      break;
+    case 'fragments':
+      if (typeof window.loadFragments === 'function') window.loadFragments();
+      break;
+    case 'brands':
+      if (typeof window.loadBrands === 'function') window.loadBrands();
       break;
     default:
       location.reload();

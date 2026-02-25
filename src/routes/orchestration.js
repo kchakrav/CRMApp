@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const { query, saveDatabase } = require('../database');
+const { filterContactsByConditions: segmentFilterContacts } = require('./segments');
 
 // Get orchestration for a campaign
 router.get('/:campaignId', (req, res) => {
@@ -75,7 +76,13 @@ router.post('/:campaignId/execute', (req, res) => {
     
     // Execute orchestration flow
     const result = executeOrchestration(campaignId, orchestration);
-    
+    // Persist last run results so UI can show consistent counts (dropdown + Results panel)
+    if (result.node_results && Object.keys(result.node_results).length > 0) {
+      query.update('campaign_orchestrations', orchestration.id, {
+        last_run_results: result.node_results,
+        last_run_at: result.executed_at
+      });
+    }
     res.json({
       success: true,
       message: 'Orchestration executed successfully',
@@ -224,6 +231,7 @@ function executeOrchestration(campaignId, orchestration) {
   }
   
   const executionLog = [];
+  const node_results = {}; // per-node output counts for UI (real numbers)
   const logMessage = (message, context = {}) => {
     executionLog.push({
       message,
@@ -252,6 +260,10 @@ function executeOrchestration(campaignId, orchestration) {
     // Execute node logic
     const nodeResult = executeNode(currentNode, audience, campaignId);
     audience = nodeResult.audience;
+    node_results[currentNode.id] = {
+      count: audience.length,
+      ...(nodeResult.nodeStatus && { status: nodeResult.nodeStatus })
+    };
     logMessage(nodeResult.log, { node_id: currentNode.id, type: currentNode.type });
     if (nodeResult.waiting) {
       const waitRecord = {
@@ -270,6 +282,7 @@ function executeOrchestration(campaignId, orchestration) {
         executed_at: new Date().toISOString(),
         audience_count: audienceCount,
         sent_count: sentCount,
+        node_results,
         status: 'waiting',
         waiting_node_id: currentNode.id,
         execution_log: executionLog
@@ -295,6 +308,7 @@ function executeOrchestration(campaignId, orchestration) {
     executed_at: new Date().toISOString(),
     audience_count: audienceCount,
     sent_count: sentCount,
+    node_results,
     execution_log: executionLog
   };
 }
@@ -309,20 +323,22 @@ function executeNode(node, audience, campaignId) {
   switch (category) {
     case 'targeting':
       if (type === 'segment') {
-        const segmentId = config?.segment_id;
-        if (segmentId) {
+        const segmentId = config?.segment_id != null ? parseInt(String(config.segment_id), 10) : null;
+        if (segmentId && !Number.isNaN(segmentId)) {
           const segment = query.get('segments', segmentId);
           if (segment && segment.conditions) {
-            newAudience = filterAudienceByConditions(audience, segment.conditions);
+            newAudience = filterAudienceBySegmentConditions(audience, segment.conditions);
+            query.update('segments', segmentId, { contact_count: newAudience.length });
             log += `Filtered to ${newAudience.length} contacts (segment: ${segment.name})`;
           }
         }
       } else if (type === 'build_audience' || type === 'query') {
-        const segmentId = config?.segment_id;
-        if (segmentId) {
+        const segmentId = config?.segment_id != null ? parseInt(String(config.segment_id), 10) : null;
+        if (segmentId && !Number.isNaN(segmentId)) {
           const segment = query.get('segments', segmentId);
           if (segment && segment.conditions) {
-            newAudience = filterAudienceByConditions(audience, segment.conditions);
+            newAudience = filterAudienceBySegmentConditions(audience, segment.conditions);
+            query.update('segments', segmentId, { contact_count: newAudience.length });
           }
         }
         log += `Built audience of ${newAudience.length} contacts`;
@@ -361,7 +377,7 @@ function executeNode(node, audience, campaignId) {
         log += `Saved audience "${name}" (${contactIds.length} contacts)`;
       } else if (type === 'filter') {
         const conditions = config?.conditions || {};
-        newAudience = filterAudienceByConditions(audience, conditions);
+        newAudience = filterAudienceBySegmentConditions(audience, conditions);
         log += `Filtered to ${newAudience.length} contacts`;
       } else if (type === 'deduplication') {
         const keys = (config?.keys || 'email').split(',').map(k => k.trim()).filter(Boolean);
@@ -429,16 +445,28 @@ function executeNode(node, audience, campaignId) {
       }
       break;
       
-    case 'channels':
-      if (type === 'email') {
-        sent = newAudience.length;
-        log += `Sent email to ${sent} contacts`;
-      } else if (type === 'sms') {
-        log += `Sent SMS to ${newAudience.length} contacts`;
-      } else if (type === 'push') {
-        log += `Sent push notification to ${newAudience.length} contacts`;
+    case 'channels': {
+      let nodeStatus = null;
+      const deliveryId = config?.delivery_id != null ? parseInt(String(config.delivery_id), 10) : null;
+      if (deliveryId && !Number.isNaN(deliveryId)) {
+        const delivery = query.get('deliveries', deliveryId);
+        if (delivery && String(delivery.status || '').toLowerCase() === 'draft') {
+          nodeStatus = 'paused';
+          log += `Delivery is draft – execution paused at this node`;
+        }
       }
-      break;
+      if (!nodeStatus) {
+        if (type === 'email') {
+          sent = newAudience.length;
+          log += `Sent email to ${sent} contacts`;
+        } else if (type === 'sms') {
+          log += `Sent SMS to ${newAudience.length} contacts`;
+        } else if (type === 'push') {
+          log += `Sent push notification to ${newAudience.length} contacts`;
+        }
+      }
+      return { audience: newAudience, log, sent, nodeStatus };
+    }
       
     case 'actions':
       if (type === 'update_tag') {
@@ -452,7 +480,7 @@ function executeNode(node, audience, campaignId) {
       log += 'Processed';
   }
   
-  return { audience: newAudience, log, sent };
+  return { audience: newAudience, log, sent, nodeStatus: undefined };
 }
 
 function isSignalAuthorized(req) {
@@ -613,25 +641,23 @@ function compareValue(actual, operator, expected) {
   }
 }
 
-// Filter audience by conditions
-function filterAudienceByConditions(audience, conditions) {
-  return audience.filter(customer => {
-    let matches = true;
-    
-    if (conditions.lifecycle_stage && customer.lifecycle_stage !== conditions.lifecycle_stage) {
-      matches = false;
-    }
-    
-    if (conditions.status && customer.status !== conditions.status) {
-      matches = false;
-    }
-    
-    if (conditions.min_lead_score && (customer.lead_score || 0) < conditions.min_lead_score) {
-      matches = false;
-    }
-    
-    return matches;
-  });
+// Filter audience by segment conditions (same logic as segments route so counts match)
+function filterAudienceBySegmentConditions(audience, conditions) {
+  if (!conditions || (typeof conditions !== 'object')) return audience;
+  if (conditions.rules && conditions.rules.length > 0) {
+    return segmentFilterContacts(audience, conditions);
+  }
+  let out = audience;
+  if (conditions.subscription_status != null) {
+    out = out.filter(c => c.subscription_status === conditions.subscription_status);
+  }
+  if (conditions.min_engagement_score != null) {
+    out = out.filter(c => (c.engagement_score || 0) >= conditions.min_engagement_score);
+  }
+  if (conditions.status) {
+    out = out.filter(c => c.status === conditions.status);
+  }
+  return out;
 }
 
 module.exports = router;

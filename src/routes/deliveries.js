@@ -2,6 +2,35 @@ const express = require('express');
 const router = express.Router();
 const { query } = require('../database');
 const emailService = require('../services/emailService');
+
+// Aggregate opens/clicks from delivery_logs by hour and day (for STO and reports)
+function aggregateDeliveryLogsByTime(deliveryIds = null) {
+  let logs = query.all('delivery_logs');
+  if (deliveryIds && deliveryIds.length > 0) {
+    const set = new Set(deliveryIds);
+    logs = logs.filter(l => set.has(l.delivery_id));
+  }
+  const hourTotals = new Array(24).fill(0);
+  const dayTotals = new Array(7).fill(0);
+  const hourClicks = new Array(24).fill(0);
+  const dayClicks = new Array(7).fill(0);
+  const grid = Array.from({ length: 7 }, () => Array.from({ length: 24 }, () => ({ opens: 0, clicks: 0 })));
+  for (const log of logs) {
+    const t = new Date(log.occurred_at || log.created_at);
+    const dow = (t.getDay() + 6) % 7;
+    const h = t.getHours();
+    if (log.event_type === 'open') {
+      hourTotals[h]++;
+      dayTotals[dow]++;
+      grid[dow][h].opens++;
+    } else if (log.event_type === 'click') {
+      hourClicks[h]++;
+      dayClicks[dow]++;
+      grid[dow][h].clicks++;
+    }
+  }
+  return { hourTotals, dayTotals, hourClicks, dayClicks, grid, totalOpens: dayTotals.reduce((a, b) => a + b, 0), totalClicks: dayClicks.reduce((a, b) => a + b, 0) };
+}
 let decisionEngine;
 try { decisionEngine = require('../services/decisionEngine'); } catch (e) { decisionEngine = null; }
 
@@ -73,6 +102,132 @@ router.get('/', (req, res) => {
   }
 });
 
+// ── STO Insights — system-wide optimal send times ───────────
+router.get('/sto-insights', (req, res) => {
+  try {
+    const allDeliveries = query.all('deliveries');
+    if (allDeliveries.length === 0) {
+      return res.json({ available: false, message: 'No delivery data to compute STO insights.' });
+    }
+
+    const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+    const channelGroups = { email: [], sms: [], push: [] };
+    allDeliveries.forEach(d => {
+      const ch = (d.channel || 'email').toLowerCase();
+      if (channelGroups[ch]) channelGroups[ch].push(d);
+    });
+
+    function computeInsights(deliveries, channelName) {
+      if (deliveries.length === 0) return null;
+
+      let totalSent = 0, totalOpens = 0, totalClicks = 0;
+      deliveries.forEach(d => { totalSent += d.sent || 0; totalOpens += d.opens || 0; totalClicks += d.clicks || 0; });
+
+      const deliveryIds = deliveries.map(d => d.id);
+      const fromLogs = aggregateDeliveryLogsByTime(deliveryIds);
+      const useLogs = fromLogs.totalOpens > 0 || fromLogs.totalClicks > 0;
+      const hourTotals = useLogs ? fromLogs.hourTotals : new Array(24).fill(0);
+      const dayTotals = useLogs ? fromLogs.dayTotals : new Array(7).fill(0);
+      const grid = [];
+      if (useLogs) {
+        for (let di = 0; di < 7; di++) {
+          for (let hi = 0; hi < 24; hi++) {
+            grid.push({ day: days[di], hour: hi, opens: fromLogs.grid[di][hi].opens });
+          }
+        }
+      } else {
+        for (let di = 0; di < 7; di++) {
+          for (let hi = 0; hi < 24; hi++) {
+            let openSum = 0;
+            deliveries.forEach(d => {
+              const seed = d.id * 7 + 31;
+              const rng = (i) => { const x = Math.sin(seed + i) * 10000; return x - Math.floor(x); };
+              const dOpens = d.opens || 0;
+              const peakMul = (hi >= 9 && hi <= 11) ? 2.5 : (hi >= 14 && hi <= 16) ? 2.0 : (hi >= 19 && hi <= 21) ? 1.8 : (hi < 6 || hi > 22) ? 0.2 : 1.0;
+              const dayMul = (di === 1 || di === 2) ? 1.4 : (di >= 5) ? 0.5 : 1.0;
+              const base = (dOpens / 168) * peakMul * dayMul;
+              const idx = di * 24 + hi;
+              openSum += Math.round(base * (0.6 + rng(idx) * 0.8));
+            });
+            grid.push({ day: days[di], hour: hi, opens: openSum });
+          }
+        }
+      }
+
+      const hourRanked = hourTotals.map((v, i) => ({ hour: i, opens: v })).sort((a, b) => b.opens - a.opens);
+      const top3Hours = hourRanked.slice(0, 3);
+      const dayRanked = dayTotals.map((v, i) => ({ day: days[i], dayIndex: i, opens: v })).sort((a, b) => b.opens - a.opens);
+      const top3Days = dayRanked.slice(0, 3);
+      const gridRanked = [...grid].sort((a, b) => b.opens - a.opens);
+      const top3Slots = gridRanked.slice(0, 3).map(g => ({
+        day: g.day, hour: g.hour,
+        label: g.day + ' ' + (g.hour < 10 ? '0' : '') + g.hour + ':00',
+        opens: g.opens
+      }));
+      const worst3Hours = hourRanked.slice(-3).reverse();
+
+      const avgOpenRate = totalSent > 0 ? ((totalOpens / totalSent) * 100).toFixed(1) : '0.0';
+      const avgCTOR = totalOpens > 0 ? ((totalClicks / totalOpens) * 100).toFixed(1) : '0.0';
+
+      const stoDeliveries = deliveries.filter(d => d.sto_enabled);
+      const nonStoDeliveries = deliveries.filter(d => !d.sto_enabled);
+      let stoLift = null;
+      if (stoDeliveries.length > 0 && nonStoDeliveries.length > 0) {
+        const stoOR = stoDeliveries.reduce((s, d) => s + (d.sent > 0 ? (d.opens || 0) / d.sent : 0), 0) / stoDeliveries.length;
+        const nonOR = nonStoDeliveries.reduce((s, d) => s + (d.sent > 0 ? (d.opens || 0) / d.sent : 0), 0) / nonStoDeliveries.length;
+        stoLift = nonOR > 0 ? (((stoOR - nonOR) / nonOR) * 100).toFixed(1) : null;
+      }
+
+      return {
+        channel: channelName,
+        delivery_count: deliveries.length,
+        total_sent: totalSent,
+        total_opens: totalOpens,
+        avg_open_rate: avgOpenRate,
+        avg_ctor: avgCTOR,
+        best_hours: top3Hours.map(h => ({
+          hour: h.hour,
+          label: (h.hour < 10 ? '0' : '') + h.hour + ':00',
+          opens: h.opens,
+          pct_of_total: totalOpens > 0 ? ((h.opens / totalOpens) * 100).toFixed(1) : '0.0'
+        })),
+        best_days: top3Days.map(d => ({
+          day: d.day, opens: d.opens,
+          pct_of_total: totalOpens > 0 ? ((d.opens / totalOpens) * 100).toFixed(1) : '0.0'
+        })),
+        best_slots: top3Slots,
+        avoid_hours: worst3Hours.map(h => ({
+          hour: h.hour,
+          label: (h.hour < 10 ? '0' : '') + h.hour + ':00',
+          opens: h.opens
+        })),
+        sto_adoption: {
+          enabled_count: stoDeliveries.length,
+          total_count: deliveries.length,
+          pct: deliveries.length > 0 ? ((stoDeliveries.length / deliveries.length) * 100).toFixed(0) : '0',
+          lift_pct: stoLift
+        }
+      };
+    }
+
+    const overall = computeInsights(allDeliveries, 'all');
+    const byChannel = {};
+    for (const [ch, dels] of Object.entries(channelGroups)) {
+      const insight = computeInsights(dels, ch);
+      if (insight) byChannel[ch] = insight;
+    }
+
+    res.json({
+      available: true,
+      overall,
+      by_channel: byChannel,
+      total_deliveries: allDeliveries.length
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // Get single delivery
 router.get('/:id', (req, res) => {
   try {
@@ -110,7 +265,21 @@ router.post('/', (req, res) => {
       proof_emails = [],
       ab_test_enabled = false,
       ab_split_pct = 50,
-      ab_winner_rule = 'open_rate'
+      ab_winner_rule = 'open_rate',
+      folder_id = null,
+      // Send Time Optimization
+      sto_enabled = false,
+      sto_model = 'engagement_history',
+      sto_window_hours = 24,
+      // Wave Sending
+      wave_enabled = false,
+      wave_count = 3,
+      wave_interval_minutes = 60,
+      wave_start_pct = 10,
+      wave_ramp_type = 'linear',
+      wave_custom_pcts = null,
+      wave_timing_mode = 'interval',
+      wave_custom_times = null
     } = req.body;
     if (!name || !channel) {
       return res.status(400).json({ error: 'name and channel are required' });
@@ -139,6 +308,20 @@ router.post('/', (req, res) => {
       ab_test_enabled: !!ab_test_enabled,
       ab_split_pct: parseInt(ab_split_pct) || 50,
       ab_winner_rule: ab_winner_rule || 'open_rate',
+      folder_id: folder_id ? parseInt(folder_id) : null,
+      // Send Time Optimization
+      sto_enabled: !!sto_enabled,
+      sto_model: sto_model || 'engagement_history',
+      sto_window_hours: parseInt(sto_window_hours) || 24,
+      // Wave Sending
+      wave_enabled: !!wave_enabled,
+      wave_count: parseInt(wave_count) || 3,
+      wave_interval_minutes: parseInt(wave_interval_minutes) || 60,
+      wave_start_pct: parseInt(wave_start_pct) || 10,
+      wave_ramp_type: wave_ramp_type || 'linear',
+      wave_custom_pcts: wave_custom_pcts || null,
+      wave_timing_mode: wave_timing_mode || 'interval',
+      wave_custom_times: wave_custom_times || null,
       approved_at: null,
       sent_at: null,
       sent: 0,
@@ -149,6 +332,105 @@ router.post('/', (req, res) => {
       updated_by: created_by || 'System'
     });
     res.status(201).json(result.record);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Get workflow schedule context for a delivery
+router.get('/:id/workflow-schedule', (req, res) => {
+  try {
+    const id = parseInt(req.params.id);
+    const delivery = query.get('deliveries', id);
+    if (!delivery) return res.status(404).json({ error: 'Delivery not found' });
+
+    const workflows = query.all('workflows');
+    const linkedWorkflows = [];
+
+    workflows.forEach(w => {
+      const nodes = w.orchestration?.nodes || [];
+      const matchingNodes = nodes.filter(n =>
+        ['email', 'sms', 'push'].includes(n.type) && parseInt(n.config?.delivery_id) === id
+      );
+      if (matchingNodes.length > 0) {
+        // Calculate delivery timing within the workflow
+        const allNodes = nodes;
+        const connections = w.orchestration?.connections || [];
+        let cumulativeWaitMinutes = 0;
+        const nodeOrder = [];
+
+        // Simple traversal: walk connections from entry to find path to delivery node
+        const visited = new Set();
+        function walkPath(nodeId) {
+          if (visited.has(nodeId)) return;
+          visited.add(nodeId);
+          const node = allNodes.find(n => n.id === nodeId);
+          if (!node) return;
+          nodeOrder.push(node);
+          if (node.type === 'wait') {
+            const wt = parseInt(node.config?.wait_time) || 0;
+            const wu = node.config?.wait_unit || 'hours';
+            cumulativeWaitMinutes += wu === 'days' ? wt * 1440 : wu === 'minutes' ? wt : wt * 60;
+          }
+          const outgoing = connections.filter(c => c.from === nodeId);
+          outgoing.forEach(c => walkPath(c.to));
+        }
+        const entryNode = allNodes.find(n => n.type === 'entry');
+        if (entryNode) walkPath(entryNode.id);
+
+        // Find position of delivery node in the path
+        const deliveryNode = matchingNodes[0];
+        const nodeIdx = nodeOrder.findIndex(n => n.id === deliveryNode.id);
+        let waitBeforeDelivery = 0;
+        if (nodeIdx > 0) {
+          for (let i = 0; i < nodeIdx; i++) {
+            const n = nodeOrder[i];
+            if (n.type === 'wait') {
+              const wt = parseInt(n.config?.wait_time) || 0;
+              const wu = n.config?.wait_unit || 'hours';
+              waitBeforeDelivery += wu === 'days' ? wt * 1440 : wu === 'minutes' ? wt : wt * 60;
+            }
+          }
+        }
+
+        // Build schedule info
+        const trigger = w.entry_trigger || {};
+        const schedule = {
+          workflow_id: w.id,
+          workflow_name: w.name,
+          workflow_status: w.status,
+          workflow_type: w.workflow_type,
+          trigger_type: trigger.type || 'manual',
+          scheduled_at: trigger.config?.scheduled_at || null,
+          frequency: trigger.config?.frequency || null,
+          recurring_day: trigger.config?.day || null,
+          recurring_time: trigger.config?.time || null,
+          next_run_at: w.next_run_at || null,
+          delivery_node_name: deliveryNode.name || deliveryNode.type,
+          delivery_position: nodeIdx + 1,
+          total_nodes: allNodes.length,
+          wait_before_delivery_minutes: waitBeforeDelivery,
+          nodes_before_delivery: nodeIdx
+        };
+
+        // Calculate estimated delivery time
+        if (trigger.config?.scheduled_at) {
+          const wfStart = new Date(trigger.config.scheduled_at);
+          const estDeliveryTime = new Date(wfStart.getTime() + waitBeforeDelivery * 60000);
+          schedule.estimated_delivery_time = estDeliveryTime.toISOString();
+        }
+
+        linkedWorkflows.push(schedule);
+      }
+    });
+
+    res.json({
+      delivery_id: id,
+      delivery_name: delivery.name,
+      delivery_scheduled_at: delivery.scheduled_at,
+      linked_workflows: linkedWorkflows,
+      is_workflow_linked: linkedWorkflows.length > 0
+    });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -175,6 +457,10 @@ router.put('/:id', (req, res) => {
     if (updates.wizard_step) updates.wizard_step = parseInt(updates.wizard_step);
     if (updates.last_saved_step) updates.last_saved_step = parseInt(updates.last_saved_step);
     if (updates.ab_split_pct) updates.ab_split_pct = parseInt(updates.ab_split_pct);
+    if (updates.sto_window_hours !== undefined) updates.sto_window_hours = parseInt(updates.sto_window_hours) || 24;
+    if (updates.wave_count !== undefined) updates.wave_count = parseInt(updates.wave_count) || 3;
+    if (updates.wave_interval_minutes !== undefined) updates.wave_interval_minutes = parseInt(updates.wave_interval_minutes) || 60;
+    if (updates.wave_start_pct !== undefined) updates.wave_start_pct = parseInt(updates.wave_start_pct) || 10;
     query.update('deliveries', id, updates);
     const updated = query.get('deliveries', id);
     res.json(updated);
@@ -400,9 +686,32 @@ router.get('/:id/report', (req, res) => {
     const unsubRate = delivered > 0 ? ((unsubscribed / delivered) * 100).toFixed(2) : '0.00';
     const errorRate = sent > 0 ? ((errors / sent) * 100).toFixed(2) : '0.00';
 
-    // Engagement timeline (48 h)
+    // Engagement timeline (48 h) — from delivery_logs when available
     const engagementTimeline = [];
-    if (delivery.sent_at) {
+    const deliveryLogs = query.all('delivery_logs').filter(l => l.delivery_id === id);
+    const hasLogs = deliveryLogs.length > 0 && delivery.sent_at;
+    if (hasLogs) {
+      const baseTs = new Date(delivery.sent_at).getTime();
+      const opensByHour = new Array(48).fill(0);
+      const clicksByHour = new Array(48).fill(0);
+      for (const l of deliveryLogs) {
+        const t = new Date(l.occurred_at || l.created_at).getTime();
+        const h = Math.floor((t - baseTs) / 3600000);
+        if (h >= 0 && h < 48) {
+          if (l.event_type === 'open') opensByHour[h]++;
+          else if (l.event_type === 'click') clicksByHour[h]++;
+        }
+      }
+      for (let h = 0; h < 48; h++) {
+        engagementTimeline.push({
+          hour: h,
+          time: new Date(baseTs + h * 3600000).toISOString(),
+          opens: opensByHour[h],
+          clicks: clicksByHour[h],
+          ...(channel === 'sms' ? { delivered: Math.round(delivered * 0.04 * Math.exp(-0.12 * h) * (0.8 + Math.random() * 0.4)) } : {})
+        });
+      }
+    } else if (delivery.sent_at) {
       const base = new Date(delivery.sent_at);
       for (let h = 0; h < 48; h++) {
         const decay = Math.exp(-0.12 * h);
@@ -527,14 +836,125 @@ router.get('/:id/report', (req, res) => {
       ].filter(e => e.count > 0);
     }
 
-    // Exclusion reasons
+    // Exclusion reasons (Adobe Campaign v8 style)
     const exclusions = [
-      { reason: 'Address not specified', count: Math.round(excluded * 0.30), pct: 30 },
-      { reason: 'Quarantined address', count: Math.round(excluded * 0.25), pct: 25 },
-      { reason: 'On denylist', count: Math.round(excluded * 0.20), pct: 20 },
-      { reason: 'Duplicate', count: Math.round(excluded * 0.15), pct: 15 },
-      { reason: 'Control group', count: Math.round(excluded * 0.10), pct: 10 }
+      { reason: 'User unknown', count: Math.round(excluded * 0.25), pct: 25 },
+      { reason: 'Invalid domain', count: Math.round(excluded * 0.15), pct: 15 },
+      { reason: 'Mailbox full', count: Math.round(excluded * 0.12), pct: 12 },
+      { reason: 'Account disabled', count: Math.round(excluded * 0.18), pct: 18 },
+      { reason: 'Refused', count: Math.round(excluded * 0.10), pct: 10 },
+      { reason: 'Unreachable', count: Math.round(excluded * 0.08), pct: 8 },
+      { reason: 'Address not specified', count: Math.round(excluded * 0.07), pct: 7 },
+      { reason: 'Control group', count: Math.round(excluded * 0.05), pct: 5 }
     ].filter(e => e.count > 0);
+
+    // ── Broadcast Statistics (per-domain) ──
+    const domains = ['gmail.com', 'outlook.com', 'yahoo.com', 'hotmail.com', 'aol.com', 'icloud.com', 'protonmail.com', 'other'];
+    const domainShares = [0.32, 0.22, 0.14, 0.10, 0.06, 0.05, 0.03, 0.08];
+    const broadcastStats = domains.map((domain, i) => {
+      const share = domainShares[i];
+      const dProcessed = Math.round(sent * share);
+      const dDelivered = Math.round(dProcessed * (0.94 + Math.random() * 0.05));
+      const dHardBounce = Math.round(dProcessed * (0.005 + Math.random() * 0.015));
+      const dSoftBounce = Math.round(dProcessed * (0.01 + Math.random() * 0.02));
+      const dOpens = Math.round(dDelivered * (0.25 + Math.random() * 0.20));
+      const dClicks = Math.round(dOpens * (0.15 + Math.random() * 0.15));
+      const dUnsubs = Math.round(dDelivered * (0.003 + Math.random() * 0.005));
+      return {
+        domain,
+        processed: dProcessed,
+        delivered_pct: dProcessed > 0 ? parseFloat(((dDelivered / dProcessed) * 100).toFixed(1)) : 0,
+        hard_bounces_pct: dProcessed > 0 ? parseFloat(((dHardBounce / dProcessed) * 100).toFixed(2)) : 0,
+        soft_bounces_pct: dProcessed > 0 ? parseFloat(((dSoftBounce / dProcessed) * 100).toFixed(2)) : 0,
+        opens_pct: dDelivered > 0 ? parseFloat(((dOpens / dDelivered) * 100).toFixed(1)) : 0,
+        clicks_pct: dDelivered > 0 ? parseFloat(((dClicks / dDelivered) * 100).toFixed(1)) : 0,
+        unsubs_pct: dDelivered > 0 ? parseFloat(((dUnsubs / dDelivered) * 100).toFixed(2)) : 0
+      };
+    }).filter(d => d.processed > 0);
+
+    // ── Non-deliverables ──
+    const errorTypes = [
+      { type: 'User unknown', count: Math.round(bounced * 0.30), pct: 30 },
+      { type: 'Invalid domain', count: Math.round(bounced * 0.18), pct: 18 },
+      { type: 'Mailbox full', count: Math.round(bounced * 0.15), pct: 15 },
+      { type: 'Account disabled', count: Math.round(bounced * 0.12), pct: 12 },
+      { type: 'Refused', count: Math.round(bounced * 0.10), pct: 10 },
+      { type: 'Unreachable', count: Math.round(bounced * 0.08), pct: 8 },
+      { type: 'Not connected', count: Math.round(bounced * 0.07), pct: 7 }
+    ].filter(e => e.count > 0);
+
+    const errorsByDomain = domains.slice(0, 5).map((domain, i) => {
+      const share = domainShares[i];
+      return {
+        domain,
+        user_unknown: Math.round(hardBounce * share * 0.4),
+        invalid_domain: Math.round(hardBounce * share * 0.2),
+        mailbox_full: Math.round(softBounce * share * 0.35),
+        refused: Math.round(softBounce * share * 0.15),
+        unreachable: Math.round(softBounce * share * 0.10),
+        total: Math.round(bounced * share)
+      };
+    }).filter(e => e.total > 0);
+
+    // ── Open and click-through rate ──
+    const openClickRate = {
+      sent,
+      complaints: spamComplaints,
+      opens,
+      clicks,
+      raw_reactivity: opens > 0 ? parseFloat(((clicks / opens) * 100).toFixed(2)) : 0
+    };
+
+    // ── User Activities (hourly breakdown last 24h) ──
+    const userActivities = [];
+    if (delivery.sent_at) {
+      const base = new Date(delivery.sent_at);
+      for (let h = 0; h < 24; h++) {
+        const decay = Math.exp(-0.08 * h);
+        const burst = h < 2 ? 2.5 : h < 4 ? 1.5 : 1;
+        userActivities.push({
+          hour: h,
+          time: new Date(base.getTime() + h * 3600000).toISOString(),
+          opens: Math.round(opens * 0.06 * decay * burst * (0.7 + Math.random() * 0.6)),
+          clicks: Math.round(clicks * 0.05 * decay * burst * (0.6 + Math.random() * 0.8))
+        });
+      }
+    }
+
+    // ── Clicks over time ──
+    const clicksOverTime = [];
+    if (delivery.sent_at) {
+      const base = new Date(delivery.sent_at);
+      for (let h = 0; h < 24; h++) {
+        const decay = Math.exp(-0.10 * h);
+        clicksOverTime.push({
+          hour: h,
+          time: new Date(base.getTime() + h * 3600000).toISOString(),
+          clicks: Math.round(clicks * 0.07 * decay * (0.6 + Math.random() * 0.8))
+        });
+      }
+    }
+
+    // ── OS breakdown ──
+    const osBreakdown = [
+      { os: 'iOS', count: Math.round(opens * 0.38), pct: 38 },
+      { os: 'Windows', count: Math.round(opens * 0.25), pct: 25 },
+      { os: 'macOS', count: Math.round(opens * 0.18), pct: 18 },
+      { os: 'Android', count: Math.round(opens * 0.14), pct: 14 },
+      { os: 'Linux', count: Math.round(opens * 0.03), pct: 3 },
+      { os: 'Other', count: Math.round(opens * 0.02), pct: 2 }
+    ].filter(o => o.count > 0);
+
+    // ── Browser breakdown ──
+    const browserBreakdown = [
+      { browser: 'Apple Mail', count: Math.round(opens * 0.34), pct: 34 },
+      { browser: 'Chrome', count: Math.round(opens * 0.24), pct: 24 },
+      { browser: 'Safari', count: Math.round(opens * 0.16), pct: 16 },
+      { browser: 'Outlook', count: Math.round(opens * 0.12), pct: 12 },
+      { browser: 'Firefox', count: Math.round(opens * 0.06), pct: 6 },
+      { browser: 'Samsung Internet', count: Math.round(opens * 0.04), pct: 4 },
+      { browser: 'Other', count: Math.round(opens * 0.04), pct: 4 }
+    ].filter(b => b.count > 0);
 
     // Simulated recipients for tables
     const allContacts = query.all('contacts').slice(0, 100);
@@ -600,6 +1020,13 @@ router.get('/:id/report', (req, res) => {
       throughput,
       exclusions,
       channel_data: channelData,
+      broadcast_stats: broadcastStats,
+      non_deliverables: { errors_by_type: errorTypes, errors_by_domain: errorsByDomain },
+      open_click_rate: openClickRate,
+      user_activities: userActivities,
+      clicks_over_time: clicksOverTime,
+      os_breakdown: osBreakdown,
+      browser_breakdown: browserBreakdown,
       recipients: {
         top_engaged: topEngaged,
         non_engaged: nonEngaged,
@@ -812,6 +1239,437 @@ router.post('/email-provider/configure', async (req, res) => {
       verified,
       verify_error: verifyError,
       ...status
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// ══════════════════════════════════════════════════════
+// HEATMAP DATA
+// ══════════════════════════════════════════════════════
+
+// ── Aggregate heatmap across all deliveries ────────────
+router.get('/heatmap/aggregate', (req, res) => {
+  try {
+    const channelFilter = (req.query.channel || '').toLowerCase();
+    const sourceFilter = (req.query.source || '').toLowerCase(); // 'all', 'standalone', 'workflow'
+    let deliveries = query.all('deliveries');
+
+    // Build set of workflow-linked delivery IDs
+    const workflows = query.all('workflows');
+    const workflowLinkedIds = new Set();
+    workflows.forEach(w => {
+      const nodes = w.orchestration?.nodes || [];
+      nodes.forEach(n => {
+        if (['email', 'sms', 'push'].includes(n.type) && n.config?.delivery_id) {
+          workflowLinkedIds.add(parseInt(n.config.delivery_id));
+        }
+      });
+    });
+
+    // Apply channel filter
+    if (channelFilter && channelFilter !== 'all') {
+      deliveries = deliveries.filter(d => (d.channel || '').toLowerCase() === channelFilter);
+    }
+
+    // Apply source filter
+    if (sourceFilter === 'standalone') {
+      deliveries = deliveries.filter(d => !workflowLinkedIds.has(d.id));
+    } else if (sourceFilter === 'workflow') {
+      deliveries = deliveries.filter(d => workflowLinkedIds.has(d.id));
+    }
+
+    // Count by source for the response
+    const allDeliveries = query.all('deliveries');
+    const standaloneCount = allDeliveries.filter(d => !workflowLinkedIds.has(d.id)).length;
+    const workflowCount = allDeliveries.filter(d => workflowLinkedIds.has(d.id)).length;
+
+    if (deliveries.length === 0) {
+      return res.status(200).json({
+        deliveries_count: 0,
+        message: 'No deliveries found for this filter.',
+        source_counts: { all: allDeliveries.length, standalone: standaloneCount, workflow: workflowCount }
+      });
+    }
+
+    const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+    const hours = Array.from({ length: 24 }, (_, i) => i);
+
+    // Aggregate totals
+    let totalSent = 0, totalOpens = 0, totalClicks = 0;
+    deliveries.forEach(d => {
+      totalSent += d.sent || 0;
+      totalOpens += d.opens || 0;
+      totalClicks += d.clicks || 0;
+    });
+
+    // ── Engagement heatmap: from delivery_logs when available ──
+    const deliveryIds = deliveries.map(d => d.id);
+    const fromLogs = aggregateDeliveryLogsByTime(deliveryIds);
+    const useLogs = fromLogs.totalOpens > 0 || fromLogs.totalClicks > 0;
+    let hourTotals = new Array(24).fill(0);
+    let dayTotals = new Array(7).fill(0);
+    const engagementGrid = [];
+    let engMax = 0;
+    if (useLogs) {
+      hourTotals = fromLogs.hourTotals.slice();
+      dayTotals = fromLogs.dayTotals.slice();
+      for (let di = 0; di < 7; di++) {
+        for (let hi = 0; hi < 24; hi++) {
+          const o = fromLogs.grid[di][hi].opens;
+          const c = fromLogs.grid[di][hi].clicks;
+          engagementGrid.push({ day: days[di], hour: hi, opens: o, clicks: c });
+          if (o > engMax) engMax = o;
+        }
+      }
+    } else {
+      for (let di = 0; di < 7; di++) {
+        for (let hi = 0; hi < 24; hi++) {
+          let openSum = 0, clickSum = 0;
+          deliveries.forEach((d) => {
+            const seed = d.id * 7 + 31;
+            const rng = (i) => { const x = Math.sin(seed + i) * 10000; return x - Math.floor(x); };
+            const dOpens = d.opens || 0;
+            const dClicks = d.clicks || 0;
+            const peakMul = (hi >= 9 && hi <= 11) ? 2.5 : (hi >= 14 && hi <= 16) ? 2.0 : (hi >= 19 && hi <= 21) ? 1.8 : (hi < 6 || hi > 22) ? 0.2 : 1.0;
+            const dayMul = (di === 1 || di === 2) ? 1.4 : (di >= 5) ? 0.5 : 1.0;
+            const base = (dOpens / 168) * peakMul * dayMul;
+            const idx = di * 24 + hi;
+            const val = Math.round(base * (0.6 + rng(idx) * 0.8));
+            openSum += val;
+            clickSum += Math.round(val * (dClicks / (dOpens || 1)) * (0.7 + rng(idx + 100) * 0.6));
+          });
+          engagementGrid.push({ day: days[di], hour: hi, opens: openSum, clicks: clickSum });
+          if (openSum > engMax) engMax = openSum;
+          hourTotals[hi] += openSum;
+          dayTotals[di] += openSum;
+        }
+      }
+    }
+
+    // ── Device breakdown (aggregate) ──
+    const deviceAgg = { desktop: { opens: 0, clicks: 0 }, mobile: { opens: 0, clicks: 0 }, tablet: { opens: 0, clicks: 0 }, other: { opens: 0, clicks: 0 } };
+    deliveries.forEach(d => {
+      const ch = (d.channel || 'email').toLowerCase();
+      const dO = d.opens || 0;
+      const dC = d.clicks || 0;
+      if (ch === 'email') {
+        deviceAgg.desktop.opens += Math.round(dO * 0.42);
+        deviceAgg.desktop.clicks += Math.round(dC * 0.48);
+        deviceAgg.mobile.opens += Math.round(dO * 0.45);
+        deviceAgg.mobile.clicks += Math.round(dC * 0.38);
+        deviceAgg.tablet.opens += Math.round(dO * 0.10);
+        deviceAgg.tablet.clicks += Math.round(dC * 0.11);
+        deviceAgg.other.opens += Math.round(dO * 0.03);
+        deviceAgg.other.clicks += Math.round(dC * 0.03);
+      } else if (ch === 'sms') {
+        deviceAgg.mobile.opens += Math.round((d.sent || 0) * 0.92);
+        deviceAgg.mobile.clicks += Math.round(dC * 0.95);
+        deviceAgg.desktop.opens += Math.round((d.sent || 0) * 0.08);
+        deviceAgg.desktop.clicks += Math.round(dC * 0.05);
+      } else {
+        deviceAgg.mobile.opens += Math.round((d.sent || 0) * 0.75);
+        deviceAgg.mobile.clicks += Math.round(dC * 0.70);
+        deviceAgg.tablet.opens += Math.round((d.sent || 0) * 0.20);
+        deviceAgg.tablet.clicks += Math.round(dC * 0.25);
+        deviceAgg.desktop.opens += Math.round((d.sent || 0) * 0.05);
+        deviceAgg.desktop.clicks += Math.round(dC * 0.05);
+      }
+    });
+
+    // ── Geo breakdown (aggregate) ──
+    const geoWeights = [
+      { country: 'United States', code: 'US', openW: 0.35, clickW: 0.38 },
+      { country: 'United Kingdom', code: 'GB', openW: 0.14, clickW: 0.12 },
+      { country: 'Germany', code: 'DE', openW: 0.10, clickW: 0.09 },
+      { country: 'France', code: 'FR', openW: 0.08, clickW: 0.08 },
+      { country: 'Canada', code: 'CA', openW: 0.07, clickW: 0.07 },
+      { country: 'Australia', code: 'AU', openW: 0.05, clickW: 0.05 },
+      { country: 'Netherlands', code: 'NL', openW: 0.04, clickW: 0.04 },
+      { country: 'Spain', code: 'ES', openW: 0.04, clickW: 0.03 },
+      { country: 'Brazil', code: 'BR', openW: 0.03, clickW: 0.03 },
+      { country: 'Japan', code: 'JP', openW: 0.03, clickW: 0.02 }
+    ];
+    const geoData = geoWeights.map(g => ({
+      country: g.country, code: g.code,
+      opens: Math.round(totalOpens * g.openW),
+      clicks: Math.round(totalClicks * g.clickW)
+    }));
+
+    // ── Per-delivery performance table ──
+    const deliveryPerf = deliveries.map(d => ({
+      id: d.id,
+      name: d.name,
+      channel: d.channel || 'Email',
+      status: d.status,
+      sent: d.sent || 0,
+      opens: d.opens || 0,
+      clicks: d.clicks || 0,
+      open_rate: d.sent ? ((d.opens || 0) / d.sent * 100).toFixed(1) : '0.0',
+      click_rate: d.opens ? ((d.clicks || 0) / d.opens * 100).toFixed(1) : '0.0'
+    })).sort((a, b) => parseFloat(b.open_rate) - parseFloat(a.open_rate));
+
+    // ── Channel breakdown ──
+    const byChannel = {};
+    deliveries.forEach(d => {
+      const ch = d.channel || 'Email';
+      if (!byChannel[ch]) byChannel[ch] = { count: 0, sent: 0, opens: 0, clicks: 0 };
+      byChannel[ch].count++;
+      byChannel[ch].sent += d.sent || 0;
+      byChannel[ch].opens += d.opens || 0;
+      byChannel[ch].clicks += d.clicks || 0;
+    });
+
+    // ── AI Recommendations (cross-delivery) ──
+    const bestHourIdx = hourTotals.indexOf(Math.max(...hourTotals));
+    const bestDayIdx = dayTotals.indexOf(Math.max(...dayTotals));
+    const worstDayIdx = dayTotals.indexOf(Math.min(...dayTotals));
+    const avgOpenRate = totalOpens / (totalSent || 1);
+    const avgClickRate = totalClicks / (totalOpens || 1);
+    const mobileShare = deviceAgg.mobile.opens / (totalOpens || 1);
+    const topDelivery = deliveryPerf[0];
+    const bottomDelivery = deliveryPerf[deliveryPerf.length - 1];
+    const bestGeo = [...geoData].sort((a, b) => (b.clicks / (b.opens || 1)) - (a.clicks / (a.opens || 1)))[0];
+
+    const recommendations = [
+      {
+        type: 'timing', priority: 'high', icon: 'clock',
+        title: 'Global Optimal Send Window',
+        description: `Across all ${deliveries.length} deliveries, peak engagement is on <strong>${days[bestDayIdx]}</strong> at <strong>${bestHourIdx}:00</strong>. Align future scheduling to this window.`,
+        metric: `${days[bestDayIdx]} ${bestHourIdx}:00`, impact: '+12-18% open rate'
+      },
+      {
+        type: 'performance', priority: 'high', icon: 'target',
+        title: 'Top Performing Delivery',
+        description: `<strong>${topDelivery.name}</strong> (${topDelivery.channel}) leads with a ${topDelivery.open_rate}% open rate and ${topDelivery.click_rate}% CTOR. Analyze its subject line, timing, and audience for replicable patterns.`,
+        metric: `${topDelivery.open_rate}% open rate`, impact: 'Template for success'
+      },
+      {
+        type: 'performance', priority: bottomDelivery && parseFloat(bottomDelivery.open_rate) < 15 ? 'high' : 'medium', icon: 'alert',
+        title: 'Underperforming Delivery',
+        description: `<strong>${bottomDelivery.name}</strong> (${bottomDelivery.channel}) has the lowest open rate at ${bottomDelivery.open_rate}%. Consider A/B testing subject lines or refreshing the audience segment.`,
+        metric: `${bottomDelivery.open_rate}% open rate`, impact: 'Recovery opportunity'
+      },
+      {
+        type: 'engagement', priority: avgClickRate < 0.12 ? 'high' : 'low', icon: 'sparkle',
+        title: 'Average Click-Through Rate',
+        description: avgClickRate < 0.12
+          ? `Overall CTOR is <strong>${(avgClickRate * 100).toFixed(1)}%</strong> across ${deliveries.length} deliveries. Below the 12% benchmark — consider stronger CTAs, personalization, or offer incentives.`
+          : `Overall CTOR of <strong>${(avgClickRate * 100).toFixed(1)}%</strong> is healthy. Maintain current content strategies and experiment with micro-optimizations.`,
+        metric: `${(avgClickRate * 100).toFixed(1)}% avg CTOR`, impact: avgClickRate < 0.12 ? '+5-10% CTOR' : 'On track'
+      },
+      {
+        type: 'device', priority: mobileShare > 0.45 ? 'high' : 'medium', icon: 'device',
+        title: 'Cross-Delivery Mobile Trend',
+        description: `<strong>${(mobileShare * 100).toFixed(0)}%</strong> of all opens come from mobile devices. ${mobileShare > 0.45 ? 'Ensure all templates are mobile-first with thumb-friendly CTAs.' : 'Desktop is still significant — maintain responsive balance.'}`,
+        metric: `${(mobileShare * 100).toFixed(0)}% mobile`, impact: '+8-15% engagement'
+      },
+      {
+        type: 'geo', priority: 'medium', icon: 'globe',
+        title: 'Geographic Performance Leader',
+        description: `<strong>${bestGeo.country}</strong> has the highest click-to-open ratio across all deliveries. Consider localized campaigns, timezone-based sends, or regional offers.`,
+        metric: bestGeo.country, impact: '+5-8% conversion'
+      }
+    ];
+
+    // Tag each delivery performance row with workflow-linked status
+    deliveryPerf.forEach(dp => {
+      dp.is_workflow_linked = workflowLinkedIds.has(dp.id);
+    });
+
+    res.json({
+      filter: channelFilter || 'all',
+      source_filter: sourceFilter || 'all',
+      source_counts: { all: allDeliveries.length, standalone: standaloneCount, workflow: workflowCount },
+      deliveries_count: deliveries.length,
+      total_sent: totalSent,
+      total_opens: totalOpens,
+      total_clicks: totalClicks,
+      avg_open_rate: (avgOpenRate * 100).toFixed(1),
+      avg_click_rate: (avgClickRate * 100).toFixed(1),
+      by_channel: byChannel,
+      engagement_heatmap: { grid: engagementGrid, max: engMax, days, hours },
+      device_heatmap: deviceAgg,
+      geo_heatmap: geoData,
+      hour_totals: hourTotals,
+      day_totals: dayTotals,
+      delivery_performance: deliveryPerf,
+      ai_recommendations: recommendations
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+router.get('/:id/heatmap', (req, res) => {
+  try {
+    const id = parseInt(req.params.id);
+    const delivery = query.get('deliveries', id);
+    if (!delivery) return res.status(404).json({ error: 'Delivery not found' });
+
+    const seed = id * 7 + 31;
+    const rng = (i) => {
+      const x = Math.sin(seed + i) * 10000;
+      return x - Math.floor(x);
+    };
+
+    const totalOpens = delivery.opens || 0;
+    const totalClicks = delivery.clicks || 0;
+    const totalSent = delivery.sent || 1;
+    const ch = (delivery.channel || 'Email').toLowerCase();
+
+    // ── Engagement heatmap: hour-of-day × day-of-week ──
+    const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+    const hours = Array.from({ length: 24 }, (_, i) => i);
+
+    const engagementGrid = [];
+    let engMax = 0;
+    const hourTotals = new Array(24).fill(0);
+    const dayTotals = new Array(7).fill(0);
+    let idx = 0;
+
+    for (const day of days) {
+      for (const hour of hours) {
+        const peakMul = (hour >= 9 && hour <= 11) ? 2.5 : (hour >= 14 && hour <= 16) ? 2.0 : (hour >= 19 && hour <= 21) ? 1.8 : (hour < 6 || hour > 22) ? 0.2 : 1.0;
+        const dayMul = (day === 'Tue' || day === 'Wed') ? 1.4 : (day === 'Sat' || day === 'Sun') ? 0.5 : 1.0;
+        const base = (totalOpens / 168) * peakMul * dayMul;
+        const val = Math.round(base * (0.6 + rng(idx) * 0.8));
+        engagementGrid.push({ day, hour, opens: val, clicks: Math.round(val * (totalClicks / (totalOpens || 1)) * (0.7 + rng(idx + 100) * 0.6)) });
+        if (val > engMax) engMax = val;
+        hourTotals[hour] += val;
+        dayTotals[days.indexOf(day)] += val;
+        idx++;
+      }
+    }
+
+    // ── Click map heatmap (email only): position-based ──
+    const clickZones = ch === 'email' ? [
+      { zone: 'Header Logo', y: 0, clicks: Math.round(totalClicks * 0.05 * (0.8 + rng(200) * 0.4)) },
+      { zone: 'Hero Image', y: 1, clicks: Math.round(totalClicks * 0.22 * (0.8 + rng(201) * 0.4)) },
+      { zone: 'Primary CTA', y: 2, clicks: Math.round(totalClicks * 0.35 * (0.8 + rng(202) * 0.4)) },
+      { zone: 'Product Grid 1', y: 3, clicks: Math.round(totalClicks * 0.12 * (0.8 + rng(203) * 0.4)) },
+      { zone: 'Product Grid 2', y: 4, clicks: Math.round(totalClicks * 0.08 * (0.8 + rng(204) * 0.4)) },
+      { zone: 'Secondary CTA', y: 5, clicks: Math.round(totalClicks * 0.10 * (0.8 + rng(205) * 0.4)) },
+      { zone: 'Social Links', y: 6, clicks: Math.round(totalClicks * 0.04 * (0.8 + rng(206) * 0.4)) },
+      { zone: 'Footer / Unsubscribe', y: 7, clicks: Math.round(totalClicks * 0.04 * (0.8 + rng(207) * 0.4)) }
+    ] : [];
+
+    // ── Device heatmap ──
+    const deviceData = ch === 'email' ? {
+      desktop: { opens: Math.round(totalOpens * 0.42), clicks: Math.round(totalClicks * 0.48) },
+      mobile: { opens: Math.round(totalOpens * 0.45), clicks: Math.round(totalClicks * 0.38) },
+      tablet: { opens: Math.round(totalOpens * 0.10), clicks: Math.round(totalClicks * 0.11) },
+      other: { opens: Math.round(totalOpens * 0.03), clicks: Math.round(totalClicks * 0.03) }
+    } : ch === 'sms' ? {
+      mobile: { opens: Math.round(totalSent * 0.92), clicks: Math.round(totalClicks * 0.95) },
+      desktop: { opens: Math.round(totalSent * 0.08), clicks: Math.round(totalClicks * 0.05) }
+    } : {
+      mobile: { opens: Math.round(totalSent * 0.75), clicks: Math.round(totalClicks * 0.70) },
+      tablet: { opens: Math.round(totalSent * 0.20), clicks: Math.round(totalClicks * 0.25) },
+      desktop: { opens: Math.round(totalSent * 0.05), clicks: Math.round(totalClicks * 0.05) }
+    };
+
+    // ── Geographic heatmap ──
+    const geoData = [
+      { country: 'United States', code: 'US', opens: Math.round(totalOpens * 0.35 * (0.9 + rng(300) * 0.2)), clicks: Math.round(totalClicks * 0.38 * (0.9 + rng(301) * 0.2)) },
+      { country: 'United Kingdom', code: 'GB', opens: Math.round(totalOpens * 0.14 * (0.9 + rng(302) * 0.2)), clicks: Math.round(totalClicks * 0.12 * (0.9 + rng(303) * 0.2)) },
+      { country: 'Germany', code: 'DE', opens: Math.round(totalOpens * 0.10 * (0.9 + rng(304) * 0.2)), clicks: Math.round(totalClicks * 0.09 * (0.9 + rng(305) * 0.2)) },
+      { country: 'France', code: 'FR', opens: Math.round(totalOpens * 0.08 * (0.9 + rng(306) * 0.2)), clicks: Math.round(totalClicks * 0.08 * (0.9 + rng(307) * 0.2)) },
+      { country: 'Canada', code: 'CA', opens: Math.round(totalOpens * 0.07 * (0.9 + rng(308) * 0.2)), clicks: Math.round(totalClicks * 0.07 * (0.9 + rng(309) * 0.2)) },
+      { country: 'Australia', code: 'AU', opens: Math.round(totalOpens * 0.05 * (0.9 + rng(310) * 0.2)), clicks: Math.round(totalClicks * 0.05 * (0.9 + rng(311) * 0.2)) },
+      { country: 'Netherlands', code: 'NL', opens: Math.round(totalOpens * 0.04 * (0.9 + rng(312) * 0.2)), clicks: Math.round(totalClicks * 0.04 * (0.9 + rng(313) * 0.2)) },
+      { country: 'Spain', code: 'ES', opens: Math.round(totalOpens * 0.04 * (0.9 + rng(314) * 0.2)), clicks: Math.round(totalClicks * 0.03 * (0.9 + rng(315) * 0.2)) },
+      { country: 'Brazil', code: 'BR', opens: Math.round(totalOpens * 0.03 * (0.9 + rng(316) * 0.2)), clicks: Math.round(totalClicks * 0.03 * (0.9 + rng(317) * 0.2)) },
+      { country: 'Japan', code: 'JP', opens: Math.round(totalOpens * 0.03 * (0.9 + rng(318) * 0.2)), clicks: Math.round(totalClicks * 0.02 * (0.9 + rng(319) * 0.2)) }
+    ];
+
+    // ── AI Recommendations ──
+    const bestHourIdx = hourTotals.indexOf(Math.max(...hourTotals));
+    const bestDayIdx = dayTotals.indexOf(Math.max(...dayTotals));
+    const worstDayIdx = dayTotals.indexOf(Math.min(...dayTotals));
+    const bestGeo = geoData.sort((a, b) => (b.clicks / (b.opens || 1)) - (a.clicks / (a.opens || 1)))[0];
+    const openRate = totalOpens / (totalSent || 1);
+    const clickRate = totalClicks / (totalOpens || 1);
+    const mobileShare = (deviceData.mobile?.opens || 0) / (totalOpens || 1);
+
+    const recommendations = [
+      {
+        type: 'timing',
+        priority: 'high',
+        icon: 'clock',
+        title: 'Optimal Send Time',
+        description: `Peak engagement occurs on <strong>${days[bestDayIdx]}</strong> at <strong>${bestHourIdx}:00</strong>. Consider scheduling future sends during this window for maximum impact.`,
+        metric: `${days[bestDayIdx]} ${bestHourIdx}:00`,
+        impact: '+12-18% open rate'
+      },
+      {
+        type: 'timing',
+        priority: 'medium',
+        icon: 'alert',
+        title: 'Avoid Low-Engagement Periods',
+        description: `<strong>${days[worstDayIdx]}</strong> shows the lowest engagement. ${days[worstDayIdx] === 'Sat' || days[worstDayIdx] === 'Sun' ? 'Weekend sends underperform weekdays for this audience.' : 'Consider shifting volume to higher-performing days.'}`,
+        metric: days[worstDayIdx],
+        impact: 'Reduce waste'
+      },
+      {
+        type: 'device',
+        priority: mobileShare > 0.45 ? 'high' : 'medium',
+        icon: 'device',
+        title: 'Mobile Optimization',
+        description: mobileShare > 0.45
+          ? `<strong>${(mobileShare * 100).toFixed(0)}%</strong> of opens come from mobile. Ensure responsive design, large tap targets, and concise copy.`
+          : `Mobile accounts for <strong>${(mobileShare * 100).toFixed(0)}%</strong> of opens. Desktop rendering should be prioritized but keep mobile-friendly.`,
+        metric: `${(mobileShare * 100).toFixed(0)}% mobile`,
+        impact: mobileShare > 0.45 ? '+8-15% click rate' : 'Maintain quality'
+      },
+      {
+        type: 'engagement',
+        priority: clickRate < 0.15 ? 'high' : 'low',
+        icon: 'target',
+        title: 'Click-Through Rate Analysis',
+        description: clickRate < 0.15
+          ? `CTOR is <strong>${(clickRate * 100).toFixed(1)}%</strong> which is below the 15% benchmark. Consider stronger CTAs, personalized content, or offer-based incentives.`
+          : `CTOR of <strong>${(clickRate * 100).toFixed(1)}%</strong> is above average. The current content strategy is effective.`,
+        metric: `${(clickRate * 100).toFixed(1)}% CTOR`,
+        impact: clickRate < 0.15 ? '+5-10% CTOR' : 'On track'
+      },
+      {
+        type: 'geo',
+        priority: 'medium',
+        icon: 'globe',
+        title: 'Geographic Opportunity',
+        description: `<strong>${bestGeo.country}</strong> has the highest click-to-open ratio. Consider creating localized content or running targeted campaigns for this region.`,
+        metric: bestGeo.country,
+        impact: '+5-8% conversion'
+      },
+      {
+        type: 'send_time',
+        priority: delivery.sto_enabled ? 'low' : 'high',
+        icon: 'sparkle',
+        title: 'Send Time Optimization',
+        description: delivery.sto_enabled
+          ? 'Send Time Optimization is already enabled. Continue monitoring performance.'
+          : 'Enable <strong>Send Time Optimization</strong> to automatically deliver at each recipient\'s predicted best engagement time.',
+        metric: delivery.sto_enabled ? 'Active' : 'Not enabled',
+        impact: delivery.sto_enabled ? 'Active' : '+20-30% opens'
+      }
+    ];
+
+    res.json({
+      delivery_id: id,
+      delivery_name: delivery.name,
+      channel: ch,
+      total_sent: totalSent,
+      total_opens: totalOpens,
+      total_clicks: totalClicks,
+      engagement_heatmap: { grid: engagementGrid, max: engMax, days, hours },
+      click_zones: clickZones,
+      device_heatmap: deviceData,
+      geo_heatmap: geoData,
+      hour_totals: hourTotals,
+      day_totals: dayTotals,
+      ai_recommendations: recommendations
     });
   } catch (error) {
     res.status(500).json({ error: error.message });

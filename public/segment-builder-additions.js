@@ -55,7 +55,7 @@ function generateSQL() {
         condition = `(${tableName}.${columnName} IS NULL OR ${tableName}.${columnName} = '')`;
         break;
       case 'is_not_empty':
-        condition = `(${tableName}.${columnName} IS NOT NULL AND ${tableName}.${columnName} != '')`;
+        condition = `${tableName}.${columnName} IS NOT NULL AND ${tableName}.${columnName} != ''`;
         break;
       case 'in_last':
         condition = `${tableName}.${columnName} >= DATE_SUB(NOW(), INTERVAL ${value} DAY)`;

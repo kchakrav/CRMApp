@@ -31,7 +31,8 @@ let executionState = {
   intervalId: null,
   order: [],
   currentIndex: -1,
-  waitingNodeId: null
+  waitingNodeId: null,
+  realNodeResults: null  // when set from execute API, connector labels show real counts
 };
 let runtimeByNode = {};
 
@@ -181,8 +182,8 @@ let referenceData = {
 
 async function loadReferenceData() {
   try {
-    // Load segments
-    const segmentsResponse = await fetch(`${API_BASE}/segments`);
+    // Load segments (cache-bust when refetching after execute so dropdown shows updated contact_count)
+    const segmentsResponse = await fetch(`${API_BASE}/segments?t=${Date.now()}`);
     const segmentsData = await segmentsResponse.json();
     referenceData.segments = segmentsData.segments || segmentsData || [];
     
@@ -236,10 +237,29 @@ async function loadOrchestration() {
     const response = await fetch(`${API_BASE}/orchestration/${campaignId}`);
     const data = await response.json();
     
-    nodes = data.nodes || [];
+    nodes = (data.nodes || []).map(n => ({
+      ...n,
+      config: n.config || {},
+      category: n.category || _resolveCategory(n.type),
+      icon: (n.icon && n.icon.includes('<svg')) ? n.icon : _getActivityIcon(n.type)
+    }));
     connections = data.connections || [];
     canvasState = data.canvas_state || { zoom: 1, pan: { x: 0, y: 0 } };
     syncNodeIdCounter();
+
+    // Restore last run results so segment dropdown and Results panel show the same count
+    if (data.last_run_results && Object.keys(data.last_run_results).length > 0) {
+      executionState.realNodeResults = data.last_run_results;
+      Object.keys(data.last_run_results).forEach(nodeId => {
+        const r = data.last_run_results[nodeId];
+        if (!runtimeByNode[nodeId]) runtimeByNode[nodeId] = {};
+        runtimeByNode[nodeId].count = r?.count ?? 0;
+        runtimeByNode[nodeId].seconds = r?.seconds ?? 1;
+        if (r?.status) runtimeByNode[nodeId].status = r.status;
+      });
+    } else {
+      executionState.realNodeResults = null;
+    }
 
     if (nodes.length === 0) {
       // Always start with an Entry activity on empty canvas
@@ -250,6 +270,8 @@ async function loadOrchestration() {
     }
     
     applyPendingWorkflowSegmentSelection();
+    applyPendingWorkflowAudienceSelection();
+    applyPendingWorkflowDeliverySelection();
     
     hideLoading();
   } catch (error) {
@@ -317,20 +339,28 @@ async function executeOrchestration() {
     return;
   }
   
-  // Run the visual workflow so nodes show executing → complete on the canvas
-  startWorkflow();
-  
+  executionState.realNodeResults = null;
   try {
     const response = await fetch(`${API_BASE}/orchestration/${campaignId}/execute`, {
       method: 'POST'
     });
-    
     const result = await response.json();
     if (!response.ok) {
       showToast(result.error || 'Error executing orchestration', 'error');
       return;
     }
     showToast(`Campaign executed! Sent to ${result.sent_count} customers`, 'success');
+    if (result.node_results && Object.keys(result.node_results).length > 0) {
+      executionState.realNodeResults = result.node_results;
+    }
+    if (executionState.running) {
+      clearInterval(executionState.intervalId);
+      executionState.intervalId = null;
+      executionState.running = false;
+    }
+    await loadReferenceData();
+    startWorkflow();
+    if (selectedNode) showNodeProperties(selectedNode);
   } catch (error) {
     showToast('Error executing orchestration', 'error');
     console.error(error);
@@ -527,6 +557,15 @@ function _getActivityIcon(type) {
   return _ico('<rect width="14" height="14" x="5" y="5" rx="2"/>');
 }
 
+function _resolveCategory(type) {
+  for (const group of activityDefinitions) {
+    for (const item of group.items) {
+      if (item.type === type) return item.category;
+    }
+  }
+  return 'flow';
+}
+
 // Add node to canvas
 function addNode(type, category, name, icon, x, y, returnIdOnly = false) {
   // Resolve icon: if empty/whitespace, look it up from definitions
@@ -674,8 +713,6 @@ function updatePropertiesPanelVisibility() {
   }
   if (sidebar) {
     sidebar.classList.toggle('properties-hidden', !hasSelection);
-    // Never hide the entire sidebar — AI Assistant should always be visible
-    sidebar.classList.remove('all-hidden');
   }
 }
 
@@ -1113,12 +1150,13 @@ function renderConnections() {
     handleGroup.appendChild(vLine);
     svg.appendChild(handleGroup);
     
-    // Label on connection
+    // Label on connection (skip runtime stats for Start → first node; they have no significance there)
     const fromRuntime = runtimeByNode[conn.from];
     const connLabel = conn.label || 'Result';
     const labelGroup = document.createElementNS('http://www.w3.org/2000/svg', 'g');
     labelGroup.setAttribute('class', 'connection-result-label');
-    const text = (fromRuntime && fromRuntime.count !== undefined && fromRuntime.seconds !== undefined)
+    const showRuntime = fromRuntime && fromRuntime.count !== undefined && fromRuntime.seconds !== undefined && fromNode.type !== 'entry';
+    const text = showRuntime
       ? `${fromRuntime.count.toLocaleString()} • ${fromRuntime.seconds.toFixed(1)}s – ${connLabel}`
       : connLabel;
     
@@ -1452,6 +1490,12 @@ function deleteConnection(connectionId) {
   showToast('Connection deleted', 'success');
 }
 
+// Start workflow with simulated numbers (toolbar "Start" button)
+function startWorkflowDemo() {
+  executionState.realNodeResults = null;
+  startWorkflow();
+}
+
 // Workflow execution controls (visual simulation)
 function startWorkflow() {
   if (executionState.running) {
@@ -1469,8 +1513,23 @@ function startWorkflow() {
     showToast('No runnable nodes found', 'warning');
     return;
   }
-  
-  assignRuntimeCounts(executionState.order);
+  if (executionState.realNodeResults && Object.keys(executionState.realNodeResults).length > 0) {
+    executionState.order.forEach(id => {
+      if (!runtimeByNode[id]) runtimeByNode[id] = { status: 'pending' };
+      const r = executionState.realNodeResults[id];
+      runtimeByNode[id].count = r?.count ?? 0;
+      runtimeByNode[id].seconds = 1;
+      if (r?.status) runtimeByNode[id].status = r.status;
+    });
+  } else {
+    assignRuntimeCounts(executionState.order);
+    executionState.order.forEach(id => {
+      const node = nodes.find(n => n.id === id);
+      if (node && node.category === 'channels' && node.config?.delivery_id && isDraftDeliveryNode(node)) {
+        runtimeByNode[id].status = 'paused';
+      }
+    });
+  }
   executionState.currentIndex = 0;
   setNodeStatus(executionState.order[0], 'executing');
   executionState.running = true;
@@ -1542,6 +1601,17 @@ function advanceExecution() {
       return;
     }
 
+    // Pause at channel nodes with draft delivery (wait/paused status)
+    if (currentNode && (runtimeByNode[currentId].status === 'paused' || isDraftDeliveryNode(currentNode))) {
+      runtimeByNode[currentId].status = 'paused';
+      clearInterval(executionState.intervalId);
+      executionState.intervalId = null;
+      executionState.running = false;
+      renderCanvas();
+      showToast(`Execution paused at ${currentNode.name} – delivery is draft`, 'warning');
+      return;
+    }
+
     if (currentNode?.type === 'external_signal') {
       runtimeByNode[currentId].status = 'waiting';
       executionState.waitingNodeId = currentId;
@@ -1598,6 +1668,15 @@ function resetExecutionState() {
 function setNodeStatus(nodeId, status) {
   if (!runtimeByNode[nodeId]) runtimeByNode[nodeId] = {};
   runtimeByNode[nodeId].status = status;
+}
+
+function isDraftDeliveryNode(node) {
+  if (node.category !== 'channels' || !node.config?.delivery_id) return false;
+  const deliveryId = node.config.delivery_id;
+  const d = (referenceData.deliveries || []).find(
+    del => del.id === deliveryId || del.id === parseInt(deliveryId, 10)
+  );
+  return d && String(d.status || '').toLowerCase() === 'draft';
 }
 
 function assignRuntimeCounts(order) {
@@ -1720,6 +1799,9 @@ function showNodeProperties(node) {
               </option>
             `).join('')}
           </select>
+          <div class="form-inline-actions">
+            <button class="btn btn-sm btn-primary" onclick="createAudienceFromNode('${node.id}')">+ Create Audience</button>
+          </div>
         </div>
       `;
     } else if (node.config.source_type === 'custom') {
@@ -1739,6 +1821,12 @@ function showNodeProperties(node) {
         </div>
       `;
     } else {
+      const segmentCountFor = (seg) => {
+        const runCount = executionState.realNodeResults && node.config.segment_id == seg.id
+          ? executionState.realNodeResults[node.id]?.count
+          : null;
+        return runCount != null ? runCount : (seg.contact_count ?? 0);
+      };
       html += `
         <div class="form-group">
           <label class="form-label">Select Segment</label>
@@ -1746,7 +1834,7 @@ function showNodeProperties(node) {
             <option value="">Choose a segment...</option>
             ${referenceData.segments.map(seg => `
               <option value="${seg.id}" ${node.config.segment_id == seg.id ? 'selected' : ''}>
-                ${seg.name} (${seg.contact_count || 0} contacts)
+                ${seg.name} (${segmentCountFor(seg).toLocaleString()} contacts)
               </option>
             `).join('')}
           </select>
@@ -1757,6 +1845,12 @@ function showNodeProperties(node) {
       `;
     }
   } else if (node.type === 'segment') {
+    const segmentCountFor = (seg) => {
+      const runCount = executionState.realNodeResults && node.config.segment_id == seg.id
+        ? executionState.realNodeResults[node.id]?.count
+        : null;
+      return runCount != null ? runCount : (seg.contact_count ?? 0);
+    };
     html += `
       <div class="form-group">
         <label class="form-label">Select Segment</label>
@@ -1764,11 +1858,13 @@ function showNodeProperties(node) {
           <option value="">Choose a segment...</option>
           ${referenceData.segments.map(seg => `
             <option value="${seg.id}" ${node.config.segment_id == seg.id ? 'selected' : ''}>
-              ${seg.name} (${seg.contact_count || 0} contacts)
+              ${seg.name} (${segmentCountFor(seg).toLocaleString()} contacts)
             </option>
           `).join('')}
         </select>
-        <div class="form-help">Filter contacts by this segment</div>
+        <div class="form-inline-actions">
+          <button class="btn btn-sm btn-primary" onclick="createSegmentFromNode('${node.id}')">+ Create Segment</button>
+        </div>
       </div>
       <div class="form-group">
         <label class="form-label">Action</label>
@@ -2487,10 +2583,11 @@ function formatPreviewCell(value) {
 
 function toggleAIAssistant() {
   const panel = document.getElementById('ai-assistant-panel');
-  const sidebar = document.getElementById('right-sidebar');
+  const btn = document.getElementById('ai-assistant-toggle');
   if (!panel) return;
-  panel.classList.toggle('collapsed');
-  if (sidebar) sidebar.classList.toggle('ai-collapsed', panel.classList.contains('collapsed'));
+  const isHidden = panel.classList.contains('hidden');
+  panel.classList.toggle('hidden', !isHidden);
+  if (btn) btn.classList.toggle('active', isHidden);
 }
 
 // Update node property
@@ -2513,38 +2610,41 @@ function updateNodeConfig(key, value) {
 async function createDeliveryFromNode(nodeId, channel) {
   const node = nodes.find(n => n.id === nodeId);
   if (!node) return;
-  
-  const name = prompt(`Enter ${channel.toUpperCase()} delivery name:`);
-  if (!name) return;
-  
-  try {
-    showLoading();
-    const payload = {
-      name,
-      channel: channel.toLowerCase() === 'sms' ? 'SMS' : channel.toLowerCase() === 'push' ? 'Push' : 'Email',
-      status: 'draft',
-      subject: node.config.subject || '',
-      content: node.config.content || ''
-    };
-    
-    const response = await fetch(`${API_BASE}/deliveries`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
-    });
-    const data = await response.json();
-    if (data.error) throw new Error(data.error);
-    
-    referenceData.deliveries.push(data);
-    node.config.delivery_id = data.id;
-    showToast('Delivery created and selected', 'success');
-    renderCanvas();
-    showNodeProperties(node);
-  } catch (error) {
-    showToast(`Failed to create delivery: ${error.message}`, 'error');
-  } finally {
-    hideLoading();
+  const saved = await saveOrchestration({ showToastMessage: false });
+  if (!saved) {
+    showToast('Save workflow first, then try again.', 'error');
+    return;
   }
+  const defaultName = (node.name || `${channel} message`).trim() || `${channel} message`;
+  const params = new URLSearchParams();
+  params.set('view', 'deliveries');
+  params.set('createFromWorkflow', '1');
+  params.set('workflowId', String(campaignId));
+  params.set('nodeId', nodeId);
+  params.set('defaultName', defaultName);
+  params.set('channel', channel.toLowerCase() === 'sms' ? 'SMS' : channel.toLowerCase() === 'push' ? 'Push' : 'Email');
+  const base = window.location.pathname.replace(/\/orchestration\.html$/, '') || '';
+  window.location.href = `${base}/index.html?${params.toString()}`;
+}
+
+async function createAudienceFromNode(nodeId) {
+  const node = nodes.find(n => n.id === nodeId);
+  if (!node) return;
+  const saved = await saveOrchestration({ showToastMessage: false });
+  if (!saved) {
+    showToast('Save failed. Please try again.', 'error');
+    return;
+  }
+  const defaultName = (node.name || 'Audience').trim();
+  const params = new URLSearchParams();
+  params.set('view', 'audiences');
+  params.set('page', 'create');
+  params.set('createFromWorkflow', '1');
+  params.set('workflowId', String(campaignId));
+  params.set('nodeId', nodeId);
+  params.set('defaultName', defaultName);
+  const base = window.location.pathname.replace(/\/orchestration\.html$/, '') || '';
+  window.location.href = `${base}/index.html?${params.toString()}`;
 }
 
 async function createSegmentFromNode(nodeId) {
@@ -2572,14 +2672,68 @@ function applyPendingWorkflowSegmentSelection() {
     node.config = node.config || {};
     node.config.source_type = 'segment';
     node.config.segment_id = data.segmentId;
+    if (data.segmentName) node.name = data.segmentName;
     renderCanvas();
     selectNode(node);
-    requestAnimationFrame(() => {
-      focusNode(node);
-    });
+    requestAnimationFrame(() => focusNode(node));
     localStorage.removeItem('workflowSegmentSelection');
+    saveOrchestration({ showToastMessage: false });
+    showToast('Segment linked to node', 'success');
   } catch (error) {
-    // ignore
+    console.error('Error applying pending segment selection:', error);
+  }
+}
+
+function applyPendingWorkflowAudienceSelection() {
+  const raw = localStorage.getItem('workflowAudienceSelection');
+  if (!raw) return;
+  try {
+    const data = JSON.parse(raw);
+    if (!data || String(data.workflowId) !== String(campaignId)) return;
+    const node = nodes.find(n => n.id === data.nodeId);
+    if (!node || !data.audienceId) return;
+    node.config = node.config || {};
+    node.config.source_type = 'audience';
+    node.config.audience_id = data.audienceId;
+    if (data.audienceName) node.name = data.audienceName;
+    if (referenceData.audiences && !referenceData.audiences.some(a => a.id === data.audienceId)) {
+      referenceData.audiences.push({ id: data.audienceId, name: data.audienceName || '', status: 'draft' });
+    }
+    renderCanvas();
+    selectNode(node);
+    showNodeProperties(node);
+    requestAnimationFrame(() => focusNode(node));
+    localStorage.removeItem('workflowAudienceSelection');
+    saveOrchestration({ showToastMessage: false });
+    showToast('Audience linked to node', 'success');
+  } catch (error) {
+    console.error('Error applying pending audience selection:', error);
+  }
+}
+
+function applyPendingWorkflowDeliverySelection() {
+  const raw = localStorage.getItem('workflowDeliverySelection');
+  if (!raw) return;
+  try {
+    const data = JSON.parse(raw);
+    if (!data || String(data.workflowId) !== String(campaignId)) return;
+    const node = nodes.find(n => n.id === data.nodeId);
+    if (!node || !data.deliveryId) return;
+    node.config = node.config || {};
+    node.config.delivery_id = data.deliveryId;
+    if (data.deliveryName) node.name = data.deliveryName;
+    if (referenceData.deliveries && !referenceData.deliveries.some(d => d.id === data.deliveryId)) {
+      referenceData.deliveries.push({ id: data.deliveryId, name: data.deliveryName || '', status: 'draft' });
+    }
+    renderCanvas();
+    selectNode(node);
+    showNodeProperties(node);
+    requestAnimationFrame(() => focusNode(node));
+    localStorage.removeItem('workflowDeliverySelection');
+    saveOrchestration({ showToastMessage: false });
+    showToast('Delivery linked to node', 'success');
+  } catch (error) {
+    console.error('Error applying pending delivery selection:', error);
   }
 }
 
@@ -3373,8 +3527,10 @@ function sendOrchestrationAIMessage() {
 
   // Check if this is a flow creation request — route to AI endpoint
   const lower = message.toLowerCase();
-  const isFlowRequest = (/create|build|design|suggest|make|generate|add/i.test(lower) &&
-    /flow|workflow|campaign|journey|sequence|automation|series|welcome|cart|winback|abandon|onboard|nurture|drip|birthday|promo|sale|vip|loyalty/i.test(lower));
+  const hasAction = /create|build|design|suggest|make|generate|add/i.test(lower);
+  const hasFlowKeyword = /flow|workflow|campaign|journey|sequence|automation|series|welcome|cart|winback|abandon|onboard|nurture|drip|birthday|promo|sale|vip|loyalty/i.test(lower);
+  const looksLikeBrief = (message.length > 50 && /trigger|wait|email|discount|reminder|hour|day/i.test(lower));
+  const isFlowRequest = (hasAction && hasFlowKeyword) || looksLikeBrief;
 
   if (isFlowRequest) {
     _handleAIChatFlowRequest(message, chat);
@@ -3388,9 +3544,25 @@ function sendOrchestrationAIMessage() {
   }, 500);
 }
 
+// Parse message into name + description for suggest-flow (e.g. "Title: X. Description: Y" or "X — Y")
+function _parseFlowBrief(message) {
+  var name = message, description = '';
+  var titleMatch = message.match(/\bTitle:\s*(.+?)(?=\s*Description:|\s*$)/is);
+  var descMatch = message.match(/\bDescription:\s*([\s\S]+)/i);
+  if (titleMatch && descMatch) {
+    name = titleMatch[1].trim();
+    description = descMatch[1].trim();
+  } else if (message.indexOf('—') >= 0 || message.indexOf(' - ') >= 0) {
+    var parts = message.split(/\s*[—\-]\s+/, 2);
+    if (parts.length >= 2) { name = parts[0].trim(); description = parts[1].trim(); }
+  }
+  return { name: name || message, description: description || '' };
+}
+
 // Handle chat-based flow creation through the AI endpoint
 async function _handleAIChatFlowRequest(message, chat) {
-  const thinkingId = 'ai-chat-thinking-' + Date.now();
+  var brief = _parseFlowBrief(message);
+  var thinkingId = 'ai-chat-thinking-' + Date.now();
   chat.innerHTML += '<div class="ai-message assistant" id="' + thinkingId + '"><em>Designing your flow...</em></div>';
   chat.scrollTop = chat.scrollHeight;
 
@@ -3398,7 +3570,7 @@ async function _handleAIChatFlowRequest(message, chat) {
     const response = await fetch(API_BASE + '/ai/suggest-flow', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: message, description: '' })
+      body: JSON.stringify({ name: brief.name, description: brief.description })
     });
     const data = await response.json();
     if (!response.ok) throw new Error(data.error || 'Failed');
@@ -3470,7 +3642,7 @@ function getOrchestrationAIResponse(message) {
       Just ask: "create welcome flow" or "add cart recovery"`;
   }
   
-  return 'I can help with orchestration design, best practices, timing, segmentation, and optimization.<br><br>To generate a flow, just describe what you need, e.g.:<br>• <em>"Create a welcome email series"</em><br>• <em>"Build a cart abandonment flow"</em><br>• <em>"Design a VIP loyalty campaign"</em><br><br>Or click <strong>Suggest Flow</strong> above to auto-generate based on this workflow\'s name.';
+  return 'I can help with orchestration design, best practices, timing, segmentation, and optimization.<br><br><strong>To generate a complete flow</strong>, use a clear title and description so the AI can derive the right steps and nodes. Example that works well:<br><br><strong>Title:</strong> Cart Abandonment Recovery<br><strong>Description:</strong> Trigger when a contact abandons their cart. Wait 1 hour → reminder email; 24 hours → 10% discount offer; 48 hours → last-chance email. Exclude contacts who purchased. Use conditions to branch on email open. Goal: recover 15–30% of abandoned carts.<br><br>You can type or paste a similar brief in the box above, or click <strong>Suggest Flow</strong> to auto-generate from this workflow\'s name and description.';
 }
 
 // Navigation

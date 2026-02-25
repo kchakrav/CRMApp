@@ -143,7 +143,8 @@ router.post('/', (req, res) => {
       email_verified = false,
       phone_verified = false,
       
-      notes = ''
+      notes = '',
+      folder_id = null
     } = req.body;
     
     if (!email) {
@@ -219,6 +220,7 @@ router.post('/', (req, res) => {
       phone_verified,
       
       notes,
+      folder_id: folder_id ? parseInt(folder_id) : null,
       last_activity_at: new Date().toISOString()
     });
     

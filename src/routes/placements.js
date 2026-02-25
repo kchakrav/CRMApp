@@ -53,7 +53,7 @@ router.get('/:id', (req, res) => {
 // Create placement
 router.post('/', (req, res) => {
   try {
-    const { name, description, channel, content_type, max_items = 1 } = req.body;
+    const { name, description, channel, content_type, max_items = 1, folder_id = null } = req.body;
     if (!name || !channel || !content_type) {
       return res.status(400).json({ error: 'name, channel, and content_type are required' });
     }
@@ -74,7 +74,8 @@ router.post('/', (req, res) => {
       channel,
       content_type,
       max_items: parseInt(max_items) || 1,
-      status: 'active'
+      status: 'active',
+      folder_id: folder_id ? parseInt(folder_id) : null
     });
 
     res.status(201).json(result.record);
@@ -91,7 +92,7 @@ router.put('/:id', (req, res) => {
     if (!placement) return res.status(404).json({ error: 'Placement not found' });
 
     const updates = {};
-    ['name', 'description', 'channel', 'content_type', 'max_items', 'status'].forEach(f => {
+    ['name', 'description', 'channel', 'content_type', 'max_items', 'status', 'folder_id'].forEach(f => {
       if (req.body[f] !== undefined) updates[f] = req.body[f];
     });
     if (updates.max_items) updates.max_items = parseInt(updates.max_items) || 1;

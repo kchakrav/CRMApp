@@ -50,14 +50,15 @@ router.get('/:id', (req, res) => {
 // Create rule
 router.post('/', (req, res) => {
   try {
-    const { name, description, conditions = [], logic = 'AND' } = req.body;
+    const { name, description, conditions = [], logic = 'AND', folder_id = null } = req.body;
     if (!name) return res.status(400).json({ error: 'name is required' });
 
     const result = query.insert('decision_rules', {
       name,
       description: description || '',
-      conditions, // Array of { entity, attribute, operator, value }
-      logic,       // 'AND' | 'OR'
+      conditions,
+      logic,
+      folder_id: folder_id ? parseInt(folder_id) : null,
       status: 'active'
     });
 
@@ -75,7 +76,7 @@ router.put('/:id', (req, res) => {
     if (!rule) return res.status(404).json({ error: 'Decision rule not found' });
 
     const updates = {};
-    ['name', 'description', 'conditions', 'logic', 'status'].forEach(f => {
+    ['name', 'description', 'conditions', 'logic', 'status', 'folder_id'].forEach(f => {
       if (req.body[f] !== undefined) updates[f] = req.body[f];
     });
 

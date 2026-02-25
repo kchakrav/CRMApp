@@ -96,7 +96,7 @@
     </div>
 
     <div class="email-editor-body" id="email-editor-body">
-      <div class="email-editor-left">
+      <div class="email-editor-left" id="email-editor-left">
         <div class="email-editor-rail">
           <button class="email-rail-btn active" type="button" data-mode="components">
             <span class="rail-icon">▦</span>
@@ -122,30 +122,49 @@
             <span class="rail-icon">⫶</span>
             <span class="rail-label">Conditional</span>
           </button>
+          <button class="email-rail-btn email-left-panel-toggle" type="button" id="email-left-panel-toggle" onclick="toggleLeftPanelCollapse()" title="Collapse/expand left panel">
+            <span class="rail-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg></span>
+            <span class="rail-label">Collapse panel</span>
+          </button>
         </div>
         <div class="email-editor-panel" id="email-left-panel"></div>
+        <div class="email-editor-left-resize" id="email-left-resize" title="Drag to resize"></div>
       </div>
 
-      <div class="email-editor-center">
+      <div class="email-editor-center" id="email-editor-center">
         <div class="email-preview-tabs">
           <button class="preview-tab active" type="button" data-preview-tab="actual" onclick="switchPreviewTab('actual')">Design</button>
           <button class="preview-tab" type="button" data-preview-tab="simulated" onclick="switchPreviewTab('simulated')">Preview (Simulated)</button>
+          <div class="canvas-dark-mode-toggle" id="canvas-dark-mode-toggle" role="switch" aria-label="Canvas light or dark mode" title="Canvas: light / dark mode" onclick="toggleCanvasDarkMode()">
+            <span class="toggle-track">
+              <span class="toggle-icon toggle-icon-sun" aria-hidden="true">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/></svg>
+              </span>
+              <span class="toggle-thumb"></span>
+              <span class="toggle-icon toggle-icon-moon" aria-hidden="true">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/></svg>
+              </span>
+            </span>
+          </div>
         </div>
-        <div class="email-designer-canvas">
+        <div class="email-designer-canvas" id="email-designer-canvas">
           <div id="email-designer-actual" class="email-canvas-drop"></div>
           <div id="email-designer-simulated" class="email-canvas-drop hidden"></div>
         </div>
       </div>
 
-      <div class="email-editor-right">
+      <div class="email-editor-right" id="email-editor-right">
+        <div class="email-editor-right-resize" id="email-right-resize" title="Drag to resize"></div>
         <div class="email-editor-panel" id="email-properties-panel">
           <div class="editor-panel-header">
             <div class="editor-panel-title">Properties</div>
             <div id="email-settings-breadcrumb" class="settings-breadcrumb"></div>
           </div>
           <div class="editor-tab-row">
-            <button class="editor-tab active" type="button" onclick="switchEditorTab('settings')">Settings</button>
-            <button class="editor-tab" type="button" onclick="switchEditorTab('styles')">Styles</button>
+            <div class="editor-tabs">
+              <button class="editor-tab active" type="button" data-editor-tab="settings" onclick="switchEditorTab('settings')">Settings</button>
+              <button class="editor-tab" type="button" data-editor-tab="styles" onclick="switchEditorTab('styles')">Styles</button>
+            </div>
           </div>
           <div id="email-settings-tab" class="compact-form">
           <div id="email-delivery-settings">
@@ -190,6 +209,15 @@
               </div>
             </div>
           </div>
+          <div id="fragment-settings" class="hidden">
+            <div class="form-group">
+              <label class="form-checkbox">
+                <input type="checkbox" id="fragment-theme-compatible" value="1">
+                Theme compatible (use in themed emails)
+              </label>
+              <div class="form-helper">When checked, this fragment can be used in emails that have a theme applied.</div>
+            </div>
+          </div>
           <div id="landing-page-settings" class="hidden">
             <div class="form-group">
               <label class="form-label">Page name</label>
@@ -219,6 +247,16 @@
           <div id="email-styles-tab" class="hidden">
             <div id="email-styles-panel"></div>
           </div>
+        </div>
+        <div id="email-brand-alignment-panel" class="email-brand-alignment-panel">
+          <div class="email-brand-alignment-header">
+            <button type="button" class="email-brand-alignment-back" onclick="closeBrandAlignmentPanel()" title="Back to Properties">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg>
+            </button>
+            <div class="email-brand-alignment-title">Brand alignment</div>
+          </div>
+          <div class="email-brand-alignment-divider"></div>
+          <div id="email-brand-alignment-content" class="email-brand-alignment-content"></div>
         </div>
         <div id="email-ai-panel" class="email-ai-panel">
           <div class="email-ai-header">
@@ -420,7 +458,10 @@
       </div>
       <div class="email-right-rail" aria-label="Right rail">
         <button class="email-right-rail-btn" type="button" title="AI Assistant" data-rail="ai" onclick="toggleAiPanel()"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/></svg></button>
-        <button class="email-right-rail-btn" type="button" title="Properties" onclick="toggleRightPanel()"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg></button>
+        <button class="email-right-rail-btn" type="button" title="Brand alignment" data-rail="brand-alignment" onclick="toggleBrandAlignmentPanel()"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></button>
+        <button class="email-right-rail-btn" type="button" title="Themes" data-rail="theme" onclick="openThemeFromRail()"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.9 0 1.75-.2 2.5-.5"/><circle cx="8.5" cy="9.5" r="1.5" fill="currentColor" stroke="none"/><circle cx="14" cy="8" r="1.5" fill="currentColor" stroke="none"/><circle cx="15.5" cy="12" r="1.5" fill="currentColor" stroke="none"/><circle cx="11" cy="15" r="1.5" fill="currentColor" stroke="none"/><circle cx="7" cy="12" r="1.5" fill="currentColor" stroke="none"/></svg></button>
+        <button class="email-right-rail-btn" type="button" title="Properties" data-rail="properties" onclick="toggleRightPanel()"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg></button>
+        <button class="email-right-rail-btn email-right-panel-toggle" type="button" id="email-right-panel-toggle" onclick="toggleRightPanelCollapse()" title="Collapse panel" aria-label="Collapse right panel"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg></button>
       </div>
     </div>
   </div>
@@ -538,6 +579,11 @@
         <button class="email-modal-close" onclick="closeAssetPicker()"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></button>
       </div>
       <div class="email-modal-body">
+        <div class="asset-picker-upload-zone" id="asset-picker-upload-zone">
+          <input type="file" id="asset-picker-file-input" accept="image/*" class="hidden">
+          <button type="button" class="btn btn-secondary btn-upload" id="asset-picker-upload-btn">Upload from computer</button>
+          <span class="asset-picker-upload-hint">or drag and drop an image here</span>
+        </div>
         <div id="asset-picker-list" class="asset-grid"></div>
       </div>
       <div class="email-modal-footer">
@@ -565,7 +611,7 @@
   <div id="loading" class="loading hidden">
     <div class="spinner"></div>
   </div>
-  <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+  <script src="/jszip.min.js"></script>
   <script src="email-editor-page.js"></script>
 </body>
 </html>

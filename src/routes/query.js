@@ -6,6 +6,21 @@ function getValueByPath(obj, path) {
   return path.split('.').reduce((acc, key) => (acc ? acc[key] : undefined), obj);
 }
 
+// Normalise so boolean and string 'true'/'false' compare equal
+function normaliseBooleanLike(v) {
+  if (v === true || v === 'true') return true;
+  if (v === false || v === 'false') return false;
+  return v;
+}
+
+function valuesEqualForFilter(a, b) {
+  const na = normaliseBooleanLike(a);
+  const nb = normaliseBooleanLike(b);
+  if (na === true || na === false) return na === nb;
+  if (typeof a === 'string' && typeof b === 'string') return a.toLowerCase() === b.toLowerCase();
+  return a == b;
+}
+
 function applyFilter(record, filters) {
   return Object.entries(filters).every(([key, condition]) => {
     const value = getValueByPath(record, key);
@@ -14,18 +29,18 @@ function applyFilter(record, filters) {
       if ('$lte' in condition && !(value <= condition.$lte)) return false;
       if ('$gt' in condition && !(value > condition.$gt)) return false;
       if ('$lt' in condition && !(value < condition.$lt)) return false;
-      if ('$ne' in condition && !(value !== condition.$ne)) return false;
+      if ('$ne' in condition && valuesEqualForFilter(value, condition.$ne)) return false;
       if ('$contains' in condition) {
         const str = String(value || '').toLowerCase();
         const needle = String(condition.$contains).toLowerCase();
         if (!str.includes(needle)) return false;
       }
       if ('$in' in condition && Array.isArray(condition.$in)) {
-        if (!condition.$in.includes(value)) return false;
+        if (!condition.$in.some(item => valuesEqualForFilter(value, item))) return false;
       }
       return true;
     }
-    return value === condition;
+    return valuesEqualForFilter(value, condition);
   });
 }
 
@@ -34,6 +49,7 @@ function splitByAnd(input) {
   let current = '';
   let inQuotes = false;
   let quoteChar = '';
+  let parenDepth = 0;
   for (let i = 0; i < input.length; i += 1) {
     const char = input[i];
     if ((char === '"' || char === "'") && (i === 0 || input[i - 1] !== '\\')) {
@@ -45,7 +61,11 @@ function splitByAnd(input) {
         quoteChar = '';
       }
     }
-    if (!inQuotes && input.slice(i, i + 4).toLowerCase() === ' and') {
+    if (!inQuotes) {
+      if (char === '(') parenDepth += 1;
+      else if (char === ')') parenDepth -= 1;
+    }
+    if (!inQuotes && parenDepth === 0 && input.slice(i, i + 4).toLowerCase() === ' and') {
       parts.push(current.trim());
       current = '';
       i += 3;
@@ -60,10 +80,15 @@ function splitByAnd(input) {
 function parseSqlValue(raw) {
   const trimmed = raw.trim();
   if ((trimmed.startsWith("'") && trimmed.endsWith("'")) || (trimmed.startsWith('"') && trimmed.endsWith('"'))) {
-    return trimmed.slice(1, -1);
+    const inner = trimmed.slice(1, -1);
+    // SQL '' or "" is empty string; slice(1,-1) of "''" is "'", of '""' is '"'
+    if (trimmed === "''" || trimmed === '""') return '';
+    return inner;
   }
   if (!Number.isNaN(Number(trimmed))) return Number(trimmed);
   if (trimmed.toLowerCase() === 'null') return null;
+  if (trimmed.toLowerCase() === 'true') return true;
+  if (trimmed.toLowerCase() === 'false') return false;
   return trimmed;
 }
 
@@ -109,57 +134,71 @@ function parseAggregateExpr(expr) {
 }
 
 function parseWhereClause(whereText) {
-  const clauses = splitByAnd(whereText);
-  return clauses.map(clause => {
-    const trimmed = clause.trim();
+  const parts = splitByAnd(whereText);
+  const allClauses = [];
+  for (const part of parts) {
+    let trimmed = part.trim();
+    // Strip outer parentheses and re-parse so "(A AND B)" becomes two clauses
+    if (trimmed.startsWith('(') && trimmed.endsWith(')')) {
+      const inner = trimmed.slice(1, -1).trim();
+      allClauses.push(...parseWhereClause(inner));
+      continue;
+    }
 
     // IS NOT NULL
     const isNotNullMatch = trimmed.match(/^([\w\.]+)\s+is\s+not\s+null$/i);
     if (isNotNullMatch) {
-      return { field: isNotNullMatch[1].trim(), operator: 'is not null', value: null };
+      allClauses.push({ field: isNotNullMatch[1].trim(), operator: 'is not null', value: null });
+      continue;
     }
 
     // IS NULL
     const isNullMatch = trimmed.match(/^([\w\.]+)\s+is\s+null$/i);
     if (isNullMatch) {
-      return { field: isNullMatch[1].trim(), operator: 'is null', value: null };
+      allClauses.push({ field: isNullMatch[1].trim(), operator: 'is null', value: null });
+      continue;
     }
 
     // NOT LIKE
     const notLikeMatch = trimmed.match(/^([\w\.]+)\s+not\s+like\s+(.+)$/i);
     if (notLikeMatch) {
-      return { field: notLikeMatch[1].trim(), operator: 'not like', value: parseSqlValue(notLikeMatch[2]) };
+      allClauses.push({ field: notLikeMatch[1].trim(), operator: 'not like', value: parseSqlValue(notLikeMatch[2]) });
+      continue;
     }
 
     // LIKE
     const likeMatch = trimmed.match(/^([\w\.]+)\s+like\s+(.+)$/i);
     if (likeMatch) {
-      return { field: likeMatch[1].trim(), operator: 'like', value: parseSqlValue(likeMatch[2]) };
+      allClauses.push({ field: likeMatch[1].trim(), operator: 'like', value: parseSqlValue(likeMatch[2]) });
+      continue;
     }
 
     // IN (val1, val2, ...)
     const inMatch = trimmed.match(/^([\w\.]+)\s+in\s*\((.+)\)$/i);
     if (inMatch) {
       const values = inMatch[2].split(',').map(v => parseSqlValue(v.trim()));
-      return { field: inMatch[1].trim(), operator: 'in', value: values };
+      allClauses.push({ field: inMatch[1].trim(), operator: 'in', value: values });
+      continue;
     }
 
     // NOT IN (val1, val2, ...)
     const notInMatch = trimmed.match(/^([\w\.]+)\s+not\s+in\s*\((.+)\)$/i);
     if (notInMatch) {
       const values = notInMatch[2].split(',').map(v => parseSqlValue(v.trim()));
-      return { field: notInMatch[1].trim(), operator: 'not in', value: values };
+      allClauses.push({ field: notInMatch[1].trim(), operator: 'not in', value: values });
+      continue;
     }
 
     // Standard operators: =, !=, >=, <=, >, <, contains
     const match = trimmed.match(/^([\w\.]+)\s*(=|!=|>=|<=|>|<|contains)\s*(.+)$/i);
-    if (!match) return null;
-    return {
+    if (!match) continue;
+    allClauses.push({
       field: match[1].trim(),
       operator: match[2].toLowerCase(),
       value: parseSqlValue(match[3])
-    };
-  }).filter(Boolean);
+    });
+  }
+  return allClauses;
 }
 
 function sqlLikeMatch(text, pattern) {
@@ -177,8 +216,8 @@ function applySqlWhere(record, whereClauses, tableOrder) {
   return whereClauses.every(({ field, operator, value }) => {
     const v = getFieldValue(record, field, tableOrder);
     switch (operator) {
-      case '=': return v == value;
-      case '!=': return v != value;
+      case '=': return valuesEqualForFilter(v, value);
+      case '!=': return !valuesEqualForFilter(v, value);
       case '>': return Number(v) > Number(value);
       case '<': return Number(v) < Number(value);
       case '>=': return Number(v) >= Number(value);
@@ -186,8 +225,8 @@ function applySqlWhere(record, whereClauses, tableOrder) {
       case 'contains': return String(v || '').toLowerCase().includes(String(value).toLowerCase());
       case 'like': return sqlLikeMatch(v, value);
       case 'not like': return !sqlLikeMatch(v, value);
-      case 'in': return Array.isArray(value) && value.some(item => item == v);
-      case 'not in': return Array.isArray(value) && !value.some(item => item == v);
+      case 'in': return Array.isArray(value) && value.some(item => valuesEqualForFilter(v, item));
+      case 'not in': return Array.isArray(value) && !value.some(item => valuesEqualForFilter(v, item));
       case 'is null': return v === null || v === undefined || v === '';
       case 'is not null': return v !== null && v !== undefined && v !== '';
       default: return false;
@@ -244,9 +283,9 @@ function parseSqlQuery(sql) {
     joinMatch = rest.match(/^\s*join\s+([\w_]+)\s+on\s+([\w\.]+)\s*=\s*([\w\.]+)([\s\S]*)$/i);
   }
   
-  const whereMatch = rest.match(/\s+where\s+([\s\S]+?)(?=\s+order\s+by\s+|\s+limit\s+|\s+offset\s+|$)/i);
+  const whereMatch = rest.match(/\s+where\s+([\s\S]+?)(?=\s+group\s+by\s+|\s+order\s+by\s+|\s+limit\s+|\s+offset\s+|$)/i);
   const whereText = whereMatch ? whereMatch[1].trim() : '';
-  
+
   const groupMatch = rest.match(/\s+group\s+by\s+([\w\.,\s]+?)(?=\s+order\s+by\s+|\s+limit\s+|\s+offset\s+|$)/i);
   const orderMatch = rest.match(/\s+order\s+by\s+([\w\.]+)(?:\s+(asc|desc))?/i);
   const orderBy = orderMatch ? { field: orderMatch[1], direction: (orderMatch[2] || 'asc').toLowerCase() } : null;

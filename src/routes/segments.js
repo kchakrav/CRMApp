@@ -2,64 +2,23 @@ const express = require('express');
 const router = express.Router();
 const { query, db, saveDatabase } = require('../database');
 
-// Get custom objects for segment builder — only those connected to contacts
+// Get custom objects for segment builder — all active custom objects (excluding junction tables)
 router.get('/for-segments', (req, res) => {
   try {
     const allObjects = query.all('custom_objects', o => o.is_active);
 
-    // Identify junction table names (auto-generated link tables)
     const junctionNames = new Set(
       allObjects
         .filter(o => o.name.endsWith('_link'))
         .map(o => o.name)
     );
 
-    // Find objects that are connected to contacts:
-    // 1) Direct relationship: object has a relationship where to_table === 'contacts'
-    // 2) Reverse relationship: contacts links to this object (object's relationships point to contacts)
-    // 3) N:N via junction: a junction table exists that references both 'contacts' and this object
-    const contactLinkedNames = new Set();
-
-    allObjects.forEach(obj => {
-      if (junctionNames.has(obj.name)) return; // skip junction tables themselves
-
-      const rels = obj.relationships || [];
-
-      // Check direct relationship to contacts
-      if (rels.some(r => r.to_table === 'contacts')) {
-        contactLinkedNames.add(obj.name);
-        return;
-      }
-
-      // Check if a junction table links contacts and this object
-      for (const jName of junctionNames) {
-        // Junction name pattern: sorted alphabetical, e.g. "contacts_store_visits_link"
-        if (jName.includes('contacts') && jName.includes(obj.name)) {
-          contactLinkedNames.add(obj.name);
-          return;
-        }
-      }
-
-      // Check if contacts has a reverse relationship to this object
-      // (Look at junction table relationships pointing to both contacts and this object)
-      allObjects.forEach(jObj => {
-        if (!junctionNames.has(jObj.name)) return;
-        const jRels = jObj.relationships || [];
-        const linksToContacts = jRels.some(r => r.to_table === 'contacts');
-        const linksToObj = jRels.some(r => r.to_table === obj.name);
-        if (linksToContacts && linksToObj) {
-          contactLinkedNames.add(obj.name);
-        }
-      });
-    });
-
-    // Format only contact-linked objects for segment builder
     const formatted = allObjects
-      .filter(obj => contactLinkedNames.has(obj.name))
+      .filter(obj => !junctionNames.has(obj.name))
       .map(obj => {
         const rels = obj.relationships || [];
         const relToContacts = rels.find(r => r.to_table === 'contacts');
-        const relType = relToContacts ? relToContacts.type : 'N:N';
+        const relType = relToContacts ? relToContacts.type : null;
 
         return {
           name: obj.name,
@@ -80,54 +39,88 @@ router.get('/for-segments', (req, res) => {
   }
 });
 
-// Preview segment - get count and sample results
+// Same scope as workflow Entry point so segment preview count matches Query node result
+const ACTIVE_STATUS = 'active';
+
+// Single source of truth: compute segment audience (active contacts filtered by conditions).
+// Returns { count, contacts }. Used by GET :id/contacts, getSegmentContactCount, and for consistency.
+function computeSegmentAudience(conditions) {
+  let contacts = query.all('contacts', c => c.status === ACTIVE_STATUS);
+  if (!conditions || typeof conditions !== 'object') {
+    return { count: contacts.length, contacts };
+  }
+  if (conditions.rules && conditions.rules.length > 0) {
+    contacts = filterContactsByConditions(contacts, conditions);
+    return { count: contacts.length, contacts };
+  }
+  if (conditions.subscription_status != null) {
+    contacts = contacts.filter(c => c.subscription_status === conditions.subscription_status);
+  }
+  if (conditions.min_engagement_score != null) {
+    contacts = contacts.filter(c => (c.engagement_score || 0) >= conditions.min_engagement_score);
+  }
+  if (conditions.status) {
+    contacts = contacts.filter(c => c.status === conditions.status);
+  }
+  return { count: contacts.length, contacts };
+}
+
+function getSegmentContactCount(segmentId) {
+  const segment = query.get('segments', segmentId);
+  if (!segment) return 0;
+  return computeSegmentAudience(segment.conditions || {}).count;
+}
+
+// Preview segment - get count and sample results (contact-based: active contacts only).
+// If segment_id is provided, use the saved segment's conditions so the count matches the workflow.
 router.post('/preview', (req, res) => {
   try {
-    const { conditions } = req.body;
+    const { conditions: bodyConditions, segment_id: segmentIdParam } = req.body;
+    let conditions = bodyConditions;
+    let fromSavedSegment = false;
+    if (segmentIdParam != null && segmentIdParam !== '') {
+      const segId = parseInt(segmentIdParam, 10);
+      if (!Number.isNaN(segId)) {
+        const segment = query.get('segments', segId);
+        if (segment && segment.conditions && segment.conditions.rules && segment.conditions.rules.length > 0) {
+          conditions = segment.conditions;
+          fromSavedSegment = true;
+        }
+      }
+    }
     
     if (!conditions || !conditions.rules || conditions.rules.length === 0) {
-      return res.json({ count: 0, samples: [] });
+      return res.json({ count: 0, samples: [], fromSavedSegment: false });
     }
-    
-    // Get all contacts
-    let contacts = query.all('contacts');
-    
-    // Apply filters based on conditions
-    contacts = filterContactsByConditions(contacts, conditions);
     
     const baseEntity = conditions?.base_entity || 'customer';
-    const contactIds = new Set(contacts.map(c => c.id));
-    let records = contacts;
-    if (baseEntity === 'orders') {
-      records = query.all('orders', o => contactIds.has(o.contact_id));
-    } else if (baseEntity === 'events') {
-      records = query.all('contact_events', e => contactIds.has(e.contact_id));
-    } else if (baseEntity && !['contact', 'customer'].includes(baseEntity)) {
-      const customData = db.custom_object_data[baseEntity] || [];
-      records = customData.filter(r => contactIds.has(r.contact_id));
+    const isContactBased = ['contact', 'customer'].includes(baseEntity);
+
+    let records;
+
+    if (isContactBased) {
+      const { count, contacts } = computeSegmentAudience(conditions);
+      records = contacts;
+      // count is from single source of truth below; we'll set it from records.length for consistency
+    } else {
+      // Custom object as base entity — query its records directly
+      const customData = db.custom_object_data?.[baseEntity] || [];
+      records = filterRecordsByConditions(customData, conditions, baseEntity);
     }
     
-    // Get count
     const count = records.length;
+
+    // Stats only apply to contact-based segments
+    let stats = { avg_score: 0, active_count: 0, vip_count: 0 };
+    if (isContactBased && records.length > 0) {
+      stats.avg_score = records.reduce((sum, c) => sum + (Number(c.engagement_score ?? c.lead_score) || 0), 0) / records.length;
+      stats.active_count = records.filter(c => c.status === 'active').length;
+      stats.vip_count = records.filter(c => (c.loyalty_tier || '').toLowerCase() === 'platinum').length;
+    }
     
-    const avgScore = contacts.length
-      ? contacts.reduce((sum, c) => sum + (Number(c.lead_score ?? c.engagement_score) || 0), 0) / contacts.length
-      : 0;
-    const activeCount = contacts.filter(c => c.status === 'active').length;
-    const vipCount = contacts.filter(c => c.lifecycle_stage === 'vip' || c.subscription_status === 'vip').length;
-    
-    // Get sample (first 10)
     const samples = records.slice(0, 10);
     
-    res.json({
-      count,
-      samples,
-      stats: {
-        avg_score: avgScore,
-        active_count: activeCount,
-        vip_count: vipCount
-      }
-    });
+    res.json({ count, samples, stats, fromSavedSegment: !!fromSavedSegment });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -140,30 +133,37 @@ router.post('/distribution', (req, res) => {
     if (!attribute || !attribute.entity || !attribute.name) {
       return res.status(400).json({ error: 'Attribute is required' });
     }
-    let contacts = query.all('contacts');
-    const baseEntity = conditions?.base_entity;
-    if (baseEntity && !['contact', 'customer'].includes(baseEntity)) {
-      const baseRecords = db.custom_object_data[baseEntity] || [];
-      const allowedIds = new Set(baseRecords.map(r => r.contact_id));
-      contacts = contacts.filter(c => allowedIds.has(c.id));
+
+    const baseEntity = conditions?.base_entity || 'customer';
+    const isContactBased = ['contact', 'customer'].includes(baseEntity);
+
+    let records;
+    if (isContactBased) {
+      records = query.all('contacts');
+      const rawRules = (conditions?.rules || []).filter(r => r && r.entity && r.attribute && r.operator);
+      if (rawRules.length) {
+        records = filterContactsByConditions(records, { ...(conditions || {}), rules: rawRules });
+      }
+    } else {
+      records = db.custom_object_data?.[baseEntity] || [];
+      const rawRules = (conditions?.rules || []).filter(r => r && r.entity && r.attribute && r.operator);
+      if (rawRules.length) {
+        records = filterRecordsByConditions(records, { ...(conditions || {}), rules: rawRules }, baseEntity);
+      }
     }
-    const rawRules = conditions?.rules || [];
-    const filteredRules = rawRules.filter(rule => (
-      rule && rule.entity && rule.attribute && rule.operator
-    ));
-    if (filteredRules.length) {
-      contacts = filterContactsByConditions(contacts, {
-        ...(conditions || {}),
-        rules: filteredRules
-      });
-    }
-    const total = contacts.length;
+
+    const total = records.length;
     if (!total) {
       return res.json({ total: 0, items: [] });
     }
     const counts = new Map();
-    contacts.forEach(contact => {
-      const value = getAttributeValue(contact, attribute.entity, attribute.name);
+    records.forEach(record => {
+      let value;
+      if (isContactBased) {
+        value = getAttributeValue(record, attribute.entity, attribute.name);
+      } else {
+        value = record[attribute.name];
+      }
       const label = value === null || value === undefined || value === '' ? 'Empty' : String(value);
       counts.set(label, (counts.get(label) || 0) + 1);
     });
@@ -183,13 +183,39 @@ function filterContactsByConditions(contacts, conditions) {
   
   return contacts.filter(contact => {
     const results = rules.map(rule => evaluateRule(contact, rule));
-    
-    if (logic === 'AND') {
-      return results.every(r => r);
-    } else if (logic === 'OR') {
-      return results.some(r => r);
-    }
-    return false;
+    return combineResults(results, rules, logic);
+  });
+}
+
+// Combine rule results respecting per-rule nextOperator, falling back to global logic
+function combineResults(results, rules, globalLogic) {
+  if (results.length === 0) return false;
+  const hasPerRuleOps = rules.some(r => r.nextOperator);
+  if (!hasPerRuleOps) {
+    return globalLogic === 'OR' ? results.some(r => r) : results.every(r => r);
+  }
+  let combined = results[0];
+  for (let i = 1; i < results.length; i++) {
+    const op = rules[i - 1].nextOperator || globalLogic || 'AND';
+    combined = op === 'OR' ? (combined || results[i]) : (combined && results[i]);
+  }
+  return combined;
+}
+
+// Filter arbitrary records (custom objects) by conditions — rules target the record directly
+function filterRecordsByConditions(records, conditions, baseEntity) {
+  const { logic = 'AND', rules = [] } = conditions;
+
+  return records.filter(record => {
+    const results = rules.map(rule => {
+      const attr = rule.attribute;
+      const recordValue = (rule.entity === baseEntity || rule.entity === 'customer' || rule.entity === 'contact')
+        ? record[attr]
+        : record[attr];
+      return applyOperator(recordValue, rule.operator, rule.value, rule.case_sensitive);
+    });
+
+    return combineResults(results, rules, logic);
   });
 }
 
@@ -204,7 +230,22 @@ function evaluateRule(contact, rule) {
 
 function getAttributeValue(contact, entity, attribute) {
   if (entity === 'contact' || entity === 'customer') {
-    return contact[attribute];
+    const val = contact[attribute];
+    if (val !== undefined) return val;
+
+    // Field aliases and derived values
+    if (attribute === 'lead_score') return contact.engagement_score;
+    if (attribute === 'engagement_score') return contact.lead_score;
+    if (attribute === 'lifecycle_stage') {
+      const tier = (contact.loyalty_tier || '').toLowerCase();
+      if (tier === 'platinum') return 'vip';
+      if (tier === 'gold' || tier === 'silver') return 'customer';
+      if (contact.status === 'inactive') return 'churned';
+      const score = Number(contact.engagement_score || contact.lead_score || 0);
+      if (score < 30) return 'at_risk';
+      return 'lead';
+    }
+    return undefined;
   }
   if (entity === 'orders') {
     const orders = query.all('orders', o => o.contact_id === contact.id);
@@ -324,6 +365,9 @@ router.get('/:id', (req, res) => {
     if (!segment) {
       return res.status(404).json({ error: 'Segment not found' });
     }
+    // Return segment as stored; do not recalc contact_count here so workflow run
+    // counts are not overwritten when the segment is opened in the builder.
+    // contact_count is updated on: PUT (save), GET :id/contacts, and workflow execute.
     res.json(segment);
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -332,7 +376,7 @@ router.get('/:id', (req, res) => {
 
 router.post('/', (req, res) => {
   try {
-    const { name, description, segment_type = 'dynamic', conditions = {}, status = 'draft' } = req.body;
+    const { name, description, segment_type = 'dynamic', conditions = {}, status = 'draft', folder_id = null } = req.body;
     
     if (!name) {
       return res.status(400).json({ error: 'Segment name is required' });
@@ -345,10 +389,14 @@ router.post('/', (req, res) => {
       conditions,
       contact_count: 0,
       status,
-      is_active: status === 'active'
+      is_active: status === 'active',
+      folder_id: folder_id ? parseInt(folder_id) : null
     });
-    
-    res.status(201).json(result.record);
+    const newId = result.record.id;
+    const contact_count = getSegmentContactCount(newId);
+    query.update('segments', newId, { contact_count });
+    const record = query.get('segments', newId);
+    res.status(201).json(record);
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -364,26 +412,10 @@ router.get('/:id/contacts', (req, res) => {
       return res.status(404).json({ error: 'Segment not found' });
     }
     
-    let contacts = query.all('contacts');
-    const conditions = segment.conditions || {};
+    const { count: fullCount, contacts } = computeSegmentAudience(segment.conditions || {});
+    query.update('segments', id, { contact_count: fullCount });
     
-    if (conditions.subscription_status) {
-      contacts = contacts.filter(c => c.subscription_status === conditions.subscription_status);
-    }
-    
-    if (conditions.min_engagement_score) {
-      contacts = contacts.filter(c => c.engagement_score >= conditions.min_engagement_score);
-    }
-    
-    if (conditions.status) {
-      contacts = contacts.filter(c => c.status === conditions.status);
-    }
-    
-    const result = contacts.slice(0, parseInt(limit));
-    
-    // Update contact count
-    query.update('segments', id, { contact_count: result.length });
-    
+    const result = contacts.slice(0, parseInt(limit, 10));
     res.json(result);
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -399,6 +431,8 @@ router.put('/:id', (req, res) => {
     }
     
     query.update('segments', id, req.body);
+    const contact_count = getSegmentContactCount(id);
+    query.update('segments', id, { contact_count });
     const updated = query.get('segments', id);
     res.json(updated);
   } catch (error) {
@@ -472,3 +506,4 @@ router.get('/by-status/:status', (req, res) => {
 });
 
 module.exports = router;
+module.exports.filterContactsByConditions = filterContactsByConditions;

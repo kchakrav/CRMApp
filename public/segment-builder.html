@@ -14,12 +14,13 @@
         <button class="btn-back" onclick="goBack()" title="Back to Segments">
           <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><path d="M12.5 15L7.5 10L12.5 5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
         </button>
-        <button class="btn-back" id="return-to-delivery" style="display:none;" onclick="returnToDelivery()" title="Back to Delivery">
-          <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><path d="M12.5 15L7.5 10L12.5 5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
-        </button>
         <h1 id="segment-name-display">New Segment</h1>
       </div>
       <div class="header-right">
+        <button class="btn-back btn-back-right" id="return-to-delivery" style="display:none;" onclick="returnToDelivery()" title="Back to Delivery">
+          <svg width="18" height="18" viewBox="0 0 20 20" fill="none"><path d="M12.5 15L7.5 10L12.5 5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          <span>Back to Delivery</span>
+        </button>
         <button class="btn btn-secondary" onclick="saveSegment(false)">
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
           Save Draft
@@ -70,6 +71,7 @@
             <select id="base-entity" class="form-input"></select>
             <div class="form-help">Used for SQL preview and custom queries</div>
           </div>
+          <div id="segment-folder-picker-container"></div>
         </div>
 
         <!-- Query Builder Card -->
@@ -128,7 +130,7 @@
           <div class="preview-count">
             <div class="count-label" id="preview-count-label">Matching Customers</div>
             <div class="count-value" id="preview-count">0</div>
-            <div class="count-hint">customers match your criteria</div>
+            <div class="count-hint">active contacts match (same count as workflow canvas)</div>
           </div>
 
           <!-- Sample Results -->
@@ -223,6 +225,7 @@
     </div>
   </div>
 
+  <script src="folder-tree.js"></script>
   <script src="segment-builder.js"></script>
 </body>
 </html>

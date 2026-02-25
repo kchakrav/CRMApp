@@ -1,188 +1,222 @@
 const fs = require('fs');
 const path = require('path');
+const Database = require('better-sqlite3');
 
-const dbPath = path.join(__dirname, '../data/database.json');
+const jsonPath = path.join(__dirname, '../data/database.json');
+const dbPath = path.join(__dirname, '../data/crm.db');
 
-// In-memory database
-let db = {
-  contacts: [], // Renamed from customers - B2C consumer profiles
-  contact_events: [], // Renamed from customer_events
-  segments: [],
-  audiences: [], // Campaign-specific audience definitions
-  workflows: [], // UNIFIED: Previously separate campaigns + workflows
-  workflow_metrics: [], // Renamed from campaign_metrics
-  workflow_sends: [], // Renamed from campaign_sends
-  workflow_orchestrations: [], // Orchestration canvas data
-  workflow_executions: [], // Execution history for automated workflows
-  
-  // Deliveries Management
-  deliveries: [], // Email/SMS/Push delivery management
-  delivery_logs: [], // Delivery execution logs
-  delivery_stats: [], // Delivery performance statistics
-  
-  // Triggered/Transactional Messages
-  transactional_messages: [], // Event messages (linked to events)
-  transactional_sends: [], // Individual transactional message sends
-  event_triggers: [], // Event templates (blueprints)
-  events: [], // Events (created from templates, publishable)
-  
-  // Event History
-  event_history: [], // All system events log
-  
-  // Content Management
-  content_templates: [], // Reusable content templates
-  landing_pages: [], // Landing page definitions
-  fragments: [], // Content fragments/blocks
-  brands: [], // Brand configurations
-  assets: [], // Asset library (images/files)
-  
-  // Subscription Management
-  subscription_services: [], // Subscription list definitions
-  subscriptions: [], // Individual subscriptions
-  unsubscribe_requests: [], // Unsubscribe tracking
-  
-  // Filters & Views
-  predefined_filters: [], // Saved filter configurations
-  
-  // Existing entities
-  templates: [],
-  forms: [],
-  form_submissions: [],
-  products: [],
-  orders: [],
-  abandoned_carts: [],
-  loyalty_programs: [],
-  loyalty_points: [],
-  loyalty_transactions: [],
-  ai_predictions: [],
-  enumerations: [],
-  custom_objects: [],
-  custom_object_data: {},
-  ui_builder_versions: [],
+// All table names (array collections). custom_object_data is handled separately.
+const TABLE_NAMES = [
+  'contacts', 'contact_events', 'segments', 'audiences', 'workflows', 'workflow_metrics',
+  'workflow_sends', 'workflow_orchestrations', 'campaign_orchestrations', 'workflow_executions', 'deliveries',
+  'delivery_logs', 'delivery_stats', 'transactional_messages', 'transactional_sends',
+  'event_triggers', 'events', 'event_history', 'content_templates', 'landing_pages',
+  'fragments', 'brands', 'assets', 'subscription_services', 'subscriptions',
+  'unsubscribe_requests', 'predefined_filters', 'feedback', 'templates', 'forms',
+  'form_submissions', 'products', 'orders', 'abandoned_carts', 'loyalty_programs',
+  'loyalty_points', 'loyalty_transactions', 'ai_predictions', 'enumerations',
+  'custom_objects', 'ui_builder_versions', 'offers', 'offer_representations',
+  'placements', 'collection_qualifiers', 'offer_tags', 'collections', 'decision_rules',
+  'offer_constraints', 'ranking_formulas', 'ranking_ai_models', 'selection_strategies',
+  'decisions', 'offer_propositions', 'offer_events', 'catalog_schema', 'context_schema',
+  'experiments', 'folders', 'email_themes'
+];
 
-  // ── Offer Decisioning ──
-  offers: [],                    // Personalized & fallback offers
-  offer_representations: [],     // Content per placement per offer
-  placements: [],                // Where offers appear (email banner, web hero, etc.)
-  collection_qualifiers: [],     // Tags to categorize offers
-  offer_tags: [],                // Junction: offer <-> qualifier
-  collections: [],               // Static or dynamic groups of offers
-  decision_rules: [],            // Eligibility rules (reuse segment-builder format)
-  offer_constraints: [],         // Capping & frequency rules per offer
-  ranking_formulas: [],          // Custom ranking expressions
-  ranking_ai_models: [],         // AI-based ranking models
-  selection_strategies: [],      // Collection + eligibility + ranking method
-  decisions: [],                 // Decision policies (placements + strategies + fallbacks)
-  offer_propositions: [],        // Proposition log (what was proposed to whom)
-  offer_events: [],              // Impression / click / conversion tracking
+const CUSTOM_OBJECT_DATA_TABLE = '_custom_object_data';
 
-  _counters: {}
+let sqlite = null;
+// In-memory cache so existing code (query route, etc.) can use db[table] as arrays.
+const db = {
+  _counters: {},
+  custom_object_data: {}
 };
 
-// Load database from file
+function getSqlite() {
+  if (sqlite) return sqlite;
+  const dir = path.dirname(dbPath);
+  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+  sqlite = new Database(dbPath);
+  sqlite.pragma('journal_mode = WAL');
+  return sqlite;
+}
+
+function ensureTables() {
+  const s = getSqlite();
+  for (const name of TABLE_NAMES) {
+    s.exec(`CREATE TABLE IF NOT EXISTS "${name}" (id INTEGER PRIMARY KEY, data TEXT NOT NULL)`);
+  }
+  s.exec(`CREATE TABLE IF NOT EXISTS "${CUSTOM_OBJECT_DATA_TABLE}" (k TEXT PRIMARY KEY, data TEXT NOT NULL)`);
+}
+
+function ensureTable(name) {
+  if (TABLE_NAMES.includes(name)) return;
+  const s = getSqlite();
+  s.exec(`CREATE TABLE IF NOT EXISTS "${name}" (id INTEGER PRIMARY KEY, data TEXT NOT NULL)`);
+  TABLE_NAMES.push(name);
+  db[name] = [];
+  loadTableIntoMemory(name);
+}
+
+function isSqliteEmpty() {
+  const s = getSqlite();
+  for (const name of TABLE_NAMES) {
+    const row = s.prepare(`SELECT 1 FROM "${name}" LIMIT 1`).get();
+    if (row) return false;
+  }
+  return true;
+}
+
+function migrateFromJson() {
+  if (!fs.existsSync(jsonPath)) return;
+  try {
+    const raw = fs.readFileSync(jsonPath, 'utf8');
+    const saved = JSON.parse(raw);
+    const s = getSqlite();
+    const insertStmt = {};
+    for (const table of TABLE_NAMES) {
+      const rows = saved[table];
+      if (!Array.isArray(rows) || rows.length === 0) continue;
+      const ins = s.prepare(`INSERT OR REPLACE INTO "${table}" (id, data) VALUES (?, ?)`);
+      for (const record of rows) {
+        if (record == null || typeof record !== 'object') continue;
+        const id = record.id != null ? record.id : 0;
+        ins.run(id, JSON.stringify(record));
+      }
+    }
+    const obj = saved.custom_object_data;
+    if (obj && typeof obj === 'object' && !Array.isArray(obj)) {
+      const ins = s.prepare(`INSERT OR REPLACE INTO "${CUSTOM_OBJECT_DATA_TABLE}" (k, data) VALUES (?, ?)`);
+      for (const [k, v] of Object.entries(obj)) {
+        ins.run(k, JSON.stringify(v));
+      }
+    }
+    console.log('📦 Migrated data from database.json to SQLite');
+  } catch (err) {
+    console.error('Migration from JSON failed:', err.message);
+  }
+}
+
+function loadTableIntoMemory(table) {
+  const s = getSqlite();
+  const rows = s.prepare(`SELECT id, data FROM "${table}" ORDER BY id`).all();
+  db[table] = rows.map(r => {
+    const parsed = JSON.parse(r.data);
+    return { ...parsed, id: r.id };
+  });
+}
+
+function loadCustomObjectDataIntoMemory() {
+  const s = getSqlite();
+  const rows = s.prepare(`SELECT k, data FROM "${CUSTOM_OBJECT_DATA_TABLE}"`).all();
+  db.custom_object_data = {};
+  for (const r of rows) {
+    try {
+      db.custom_object_data[r.k] = JSON.parse(r.data);
+    } catch (_) {
+      db.custom_object_data[r.k] = r.data;
+    }
+  }
+}
+
 function loadDatabase() {
-  try {
-    if (fs.existsSync(dbPath)) {
-      const data = fs.readFileSync(dbPath, 'utf8');
-      const saved = JSON.parse(data);
-      // Merge saved data into default schema so new tables are always present
-      for (const key in db) {
-        if (saved[key] !== undefined) db[key] = saved[key];
-      }
-      // Also pull in any extra keys from saved data
-      for (const key in saved) {
-        if (db[key] === undefined) db[key] = saved[key];
-      }
-      console.log('📦 Database loaded from file');
-    } else {
-      console.log('📦 Creating new database');
-    }
-  } catch (error) {
-    console.error('Error loading database:', error.message);
+  getSqlite();
+  ensureTables();
+  if (isSqliteEmpty()) migrateFromJson();
+  for (const table of TABLE_NAMES) {
+    db[table] = [];
+    loadTableIntoMemory(table);
   }
+  loadCustomObjectDataIntoMemory();
+  console.log('📦 Database loaded from SQLite');
 }
 
-// Save database to file
 function saveDatabase() {
-  try {
-    const dir = path.dirname(dbPath);
-    if (!fs.existsSync(dir)) {
-      fs.mkdirSync(dir, { recursive: true });
-    }
-    fs.writeFileSync(dbPath, JSON.stringify(db, null, 2));
-  } catch (error) {
-    console.error('Error saving database:', error.message);
+  const s = getSqlite();
+  const del = s.prepare(`DELETE FROM "${CUSTOM_OBJECT_DATA_TABLE}"`);
+  const ins = s.prepare(`INSERT INTO "${CUSTOM_OBJECT_DATA_TABLE}" (k, data) VALUES (?, ?)`);
+  del.run();
+  for (const [k, v] of Object.entries(db.custom_object_data || {})) {
+    ins.run(k, JSON.stringify(v));
   }
 }
 
-// Get next ID for a table
 function getNextId(table) {
-  if (!db._counters[table]) {
-    db._counters[table] = db[table].length > 0 
-      ? Math.max(...db[table].map(r => r.id || 0)) + 1 
-      : 1;
-  } else {
-    db._counters[table]++;
-  }
-  return db._counters[table];
+  if (!TABLE_NAMES.includes(table)) return 1;
+  const s = getSqlite();
+  const row = s.prepare(`SELECT COALESCE(MAX(id), 0) + 1 AS next FROM "${table}"`).get();
+  return row ? row.next : 1;
 }
 
-// Initialize database
 function initializeDatabase() {
+  loadDatabase();
   console.log('✅ Database initialized successfully!');
   return db;
 }
 
-// Database query helpers
+function sortByLatest(arr) {
+  return arr.sort((a, b) => {
+    const ta = a.updated_at || a.created_at || '';
+    const tb = b.updated_at || b.created_at || '';
+    return tb < ta ? -1 : tb > ta ? 1 : b.id - a.id;
+  });
+}
+
 const query = {
-  // Get all records matching condition
   all: (table, condition = null) => {
     if (!db[table]) return [];
-    if (!condition) return [...db[table]];
-    return db[table].filter(condition);
+    if (!condition) return sortByLatest([...db[table]]);
+    return sortByLatest(db[table].filter(condition));
   },
-  
-  // Get first record matching condition
+
   get: (table, condition) => {
     if (!db[table]) return null;
-    if (typeof condition === 'number') {
+    if (typeof condition === 'number' && !Number.isNaN(condition)) {
       return db[table].find(r => r.id === condition) || null;
     }
-    return db[table].find(condition) || null;
+    if (typeof condition === 'string' && /^\d+$/.test(condition)) {
+      const id = parseInt(condition, 10);
+      return db[table].find(r => r.id === id) || null;
+    }
+    if (typeof condition === 'function') {
+      return db[table].find(condition) || null;
+    }
+    return null;
   },
-  
-  // Insert record
+
   insert: (table, data) => {
+    if (!db[table]) ensureTable(table);
     if (!db[table]) db[table] = [];
     const id = getNextId(table);
     const now = new Date().toISOString();
     const record = { id, ...data, created_at: data.created_at || now, updated_at: data.updated_at || now };
+    const s = getSqlite();
+    s.prepare(`INSERT INTO "${table}" (id, data) VALUES (?, ?)`).run(id, JSON.stringify(record));
     db[table].push(record);
-    saveDatabase();
     return { lastID: id, record };
   },
-  
-  // Update record
+
   update: (table, id, data) => {
     if (!db[table]) return false;
-    const index = db[table].findIndex(r => r.id === id);
+    const numId = typeof id === 'string' && /^\d+$/.test(id) ? parseInt(id, 10) : id;
+    const index = db[table].findIndex(r => r.id === numId);
     if (index === -1) return false;
-    db[table][index] = { ...db[table][index], ...data, updated_at: new Date().toISOString() };
-    saveDatabase();
+    const updated = { ...db[table][index], ...data, updated_at: new Date().toISOString() };
+    const s = getSqlite();
+    s.prepare(`UPDATE "${table}" SET data = ? WHERE id = ?`).run(JSON.stringify(updated), numId);
+    db[table][index] = updated;
     return true;
   },
-  
-  // Delete record
+
   delete: (table, id) => {
     if (!db[table]) return false;
     const index = db[table].findIndex(r => r.id === id);
     if (index === -1) return false;
+    const s = getSqlite();
+    s.prepare(`DELETE FROM "${table}" WHERE id = ?`).run(id);
     db[table].splice(index, 1);
-    saveDatabase();
     return true;
   },
-  
-  // Count records
+
   count: (table, condition = null) => {
     if (!db[table]) return 0;
     if (!condition) return db[table].length;
@@ -193,10 +227,13 @@ const query = {
 // Initialize on module load
 loadDatabase();
 
-// Save on process exit
-process.on('exit', saveDatabase);
+process.on('exit', () => {
+  saveDatabase();
+  if (sqlite) sqlite.close();
+});
 process.on('SIGINT', () => {
   saveDatabase();
+  if (sqlite) sqlite.close();
   process.exit();
 });
 

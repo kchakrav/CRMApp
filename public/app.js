@@ -182,6 +182,7 @@ function renderCurrentPage() {
   const titleMap = {
     dashboard: 'Dashboard',
     contacts: 'Contacts',
+    deliveries: 'Deliveries',
     workflows: 'Workflows',
     segments: 'Segments',
     audiences: 'Audiences',
@@ -191,15 +192,28 @@ function renderCurrentPage() {
     analytics: 'Analytics',
     ai: 'AI Features',
     'api-docs': 'API Documentation',
-    'transactional': 'Events & Messages',
+    transactional: 'Events & Messages',
     'event-history': 'Event History',
-    'offers': 'Offers',
-    'placements': 'Placements',
+    'content-templates': 'Content Templates',
+    'email-themes': 'Email themes',
+    assets: 'Asset Library',
+    'landing-pages': 'Landing Pages',
+    fragments: 'Fragments',
+    brands: 'Brands',
+    'subscription-services': 'Subscription Services',
+    'predefined-filters': 'Predefined Filters',
+    explorer: 'Explorer',
+    offers: 'Offers',
+    placements: 'Placements',
     'offer-collections': 'Collections',
     'decision-rules': 'Decision Rules',
-    'strategies': 'Strategies',
-    'decisions': 'Decisions',
-    'offer-analytics': 'Offer Analytics'
+    strategies: 'Strategies',
+    decisions: 'Decisions',
+    'offer-analytics': 'Offer Analytics',
+    'item-catalog': 'Item Catalog',
+    'ranking-formulas': 'Ranking Formulas',
+    'ai-models': 'AI Models',
+    'context-schema': 'Context Data'
   };
   
   const pageTitleEl = document.getElementById('page-title');
@@ -236,7 +250,25 @@ document.addEventListener('DOMContentLoaded', () => {
   if (!Number.isNaN(deliveryStep)) {
     window.pendingDeliveryStep = deliveryStep;
   }
-  navigateTo(view, 'list');
+  if (params.get('createFromWorkflow') === '1') {
+    if (view === 'audiences') {
+      window.createAudienceFromWorkflow = {
+        workflowId: params.get('workflowId') || '',
+        nodeId: params.get('nodeId') || '',
+        defaultName: params.get('defaultName') || ''
+      };
+    } else {
+      window.createDeliveryFromWorkflow = {
+        workflowId: params.get('workflowId') || '',
+        nodeId: params.get('nodeId') || '',
+        defaultName: params.get('defaultName') || '',
+        channel: params.get('channel') || 'Email'
+      };
+    }
+  }
+  const startPage = (view === 'audiences' && params.get('page') === 'create') ? 'create' : 'list';
+  navigateTo(view, startPage);
+  // [Auto-Built: The query in the description isn\'t working. can this be fixed,] Feature flag enabled
   
   // Refresh button
   document.getElementById('refresh-btn').addEventListener('click', () => {
@@ -313,6 +345,9 @@ function showListPage(view) {
     case 'content-templates':
       callViewLoader(window.loadContentTemplates, 'Content Templates');
       break;
+    case 'email-themes':
+      callViewLoader(window.loadEmailThemes, 'Email themes');
+      break;
     case 'landing-pages':
       callViewLoader(window.loadLandingPages, 'Landing Pages');
       break;
@@ -377,6 +412,18 @@ function showListPage(view) {
     case 'offer-analytics':
       callViewLoader(window.loadOfferAnalytics, 'Offer Analytics');
       break;
+    case 'item-catalog':
+      callViewLoader(window.loadItemCatalog, 'Item Catalog');
+      break;
+    case 'ranking-formulas':
+      callViewLoader(window.loadRankingFormulas, 'Ranking Formulas');
+      break;
+    case 'ai-models':
+      callViewLoader(window.loadAIModels, 'AI Models');
+      break;
+    case 'context-schema':
+      callViewLoader(window.loadContextSchema, 'Context Data');
+      break;
     default:
       renderMissingView(view);
       break;
@@ -415,6 +462,9 @@ function showCreatePage(view) {
       break;
     case 'decisions':
       window.renderDecisionForm();
+      break;
+    case 'brands':
+      createBrand();
       break;
   }
 }
@@ -469,10 +519,13 @@ async function showEditPage(view, id) {
 }
 
 // Render Customer Form
-function renderContactForm(contact = null) {
+async function renderContactForm(contact = null) {
   const isEdit = !!contact;
   const content = document.getElementById('content');
-  
+
+  if (typeof ensureFolderPickerData === 'function') await ensureFolderPickerData('contacts');
+  const ctFolderId = contact?.folder_id || (typeof getDefaultFolderForEntity === 'function' ? getDefaultFolderForEntity('contacts') : null);
+
   content.innerHTML = `
     <div class="form-container">
       <form id="contact-form" onsubmit="handleContactSubmit(event)">
@@ -599,6 +652,8 @@ function renderContactForm(contact = null) {
           </div>
         </div>
         
+        ${typeof folderPickerHtml === 'function' ? `<div class="form-section"><h3 class="form-section-title">Organization</h3><div class="form-grid">${folderPickerHtml('contact-folder-id', 'contacts', ctFolderId)}</div></div>` : ''}
+
         <div class="form-actions">
           <button type="button" class="btn btn-secondary" onclick="navigateTo('contacts', 'list')">Cancel</button>
           <button type="submit" class="btn btn-primary">${isEdit ? 'Update' : 'Create'} Contact</button>
@@ -628,7 +683,8 @@ async function handleContactSubmit(event) {
     email_opt_in: document.getElementById('contact-email-opt').checked,
     sms_opt_in: document.getElementById('contact-sms-opt').checked,
     preferred_channel: document.getElementById('contact-channel').value,
-    communication_frequency: document.getElementById('contact-frequency').value
+    communication_frequency: document.getElementById('contact-frequency').value,
+    folder_id: typeof getSelectedFolderId === 'function' ? getSelectedFolderId('contact-folder-id') : null
   };
   
   const isEdit = currentRoute.id !== null;
@@ -768,11 +824,14 @@ async function handleCampaignSubmit(event) {
 }
 
 // Render Workflow Form
-function renderWorkflowForm(workflow = null) {
+async function renderWorkflowForm(workflow = null) {
   const isEdit = !!workflow;
   const content = document.getElementById('content');
   
-  
+  // Preload folder data for the picker
+  if (typeof ensureFolderPickerData === 'function') await ensureFolderPickerData('workflows');
+  const wfFolderId = workflow?.folder_id || (typeof getDefaultFolderForEntity === 'function' ? getDefaultFolderForEntity('workflows') : null);
+
   content.innerHTML = `
     <div class="form-container">
       <form id="workflow-form" onsubmit="handleWorkflowSubmit(event)">
@@ -788,6 +847,7 @@ function renderWorkflowForm(workflow = null) {
               <label class="form-label">Description</label>
               <textarea id="workflow-description" class="form-input" rows="2" placeholder="Describe the purpose of this workflow">${workflow?.description || ''}</textarea>
             </div>
+            ${typeof folderPickerHtml === 'function' ? folderPickerHtml('workflow-folder-id', 'workflows', wfFolderId) : ''}
           </div>
         </div>
         
@@ -960,7 +1020,8 @@ async function handleWorkflowSubmit(event) {
     name: document.getElementById('workflow-name').value,
     description: document.getElementById('workflow-description').value,
     status: document.getElementById('workflow-status').value,
-    workflow_type: 'broadcast'
+    workflow_type: 'broadcast',
+    folder_id: typeof getSelectedFolderId === 'function' ? getSelectedFolderId('workflow-folder-id') : null
   };
   
   // Build entry_trigger from schedule + recurring options
@@ -1482,6 +1543,7 @@ function clearAudienceFilterTag(key) {
 async function loadContacts() {
   showLoading();
   try {
+    if (typeof ensureAllFoldersLoaded === 'function') await ensureAllFoldersLoaded();
     const searchParam = contactFilters.search ? `&search=${encodeURIComponent(contactFilters.search)}` : '';
     const statusParam = contactFilters.status !== 'all' ? `&status=${encodeURIComponent(contactFilters.status)}` : '';
     const subParam = contactFilters.subscription !== 'all' ? `&subscription_status=${encodeURIComponent(contactFilters.subscription)}` : '';
@@ -1511,7 +1573,10 @@ async function loadContacts() {
       
       return true;
     });
-    
+    if (typeof applyFolderFilter === 'function') {
+      filteredContacts = applyFolderFilter('contacts', filteredContacts);
+    }
+
     // Apply sorting
     filteredContacts = applySorting(filteredContacts, currentTableSort.column || 'id');
     
@@ -1541,6 +1606,7 @@ async function loadContacts() {
           <td data-column-id="loyalty_tier">${c.loyalty_tier || '-'}</td>
           <td data-column-id="engagement_score">${c.engagement_score || 0}/100</td>
           <td data-column-id="created_at">${new Date(c.created_at || Date.now()).toLocaleDateString()}</td>
+          <td data-column-id="folder">${typeof folderCellHtml === 'function' ? folderCellHtml(c.folder_id) : ''}</td>
           <td>${createActionMenu(c.id, actions)}</td>
         </tr>
       `;
@@ -1571,14 +1637,18 @@ async function loadContacts() {
       { id: 'subscription_status', label: 'Subscription' },
       { id: 'loyalty_tier', label: 'Loyalty' },
       { id: 'engagement_score', label: 'Engagement' },
-      { id: 'created_at', label: 'Created' }
+      { id: 'created_at', label: 'Created' },
+      { id: 'folder', label: 'Folder', visible: false }
     ];
     
-    const content = `
+    let content = `
       <div class="card">
-        <div class="card-header">
+        <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
           <h3 class="card-title">${ICONS.users} Profiles</h3>
-          <button class="btn btn-primary" onclick="showCustomerModal()">+ Create Profile</button>
+          <div style="display:flex;gap:8px;align-items:center">
+            ${typeof getFolderToggleButtonHtml === 'function' ? getFolderToggleButtonHtml('contacts') : ''}
+            <button class="btn btn-primary" onclick="showCustomerModal()">+ Create Profile</button>
+          </div>
         </div>
         
         ${createTableToolbar({
@@ -1645,11 +1715,12 @@ async function loadContacts() {
                 ${createSortableHeader('loyalty_tier', 'Loyalty', currentTableSort)}
                 ${createSortableHeader('engagement_score', 'Engagement', currentTableSort)}
                 ${createSortableHeader('created_at', 'Created', currentTableSort)}
+                <th data-column-id="folder">Folder</th>
                 <th style="width: 50px;"></th>
               </tr>
             </thead>
             <tbody>
-              ${tableRows || '<tr><td colspan="9" style="text-align: center; padding: 2rem; color: #6B7280;">No contacts found</td></tr>'}
+              ${tableRows || '<tr><td colspan="10" style="text-align: center; padding: 2rem; color: #6B7280;">No contacts found</td></tr>'}
             </tbody>
           </table>
         </div>
@@ -1664,9 +1735,14 @@ async function loadContacts() {
         ` : ''}
       </div>
     `;
-    
+    if (typeof wrapWithFolderSidebarHtml === 'function') {
+      content = wrapWithFolderSidebarHtml('contacts', 'contacts', content);
+    }
     document.getElementById('content').innerHTML = content;
     applyColumnVisibility('contacts');
+    if (typeof initListFolderTree === 'function') {
+      initListFolderTree('contacts', 'contacts', loadContacts);
+    }
   } catch (error) {
     showError('Failed to load contacts');
     console.error(error);
@@ -2248,6 +2324,11 @@ let workflowFilters = {
   search: ''
 };
 
+// Folder toggle for workflows
+window._folderToggle_workflows = function() {
+  if (typeof toggleListFolderSidebar === 'function') toggleListFolderSidebar('workflows', 'workflows', loadWorkflows);
+};
+
 async function loadWorkflows() {
   showLoading();
   
@@ -2255,6 +2336,7 @@ async function loadWorkflows() {
     const response = await fetch(`${API_BASE}/workflows`);
     let workflows = await response.json();
     const allWorkflows = Array.isArray(workflows) ? workflows : [];
+    if (typeof ensureAllFoldersLoaded === 'function') await ensureAllFoldersLoaded();
     const [segmentsResp, audiencesResp, deliveriesResp] = await Promise.all([
       fetch(`${API_BASE}/segments`),
       fetch(`${API_BASE}/audiences`),
@@ -2281,6 +2363,11 @@ async function loadWorkflows() {
       }
       return true;
     });
+
+    // Apply folder filter
+    if (typeof applyFolderFilter === 'function') {
+      workflows = applyFolderFilter('workflows', workflows);
+    }
     
     // Apply sorting
     workflows = applySorting(workflows, currentTableSort.column || 'id');
@@ -2351,6 +2438,7 @@ async function loadWorkflows() {
         {icon: ICONS.edit, label: 'Edit', onclick: `navigateTo('workflows', 'edit', ${w.id})`},
         {icon: ICONS.palette, label: 'Orchestration', onclick: `window.location.href='orchestration.html?workflowId=${w.id}'`},
         {icon: ICONS.barChart, label: 'View Report', onclick: `showWorkflowReport(${w.id})`},
+        {icon: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>', label: 'Heatmap', onclick: `showWorkflowHeatmap(${w.id})`},
         {divider: true}
       ];
       
@@ -2376,6 +2464,7 @@ async function loadWorkflows() {
           <td data-column-id="updated_at">${new Date(w.updated_at || w.created_at || Date.now()).toLocaleString()}</td>
           <td data-column-id="last_run_at">${w.last_run_at ? new Date(w.last_run_at).toLocaleString() : '-'}</td>
           <td data-column-id="next_run_at">${w.next_run_at ? new Date(w.next_run_at).toLocaleString() : '-'}</td>
+          <td data-column-id="folder">${typeof folderCellHtml === 'function' ? folderCellHtml(w.folder_id) : ''}</td>
           <td>${createActionMenu(w.id, actions)}</td>
         </tr>
       `;
@@ -2391,14 +2480,18 @@ async function loadWorkflows() {
       { id: 'updated_by', label: 'Updated by' },
       { id: 'updated_at', label: 'Updated at' },
       { id: 'last_run_at', label: 'Last processing' },
-      { id: 'next_run_at', label: 'Next processing' }
+      { id: 'next_run_at', label: 'Next processing' },
+      { id: 'folder', label: 'Folder', visible: false }
     ];
     
-    const content = `
+    let content = `
       <div class="card">
         <div class="card-header">
           <h3 class="card-title">${ICONS.workflow} Workflows</h3>
-          <button class="btn btn-primary" onclick="navigateTo('workflows', 'create')">+ Create Workflow</button>
+          <div style="display:flex;gap:8px;align-items:center">
+            ${typeof getFolderToggleButtonHtml === 'function' ? getFolderToggleButtonHtml('workflows') : ''}
+            <button class="btn btn-primary" onclick="navigateTo('workflows', 'create')">+ Create Workflow</button>
+          </div>
         </div>
         
         ${createTableToolbar({
@@ -2445,19 +2538,28 @@ async function loadWorkflows() {
                 ${createSortableHeader('updated_at', 'Updated at', currentTableSort)}
                 <th data-column-id="last_run_at">Last processing</th>
                 <th data-column-id="next_run_at">Next processing</th>
+                <th data-column-id="folder">Folder</th>
                 <th style="width: 50px;"></th>
               </tr>
             </thead>
             <tbody>
-              ${tableRows || '<tr><td colspan="11" style="text-align: center; padding: 2rem; color: #6B7280;">No workflows found</td></tr>'}
+              ${tableRows || '<tr><td colspan="12" style="text-align: center; padding: 2rem; color: #6B7280;">No workflows found</td></tr>'}
             </tbody>
           </table>
         </div>
       </div>
     `;
     
+    // Wrap with folder sidebar if enabled
+    if (typeof wrapWithFolderSidebarHtml === 'function') {
+      content = wrapWithFolderSidebarHtml('workflows', 'workflows', content);
+    }
     document.getElementById('content').innerHTML = content;
     applyColumnVisibility('workflows');
+    // Initialize folder tree for workflows
+    if (typeof initListFolderTree === 'function') {
+      initListFolderTree('workflows', 'workflows', loadWorkflows);
+    }
   } catch (error) {
     showError('Failed to load workflows: ' + error.message);
   } finally {
@@ -2479,7 +2581,15 @@ function showWorkflowModal(workflow = null) {
     </div>
     <div class="form-group">
       <label class="form-label">Description</label>
-      <textarea id="workflow-description" class="form-input" rows="2">${workflow?.description || ''}</textarea>
+      <textarea id="workflow-description" class="form-input" rows="2" placeholder="e.g. Trigger when cart is abandoned. Wait 1h → reminder email; 24h → 10% off; 48h → last chance. Exclude purchasers.">${workflow?.description || ''}</textarea>
+      <p class="form-helper" style="margin-top:6px">
+        <strong>Tip:</strong> A clear title + description help the AI suggest the right steps when you open the flow in Orchestration.<br>
+        <a href="#" class="ai-example-link" onclick="var el=document.getElementById('workflow-ai-example'); el.classList.toggle('hidden'); this.textContent=el.classList.contains('hidden')?'Show example':'Hide example'; return false;">Show example</a>
+        <div id="workflow-ai-example" class="hidden" style="margin-top:6px;padding:8px 10px;background:var(--bg-secondary,#f3f4f6);border-radius:6px;font-size:12px;color:var(--text-secondary,#6b7280);">
+          <strong>Title:</strong> Cart Abandonment Recovery<br>
+          <strong>Description:</strong> Trigger when a contact abandons their cart. Wait 1 hour → send reminder email; 24 hours → send 10% discount offer; 48 hours → last-chance email. Exclude contacts who purchased. Use conditions to branch on email open. Goal: recover 15–30% of abandoned carts.
+        </div>
+      </p>
     </div>
     <div class="form-group">
       <label class="form-label">Trigger Type *</label>
@@ -2689,6 +2799,9 @@ async function showWorkflowReport(id) {
         </div>
       </div>
       <div class="rpt-header-actions">
+        <button class="btn btn-primary btn-sm" onclick="showWorkflowHeatmap(${wf.id})">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg> Heatmap
+        </button>
         <button class="btn btn-secondary btn-sm" onclick="window.location.href='orchestration.html?workflowId=${wf.id}'">${ICONS.palette || ''} Open Canvas</button>
       </div>
     </div>`;
@@ -2771,7 +2884,20 @@ async function showWorkflowReport(id) {
 
     // ═══════ TAB: Deliveries ═══════
     html += '<div class="rpt-tab-content" id="wfrpt-tab-deliveries" style="display:none">';
-    html += '<div class="rpt-section-title">Delivery Performance by Channel</div>';
+    // List of actual deliveries linked to this workflow
+    if (rpt.workflow_deliveries && rpt.workflow_deliveries.length > 0) {
+      html += '<div class="rpt-section-title">Deliveries in this workflow</div>';
+      html += '<div class="rpt-stats-table"><table><thead><tr><th>Delivery</th><th>Channel</th><th>Status</th><th>Sent</th><th>Opens</th><th>Clicks</th><th>Actions</th></tr></thead><tbody>';
+      rpt.workflow_deliveries.forEach(function(d) {
+        var chLabel = (d.channel || 'email').toUpperCase();
+        var statusCls = d.status === 'sent' ? 'success' : d.status === 'scheduled' ? 'info' : 'secondary';
+        html += '<tr><td><strong>' + (d.name || 'Delivery #' + d.id) + '</strong></td><td>' + chLabel + '</td><td><span class="badge badge-' + statusCls + '">' + (d.status || 'draft') + '</span></td>';
+        html += '<td>' + (d.sent || 0).toLocaleString() + '</td><td>' + (d.opens || 0).toLocaleString() + '</td><td>' + (d.clicks || 0).toLocaleString() + '</td>';
+        html += '<td><button class="btn btn-secondary btn-sm" onclick="showDeliveryReport(' + d.id + ', ' + wf.id + ')" title="View report">Report</button></td></tr>';
+      });
+      html += '</tbody></table></div>';
+    }
+    html += '<div class="rpt-section-title">Delivery performance by channel</div>';
     if (rpt.delivery_breakdown && rpt.delivery_breakdown.length > 0) {
       rpt.delivery_breakdown.forEach(function(db) {
         var chIcon = db.channel === 'email' ? '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="16" x="2" y="4" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></svg>'
@@ -2785,8 +2911,8 @@ async function showWorkflowReport(id) {
         html += _wfKpi('Clicks', db.clicks, db.click_rate + '%', '<path d="m3 3 7.07 16.97 2.51-7.39 7.39-2.51L3 3z"/><path d="m13 13 6 6"/>');
         html += '</div></div></div>';
       });
-    } else {
-      html += '<div style="text-align:center;padding:2rem;color:#94a3b8">No delivery activities in this workflow</div>';
+    } else if (!rpt.workflow_deliveries || rpt.workflow_deliveries.length === 0) {
+      html += '<div style="text-align:center;padding:2rem;color:#94a3b8">No deliveries linked to this workflow. Link email/SMS/push activities on the orchestration canvas to deliveries to see them here.</div>';
     }
     html += '</div>'; // end deliveries
 
@@ -2871,6 +2997,124 @@ function switchWfrptRecipTab(btn, tab) {
   btn.classList.add('active');
   document.querySelectorAll('.wfrpt-recip').forEach(function(c) { c.style.display = 'none'; });
   var el = document.getElementById('wfrpt-' + tab);
+  if (el) el.style.display = 'block';
+}
+
+/* ══════════════════════════════════════════════════════
+   WORKFLOW HEATMAP PAGE
+   ══════════════════════════════════════════════════════ */
+
+async function showWorkflowHeatmap(id) {
+  const content = document.getElementById('content');
+  showLoading();
+  try {
+    const [hm, wf] = await Promise.all([
+      fetch(`${API_BASE}/workflows/${id}/heatmap`).then(r => r.json()),
+      fetch(`${API_BASE}/workflows/${id}`).then(r => r.json())
+    ]);
+
+    content.innerHTML = `
+      <div style="margin-bottom:12px;display:flex;gap:8px">
+        <button class="btn btn-secondary btn-sm" onclick="showWorkflowReport(${id})" style="display:inline-flex;align-items:center;gap:4px">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg>
+          Back to Report
+        </button>
+      </div>
+
+      <div class="hm-page-header">
+        <div class="hm-page-title">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+          ${hm.workflow_name} — Heatmap Analytics
+        </div>
+        <div style="display:flex;gap:8px;font-size:12px;color:var(--text-secondary)">
+          <span class="badge badge-info">${hm.total_sent?.toLocaleString()} sent</span>
+          <span class="badge badge-success">${hm.total_opened?.toLocaleString()} opened</span>
+          <span class="badge badge-primary">${hm.total_clicked?.toLocaleString()} clicked</span>
+          <span class="badge badge-warning">${hm.total_converted?.toLocaleString()} converted</span>
+        </div>
+      </div>
+
+      <div class="hm-page-tabs">
+        <button class="hm-page-tab active" onclick="switchWfHmTab(this,'execution')">Execution Heatmap</button>
+        <button class="hm-page-tab" onclick="switchWfHmTab(this,'funnel')">Conversion Funnel</button>
+        <button class="hm-page-tab" onclick="switchWfHmTab(this,'nodes')">Node Performance</button>
+        <button class="hm-page-tab" onclick="switchWfHmTab(this,'ai')">AI Insights</button>
+      </div>
+
+      <!-- Execution Heatmap Tab -->
+      <div id="whm-tab-execution" class="whm-tab-content">
+        <div class="hm-section">
+          <div id="whm-execution-grid" style="position:relative"></div>
+        </div>
+        <div class="hm-grid-2col">
+          <div class="hm-section">
+            <div id="whm-hour-bars"></div>
+          </div>
+          <div class="hm-section">
+            <div id="whm-day-bars"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Conversion Funnel Tab -->
+      <div id="whm-tab-funnel" class="whm-tab-content" style="display:none">
+        <div class="hm-section">
+          <div id="whm-funnel"></div>
+        </div>
+      </div>
+
+      <!-- Node Performance Tab -->
+      <div id="whm-tab-nodes" class="whm-tab-content" style="display:none">
+        <div class="hm-section" style="background:transparent;border:none;padding:0">
+          <div id="whm-nodes"></div>
+        </div>
+      </div>
+
+      <!-- AI Insights Tab -->
+      <div id="whm-tab-ai" class="whm-tab-content" style="display:none">
+        <div class="hm-section" style="background:transparent;border:none;padding:0">
+          <div id="whm-ai-recs"></div>
+        </div>
+      </div>
+    `;
+
+    // Render components
+    const HC = window.HeatmapComponent;
+    if (HC) {
+      HC.renderHeatmapGrid('whm-execution-grid', hm.execution_heatmap.grid, {
+        title: 'Workflow Entries by Hour & Day of Week',
+        palette: 'purple',
+        valueKey: 'entries',
+        maxVal: hm.execution_heatmap.max,
+        days: hm.execution_heatmap.days,
+        hours: hm.execution_heatmap.hours
+      });
+      HC.renderBarSpark('whm-hour-bars',
+        hm.execution_heatmap.hours.map(h => h + ':00'),
+        hm.hour_totals,
+        { title: 'Hourly Entries', palette: 'orange' }
+      );
+      HC.renderBarSpark('whm-day-bars',
+        hm.execution_heatmap.days,
+        hm.day_totals,
+        { title: 'Daily Entries', palette: 'blue' }
+      );
+      HC.renderFunnelHeatmap('whm-funnel', hm.conversion_funnel);
+      HC.renderNodePerformance('whm-nodes', hm.node_performance);
+      HC.renderAIRecommendations('whm-ai-recs', hm.ai_recommendations);
+    }
+  } catch (e) {
+    showToast('Failed to load heatmap: ' + e.message, 'error');
+  } finally {
+    hideLoading();
+  }
+}
+
+function switchWfHmTab(btn, tab) {
+  document.querySelectorAll('.hm-page-tab').forEach(t => t.classList.remove('active'));
+  btn.classList.add('active');
+  document.querySelectorAll('.whm-tab-content').forEach(c => c.style.display = 'none');
+  const el = document.getElementById('whm-tab-' + tab);
   if (el) el.style.display = 'block';
 }
 
@@ -2963,9 +3207,18 @@ let segmentFilters = {
   search: ''
 };
 
+// Folder toggle for segments
+window._folderToggle_segments = function() {
+  if (typeof toggleListFolderSidebar === 'function') toggleListFolderSidebar('segments', 'segments', loadSegments);
+};
+window._folderToggle_contacts = function() {
+  if (typeof toggleListFolderSidebar === 'function') toggleListFolderSidebar('contacts', 'contacts', loadContacts);
+};
+
 async function loadSegments() {
   showLoading();
   try {
+    if (typeof ensureAllFoldersLoaded === 'function') await ensureAllFoldersLoaded();
     const response = await fetch(`${API_BASE}/segments`);
     const data = await response.json();
     
@@ -2987,6 +3240,11 @@ async function loadSegments() {
       
       return true;
     });
+
+    // Apply folder filter
+    if (typeof applyFolderFilter === 'function') {
+      segments = applyFolderFilter('segments', segments);
+    }
     
     // Apply sorting
     segments = applySorting(segments, currentTableSort.column || 'id');
@@ -3090,6 +3348,7 @@ async function loadSegments() {
           <td data-column-id="used_in">${renderUsedInList(usedInItems)}</td>
           <td data-column-id="description">${seg.description || '-'}</td>
           <td data-column-id="updated_at">${new Date(seg.updated_at || seg.created_at || Date.now()).toLocaleDateString()}</td>
+          <td data-column-id="folder">${typeof folderCellHtml === 'function' ? folderCellHtml(seg.folder_id) : ''}</td>
           <td>${createActionMenu(seg.id, actions)}</td>
         </tr>
       `;
@@ -3113,14 +3372,18 @@ async function loadSegments() {
       { id: 'customer_count', label: 'Profiles' },
       { id: 'used_in', label: 'Used in' },
       { id: 'description', label: 'Description' },
-      { id: 'updated_at', label: 'Last modified' }
+      { id: 'updated_at', label: 'Last modified' },
+      { id: 'folder', label: 'Folder', visible: false }
     ];
     
-    const content = `
+    let content = `
       <div class="card">
         <div class="card-header">
           <h3 class="card-title">${ICONS.target} Segments</h3>
-          <button class="btn btn-primary" onclick="navigateTo('segments', 'create')">+ Create Segment</button>
+          <div style="display:flex;gap:8px;align-items:center">
+            ${typeof getFolderToggleButtonHtml === 'function' ? getFolderToggleButtonHtml('segments') : ''}
+            <button class="btn btn-primary" onclick="navigateTo('segments', 'create')">+ Create Segment</button>
+          </div>
         </div>
         
         ${createTableToolbar({
@@ -3174,19 +3437,28 @@ async function loadSegments() {
                 <th data-column-id="used_in">Used in</th>
                 <th data-column-id="description">Description</th>
                 ${createSortableHeader('updated_at', 'Last modified', currentTableSort)}
+                <th data-column-id="folder">Folder</th>
                 <th style="width: 50px;"></th>
               </tr>
             </thead>
             <tbody>
-              ${tableRows || '<tr><td colspan="8" style="text-align: center; padding: 2rem; color: #6B7280;">No segments found</td></tr>'}
+              ${tableRows || '<tr><td colspan="9" style="text-align: center; padding: 2rem; color: #6B7280;">No segments found</td></tr>'}
             </tbody>
           </table>
         </div>
       </div>
     `;
     
+    // Wrap with folder sidebar if enabled
+    if (typeof wrapWithFolderSidebarHtml === 'function') {
+      content = wrapWithFolderSidebarHtml('segments', 'segments', content);
+    }
     document.getElementById('content').innerHTML = content;
     applyColumnVisibility('segments');
+    // Initialize folder tree for segments
+    if (typeof initListFolderTree === 'function') {
+      initListFolderTree('segments', 'segments', loadSegments);
+    }
   } catch (error) {
     showError('Failed to load segments');
     console.error(error);
@@ -6206,7 +6478,7 @@ let erDiagramState = {
   }
 };
 
-function buildNormalizedERModel(customObjects = []) {
+function buildNormalizedERModel(customObjects = [], catalogSchema = []) {
   const nodes = [];
   const relationships = [];
   const addNode = (id, label, fields, column) => {
@@ -6263,6 +6535,49 @@ function buildNormalizedERModel(customObjects = []) {
   addRel('activity_events', 'programs', 'N:1');
   addRel('activity_events', 'program_runs', 'N:1');
 
+  // ── Offer Decisioning: Item Definitions ──
+  const offerFields = ['id (PK)', 'name', 'type', 'status', 'priority', 'eligibility_type', 'eligibility_rule_id (FK)', 'start_date', 'end_date'];
+  catalogSchema.forEach(attr => {
+    offerFields.push(`${attr.name} (custom)`);
+  });
+  addNode('offers', 'offers', offerFields, 'decisioning');
+  addNode('placements', 'placements', ['id (PK)', 'name', 'channel', 'content_type'], 'decisioning');
+  addNode('collection_qualifiers', 'collection_qualifiers', ['id (PK)', 'name', 'description'], 'decisioning');
+  addNode('collections', 'collections', ['id (PK)', 'name', 'type', 'offer_ids', 'qualifier_ids'], 'decisioning');
+  addNode('decision_rules', 'decision_rules', ['id (PK)', 'name', 'conditions'], 'decisioning');
+  addNode('catalog_schema', 'catalog_schema', ['id (PK)', 'name', 'label', 'type', 'required', 'default_value'], 'decisioning');
+
+  // ── Offer Decisioning: Strategy & Decisions ──
+  addNode('ranking_formulas', 'ranking_formulas', ['id (PK)', 'name', 'expression'], 'decisioning_strategy');
+  addNode('ranking_ai_models', 'ranking_ai_models', ['id (PK)', 'name', 'type', 'optimization_goal', 'status'], 'decisioning_strategy');
+  addNode('selection_strategies', 'selection_strategies', ['id (PK)', 'name', 'collection_id (FK)', 'ranking_method', 'ranking_formula_id (FK)'], 'decisioning_strategy');
+  addNode('decisions', 'decisions', ['id (PK)', 'name', 'status', 'placement_configs', 'arbitration'], 'decisioning_strategy');
+  addNode('context_schema', 'context_schema', ['id (PK)', 'name', 'type', 'description'], 'decisioning_strategy');
+  addNode('experiments', 'experiments', ['id (PK)', 'name', 'decision_id (FK)', 'status', 'treatments'], 'decisioning_strategy');
+
+  // ── Offer Decisioning: Operations (constraints, propositions, events) ──
+  addNode('offer_constraints', 'offer_constraints', ['id (PK)', 'offer_id (FK)', 'per_user_cap', 'total_cap', 'frequency_period', 'capping_rules'], 'decisioning_ops');
+  addNode('offer_tags', 'offer_tags', ['id (PK)', 'offer_id (FK)', 'qualifier_id (FK)'], 'decisioning_ops');
+  addNode('offer_representations', 'offer_representations', ['id (PK)', 'offer_id (FK)', 'placement_id (FK)', 'content_type', 'content'], 'decisioning_ops');
+  addNode('offer_propositions', 'offer_propositions', ['id (PK)', 'offer_id (FK)', 'contact_id (FK)', 'decision_id (FK)', 'placement_id (FK)', 'timestamp'], 'decisioning_ops');
+  addNode('offer_events', 'offer_events', ['id (PK)', 'proposition_id (FK)', 'event_type', 'timestamp'], 'decisioning_ops');
+
+  // ── Offer Decisioning Relationships ──
+  addRel('offer_tags', 'offers', 'N:1');
+  addRel('offer_tags', 'collection_qualifiers', 'N:1');
+  addRel('offer_constraints', 'offers', 'N:1');
+  addRel('offer_representations', 'offers', 'N:1');
+  addRel('offer_representations', 'placements', 'N:1');
+  addRel('offers', 'decision_rules', 'N:1');
+  addRel('selection_strategies', 'collections', 'N:1');
+  addRel('selection_strategies', 'ranking_formulas', 'N:1');
+  addRel('experiments', 'decisions', 'N:1');
+  addRel('offer_propositions', 'offers', 'N:1');
+  addRel('offer_propositions', 'people', 'N:1');
+  addRel('offer_propositions', 'decisions', 'N:1');
+  addRel('offer_propositions', 'placements', 'N:1');
+  addRel('offer_events', 'offer_propositions', 'N:1');
+
   // Custom objects (definitions + explicit relationships)
   customObjects.forEach(obj => {
     const fieldList = ['id (PK)', ...(obj.fields || []).map(f => {
@@ -6272,10 +6587,12 @@ function buildNormalizedERModel(customObjects = []) {
     addNode(`custom-${obj.name}`, obj.name, fieldList, 'definitions');
     (obj.relationships || []).forEach(rel => {
       if (!rel.to_table) return;
-      // Map to the correct node id — built-in tables use their name directly, contacts → people
       const builtInTables = ['people','segments','groups','audiences','programs','deliveries',
         'segment_memberships','group_memberships','audience_memberships','delivery_recipients',
-        'program_runs','program_metrics','execution_metrics','workflow_nodes','workflow_connections','activity_events'];
+        'program_runs','program_metrics','execution_metrics','workflow_nodes','workflow_connections','activity_events',
+        'offers','placements','collection_qualifiers','collections','decision_rules','catalog_schema',
+        'ranking_formulas','ranking_ai_models','selection_strategies','decisions','context_schema','experiments',
+        'offer_constraints','offer_tags','offer_representations','offer_propositions','offer_events'];
       let targetId;
       if (rel.to_table === 'contacts') {
         targetId = 'people';
@@ -6294,13 +6611,21 @@ function buildNormalizedERModel(customObjects = []) {
 async function showCustomObjectsER() {
   try {
     showLoading();
-    const response = await fetch(`${API_BASE}/custom-objects`);
-    const data = await response.json();
-    if (!response.ok) throw new Error(data.error || 'Failed to load objects');
+    const [objRes, schemaRes] = await Promise.all([
+      fetch(`${API_BASE}/custom-objects`),
+      fetch(`${API_BASE}/collections/catalog-schema`).catch(() => ({ ok: false }))
+    ]);
+    const data = await objRes.json();
+    if (!objRes.ok) throw new Error(data.error || 'Failed to load objects');
     const customObjects = Array.isArray(data) ? data : (data.objects || data.value || []);
-    erDiagramModel = buildNormalizedERModel(customObjects);
+    let catalogSchema = [];
+    if (schemaRes.ok) {
+      const schemaData = await schemaRes.json();
+      catalogSchema = Array.isArray(schemaData) ? schemaData : [];
+    }
+    erDiagramModel = buildNormalizedERModel(customObjects, catalogSchema);
     erDiagramState = {
-      layers: { definitions: true, memberships: true, executions: true, metrics: true },
+      layers: { definitions: true, memberships: true, executions: true, metrics: true, decisioning: false, decisioning_strategy: false, decisioning_ops: false },
       entitiesOnly: false,
       showRelationships: true,
       showAttributes: false,
@@ -6309,7 +6634,7 @@ async function showCustomObjectsER() {
       hoveredEntityId: null,
       hoveredEdge: null,
       selectedEdge: null,
-      lanePairs: { def_mem: true, mem_exec: true, exec_metrics: true, intra_def: true, intra_mem: true, intra_exec: true, intra_metrics: true },
+      lanePairs: { def_mem: true, mem_exec: true, exec_metrics: true, intra_def: true, intra_mem: true, intra_exec: true, intra_metrics: true, dec_decstrat: true, decstrat_decops: true, intra_dec: true, intra_decstrat: true, intra_decops: true, def_decops: true },
       exportOptions: {
         format: 'png',
         scope: 'visible',
@@ -6327,7 +6652,10 @@ async function showCustomObjectsER() {
       { id: 'definitions', label: 'Definitions' },
       { id: 'memberships', label: 'Memberships' },
       { id: 'executions', label: 'Executions' },
-      { id: 'metrics', label: 'Metrics' }
+      { id: 'metrics', label: 'Metrics' },
+      { id: 'decisioning', label: 'Decisioning Items' },
+      { id: 'decisioning_strategy', label: 'Strategy & Decisions' },
+      { id: 'decisioning_ops', label: 'Decisioning Ops' }
     ];
     modal.innerHTML = `
       <div class="er-modal" onclick="event.stopPropagation()">
@@ -6354,6 +6682,8 @@ async function showCustomObjectsER() {
             <label class="er-control"><input type="checkbox" data-layer="memberships" checked onchange="toggleERLayer('memberships', this.checked)"> Memberships</label>
             <label class="er-control"><input type="checkbox" data-layer="executions" checked onchange="toggleERLayer('executions', this.checked)"> Executions</label>
             <label class="er-control"><input type="checkbox" data-layer="metrics" checked onchange="toggleERLayer('metrics', this.checked)"> Metrics</label>
+            <span style="border-left:1px solid #ddd;height:16px;margin:0 4px"></span>
+            <label class="er-control" style="font-weight:600"><input type="checkbox" id="er-decisioning-toggle" onchange="toggleERDecisioning(this.checked)"> Offer Decisioning</label>
           </div>
           <div class="er-controls-group">
             <label class="er-control"><input type="checkbox" onchange="toggleEREntitiesOnly(this.checked)"> Entities only</label>
@@ -6582,18 +6912,73 @@ function drawCustomObjectERLines() {
       updateERFocusStyles();
     });
     svg.appendChild(path);
-    
-    // Small dot at start of line
-    const dotX = sameColumn ? (fromEl.getBoundingClientRect().left - diagramRect.left + diagram.scrollLeft) : startX;
-    const dot = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
-    dot.setAttribute('cx', dotX);
-    dot.setAttribute('cy', startY);
-    dot.setAttribute('r', '3');
-    dot.setAttribute('class', 'er-line-dot');
-    dot.setAttribute('fill', 'var(--border-medium)');
-    svg.appendChild(dot);
 
-    // Label badge at midpoint of bezier
+    // Crow's foot notation markers at line endpoints
+    const relType = rel.type || 'N:1';
+    const crowFootSize = 10;
+    const drawCrowFoot = (cx, cy, angle) => {
+      const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+      g.setAttribute('class', 'er-crowfoot');
+      const cos = Math.cos(angle);
+      const sin = Math.sin(angle);
+      const spread = crowFootSize * 0.7;
+      for (const side of [-1, 0, 1]) {
+        const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+        const tipX = cx;
+        const tipY = cy;
+        const baseX = cx + cos * crowFootSize;
+        const baseY = cy + sin * crowFootSize + side * spread;
+        line.setAttribute('x1', tipX);
+        line.setAttribute('y1', tipY);
+        line.setAttribute('x2', baseX);
+        line.setAttribute('y2', baseY);
+        line.setAttribute('stroke', 'var(--border-medium)');
+        line.setAttribute('stroke-width', '1.5');
+        g.appendChild(line);
+      }
+      return g;
+    };
+    const drawOneMark = (cx, cy, angle) => {
+      const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+      g.setAttribute('class', 'er-one-mark');
+      const perpX = -Math.sin(angle);
+      const perpY = Math.cos(angle);
+      const barLen = 7;
+      const offsetDist = 8;
+      const bx = cx + Math.cos(angle) * offsetDist;
+      const by = cy + Math.sin(angle) * offsetDist;
+      const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+      line.setAttribute('x1', bx + perpX * barLen);
+      line.setAttribute('y1', by + perpY * barLen);
+      line.setAttribute('x2', bx - perpX * barLen);
+      line.setAttribute('y2', by - perpY * barLen);
+      line.setAttribute('stroke', 'var(--border-medium)');
+      line.setAttribute('stroke-width', '1.5');
+      g.appendChild(line);
+      return g;
+    };
+
+    const fromIsMany = relType.startsWith('N');
+    const toIsMany = relType.endsWith('N') || relType.endsWith('M');
+    if (sameColumn) {
+      const leftFrom = fromEl.getBoundingClientRect().left - diagramRect.left + diagram.scrollLeft;
+      const leftTo = toEl.getBoundingClientRect().left - diagramRect.left + diagram.scrollLeft;
+      const mFrom = fromIsMany ? drawCrowFoot(leftFrom, startY, Math.PI) : drawOneMark(leftFrom, startY, Math.PI);
+      const mTo = toIsMany ? drawCrowFoot(leftTo, endY, Math.PI) : drawOneMark(leftTo, endY, Math.PI);
+      mFrom.dataset.from = rel.from; mFrom.dataset.to = rel.to;
+      mTo.dataset.from = rel.from; mTo.dataset.to = rel.to;
+      svg.appendChild(mFrom); svg.appendChild(mTo);
+    } else {
+      const fromAngle = goesRight ? 0 : Math.PI;
+      const toAngle = goesRight ? Math.PI : 0;
+      const mFrom = fromIsMany ? drawCrowFoot(startX, startY, fromAngle) : drawOneMark(startX, startY, fromAngle);
+      const mTo = toIsMany ? drawCrowFoot(endX, endY, toAngle) : drawOneMark(endX, endY, toAngle);
+      mFrom.dataset.from = rel.from; mFrom.dataset.to = rel.to;
+      mTo.dataset.from = rel.from; mTo.dataset.to = rel.to;
+      svg.appendChild(mFrom); svg.appendChild(mTo);
+    }
+
+    // Tooltip label on hover (invisible rect with title)
     let midX, midY;
     if (sameColumn) {
       const leftEdge = Math.min(
@@ -6607,21 +6992,17 @@ function drawCustomObjectERLines() {
       midX = (startX + endX) / 2;
       midY = (startY + endY) / 2 + laneOffset * 0.5;
     }
-    const label = document.createElementNS('http://www.w3.org/2000/svg', 'text');
-    label.setAttribute('x', midX);
-    label.setAttribute('y', midY - 2);
-    label.setAttribute('text-anchor', 'middle');
-    label.setAttribute('class', 'er-line-label');
-    label.textContent = rel.type || '';
-    svg.appendChild(label);
-    const bbox = label.getBBox();
-    const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
-    rect.setAttribute('x', bbox.x - 5);
-    rect.setAttribute('y', bbox.y - 2);
-    rect.setAttribute('width', bbox.width + 10);
-    rect.setAttribute('height', bbox.height + 4);
-    rect.setAttribute('class', 'er-line-label-bg');
-    svg.insertBefore(rect, label);
+    const hitArea = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+    hitArea.setAttribute('x', midX - 20);
+    hitArea.setAttribute('y', midY - 10);
+    hitArea.setAttribute('width', 40);
+    hitArea.setAttribute('height', 20);
+    hitArea.setAttribute('fill', 'transparent');
+    hitArea.setAttribute('class', 'er-line-hit');
+    const titleEl = document.createElementNS('http://www.w3.org/2000/svg', 'title');
+    titleEl.textContent = `${rel.from} → ${rel.to} (${relType})`;
+    hitArea.appendChild(titleEl);
+    svg.appendChild(hitArea);
   });
   updateERFocusStyles();
 }
@@ -6647,7 +7028,7 @@ function getFieldSet(fields, mode) {
 }
 
 function getLaneIndex(column) {
-  const laneOrder = ['definitions', 'memberships', 'executions', 'metrics'];
+  const laneOrder = ['definitions', 'memberships', 'executions', 'metrics', 'decisioning', 'decisioning_strategy', 'decisioning_ops'];
   return laneOrder.indexOf(column);
 }
 
@@ -6655,20 +7036,21 @@ function getLanePairKey(fromColumn, toColumn) {
   const fromIdx = getLaneIndex(fromColumn);
   const toIdx = getLaneIndex(toColumn);
   if (fromIdx === -1 || toIdx === -1) return null;
-  // Same-column relationships (e.g. custom object → people, both in definitions)
   if (fromIdx === toIdx) {
-    if (fromColumn === 'definitions') return 'intra_def';
-    if (fromColumn === 'memberships') return 'intra_mem';
-    if (fromColumn === 'executions') return 'intra_exec';
-    if (fromColumn === 'metrics') return 'intra_metrics';
-    return null;
+    const intraMap = { definitions: 'intra_def', memberships: 'intra_mem', executions: 'intra_exec', metrics: 'intra_metrics', decisioning: 'intra_dec', decisioning_strategy: 'intra_decstrat', decisioning_ops: 'intra_decops' };
+    return intraMap[fromColumn] || null;
   }
-  if (Math.abs(fromIdx - toIdx) !== 1) return null;
-  const pair = fromIdx < toIdx ? `${fromColumn}_${toColumn}` : `${toColumn}_${fromColumn}`;
-  if (pair === 'definitions_memberships') return 'def_mem';
-  if (pair === 'memberships_executions') return 'mem_exec';
-  if (pair === 'executions_metrics') return 'exec_metrics';
-  return null;
+  const lo = fromIdx < toIdx ? fromColumn : toColumn;
+  const hi = fromIdx < toIdx ? toColumn : fromColumn;
+  const pairMap = {
+    'definitions_memberships': 'def_mem',
+    'memberships_executions': 'mem_exec',
+    'executions_metrics': 'exec_metrics',
+    'decisioning_decisioning_strategy': 'dec_decstrat',
+    'decisioning_strategy_decisioning_ops': 'decstrat_decops',
+    'definitions_decisioning_ops': 'def_decops'
+  };
+  return pairMap[`${lo}_${hi}`] || 'def_decops';
 }
 
 function getAdjacentRelationships(relationships, fromLane, toLane) {
@@ -6714,8 +7096,10 @@ function updateERFocusStyles() {
   if (!diagram) return;
   const nodes = diagram.querySelectorAll('.er-node');
   const lines = diagram.querySelectorAll('.er-line');
+  const markers = diagram.querySelectorAll('.er-crowfoot, .er-one-mark');
   nodes.forEach(node => node.classList.remove('is-active', 'is-dimmed'));
   lines.forEach(line => line.classList.remove('is-active', 'is-dimmed'));
+  markers.forEach(m => m.classList.remove('is-active', 'is-dimmed'));
   const hoveredEdge = erDiagramState.hoveredEdge;
   const selectedEdge = erDiagramState.selectedEdge;
   const focusEdge = selectedEdge || hoveredEdge;
@@ -6735,6 +7119,13 @@ function updateERFocusStyles() {
         line.classList.add('is-active');
       } else {
         line.classList.add('is-dimmed');
+      }
+    });
+    markers.forEach(m => {
+      if (m.dataset.from === focusEdge.from && m.dataset.to === focusEdge.to) {
+        m.classList.add('is-active');
+      } else {
+        m.classList.add('is-dimmed');
       }
     });
     return;
@@ -6763,6 +7154,13 @@ function updateERFocusStyles() {
       line.classList.add('is-active');
     } else {
       line.classList.add('is-dimmed');
+    }
+  });
+  markers.forEach(m => {
+    if (m.dataset.from === activeEntity || m.dataset.to === activeEntity) {
+      m.classList.add('is-active');
+    } else {
+      m.classList.add('is-dimmed');
     }
   });
 }
@@ -6817,13 +7215,19 @@ function renderERDiagram() {
   if (!diagram || !erDiagramModel) return;
   erDiagramState.hoveredEdge = null;
   erDiagramState.hoveredEntityId = null;
-  const laneOrder = ['definitions', 'memberships', 'executions', 'metrics'];
+  const baseLanes = ['definitions', 'memberships', 'executions', 'metrics'];
+  const decisioningLanes = ['decisioning', 'decisioning_strategy', 'decisioning_ops'];
+  const showDecisioning = decisioningLanes.some(l => erDiagramState.layers[l]);
+  const laneOrder = showDecisioning ? [...baseLanes, ...decisioningLanes] : baseLanes;
   const relationships = erDiagramModel.relationships || [];
   const orderMap = {
     definitions: ['people', 'segments', 'groups', 'audiences', 'programs', 'deliveries'],
     memberships: ['segment_memberships', 'group_memberships', 'audience_memberships', 'delivery_recipients'],
     executions: ['program_runs', 'workflow_nodes', 'workflow_connections', 'activity_events'],
-    metrics: ['program_metrics', 'execution_metrics']
+    metrics: ['program_metrics', 'execution_metrics'],
+    decisioning: ['offers', 'placements', 'collections', 'collection_qualifiers', 'decision_rules', 'catalog_schema'],
+    decisioning_strategy: ['decisions', 'selection_strategies', 'ranking_formulas', 'ranking_ai_models', 'context_schema', 'experiments'],
+    decisioning_ops: ['offer_constraints', 'offer_tags', 'offer_representations', 'offer_propositions', 'offer_events']
   };
   const grouped = laneOrder.map((lane, idx) => {
     const columnNodes = erDiagramModel.nodes.filter(n => n.column === lane);
@@ -6831,16 +7235,20 @@ function renderERDiagram() {
     const prevNodes = prevLane ? erDiagramModel.nodes.filter(n => n.column === prevLane) : [];
     const sorted = sortNodesByAlignment(columnNodes, prevNodes, relationships, lane, orderMap, prevLane);
     const isVisible = erDiagramState.layers[lane];
+    const laneLabels = { definitions: 'Definitions', memberships: 'Memberships', executions: 'Executions', metrics: 'Metrics', decisioning: 'Decisioning Items', decisioning_strategy: 'Strategy & Decisions', decisioning_ops: 'Decisioning Ops' };
     return {
       id: lane,
-      label: lane.charAt(0).toUpperCase() + lane.slice(1),
+      label: laneLabels[lane] || lane.charAt(0).toUpperCase() + lane.slice(1),
       nodes: isVisible ? sorted : [],
       hidden: !isVisible
     };
   });
-  diagram.style.gridTemplateColumns = laneOrder.length === 4
-    ? 'minmax(360px, 2fr) repeat(3, minmax(240px, 1fr))'
-    : `repeat(${laneOrder.length}, minmax(240px, 1fr))`;
+  const visibleLaneCount = grouped.filter(g => !g.hidden).length;
+  if (visibleLaneCount <= 4) {
+    diagram.style.gridTemplateColumns = 'minmax(360px, 2fr) repeat(' + (laneOrder.length - 1) + ', minmax(240px, 1fr))';
+  } else {
+    diagram.style.gridTemplateColumns = `repeat(${laneOrder.length}, minmax(220px, 1fr))`;
+  }
   const nodeHtml = grouped.map(col => `
     <div class="er-column ${col.hidden ? 'is-hidden' : ''}" data-column="${col.id}">
       <div class="er-column-title">${col.label}</div>
@@ -6851,7 +7259,7 @@ function renderERDiagram() {
           : getFieldMode(node.id, node.column);
         const fields = showFields ? getFieldSet(node.fields || [], mode) : [];
         return `
-          <div class="er-node ${node.id === 'people' ? 'er-node-primary' : ''}" data-node="${node.id}">
+          <div class="er-node ${node.id === 'people' || node.id === 'offers' ? 'er-node-primary' : ''}" data-node="${node.id}">
             <div class="er-node-header">
               <div class="er-node-title">${node.label}</div>
               ${erDiagramState.entitiesOnly ? '' : `<button class="er-node-toggle" onclick="event.stopPropagation(); toggleERNodeMode('${node.id}')" title="Toggle fields">▾</button>`}
@@ -6861,9 +7269,11 @@ function renderERDiagram() {
                 ${fields.map(field => {
                   const isPK = /\(PK\)/.test(field);
                   const isFK = /\(FK\)/.test(field);
-                  const cleanName = field.replace(/\s*\(PK\)\s*/g, '').replace(/\s*\(FK\)\s*/g, '').trim();
+                  const isCustom = /\(custom\)/.test(field);
+                  const cleanName = field.replace(/\s*\(PK\)\s*/g, '').replace(/\s*\(FK\)\s*/g, '').replace(/\s*\(custom\)\s*/g, '').trim();
                   const badges = (isPK ? '<span class="er-field-badge er-field-badge-pk">PK</span>' : '')
-                               + (isFK ? '<span class="er-field-badge er-field-badge-fk">FK</span>' : '');
+                               + (isFK ? '<span class="er-field-badge er-field-badge-fk">FK</span>' : '')
+                               + (isCustom ? '<span class="er-field-badge" style="background:#e8f5e9;color:#2e7d32">CA</span>' : '');
                   return `<div class="er-node-field">${badges}<span class="er-field-name">${cleanName}</span></div>`;
                 }).join('')}
               </div>
@@ -6908,6 +7318,13 @@ function toggleERLayer(layer, value) {
   renderERDiagram();
 }
 
+function toggleERDecisioning(value) {
+  erDiagramState.layers.decisioning = value;
+  erDiagramState.layers.decisioning_strategy = value;
+  erDiagramState.layers.decisioning_ops = value;
+  renderERDiagram();
+}
+
 function toggleEREntitiesOnly(value) {
   erDiagramState.entitiesOnly = value;
   renderERDiagram();
@@ -6924,6 +7341,9 @@ function toggleERIntraLane(value) {
   erDiagramState.lanePairs.intra_mem = value;
   erDiagramState.lanePairs.intra_exec = value;
   erDiagramState.lanePairs.intra_metrics = value;
+  erDiagramState.lanePairs.intra_dec = value;
+  erDiagramState.lanePairs.intra_decstrat = value;
+  erDiagramState.lanePairs.intra_decops = value;
   renderERDiagram();
 }
 
@@ -8240,6 +8660,13 @@ function renderAudienceForm(audience = null) {
   const includeContacts = (audience?.include_contacts || []).join(', ');
   const excludeContacts = (audience?.exclude_contacts || []).join(', ');
 
+  const wfCtx = window.createAudienceFromWorkflow || null;
+  const defaultName = (!isEdit && wfCtx?.defaultName) ? wfCtx.defaultName : '';
+  const nameValue = audience?.name || defaultName || '';
+  const wfBackBtn = wfCtx
+    ? `<button type="button" class="btn btn-secondary" onclick="goBackToWorkflowFromAudience()">${ICONS.arrowLeft || '←'} Back to Workflow</button>`
+    : '';
+
   // Pre-load existing filters into visual rows
   loadAudienceFiltersFromJSON(audience?.filters);
   
@@ -8253,7 +8680,7 @@ function renderAudienceForm(audience = null) {
             <div class="form-group form-grid-full">
               <label class="form-label form-label-required" for="audience-name">Name</label>
               <input type="text" id="audience-name" class="form-input" required
-                     value="${audience?.name || ''}"
+                     value="${nameValue}"
                      placeholder="e.g., Black Friday Shoppers">
             </div>
             
@@ -8290,12 +8717,14 @@ function renderAudienceForm(audience = null) {
           <div class="form-grid">
             <div class="form-group">
               <label class="form-label" for="audience-segment">Based on Segment</label>
-              <select id="audience-segment" class="form-input">
+              <select id="audience-segment" class="form-input" onchange="onAudienceSegmentChange(this.value)">
                 <option value="">Select a segment...</option>
               </select>
               <small class="form-help">Optional: base this audience on an existing segment.</small>
             </div>
           </div>
+          
+          <div id="audience-segment-conditions-preview" class="segment-conditions-preview" style="display:none;"></div>
           
           <div class="form-group">
             <label class="form-label">Additional Filters</label>
@@ -8378,8 +8807,9 @@ function renderAudienceForm(audience = null) {
         </div>
         
         <div class="form-actions">
+          ${wfBackBtn}
           <button type="button" class="btn btn-secondary" onclick="navigateTo('audiences', 'list')">Cancel</button>
-          <button type="submit" class="btn btn-primary">${isEdit ? `${ICONS.save} Update` : `${ICONS.sparkles} Create`} Audience</button>
+          <button type="submit" class="btn btn-primary">${isEdit ? `${ICONS.save} Update Audience` : wfCtx ? `${ICONS.save} Save & Return to Workflow` : `${ICONS.sparkles} Create Audience`}</button>
         </div>
       </form>
     </div>
@@ -8421,6 +8851,10 @@ async function loadSegmentsForAudience(selectedId = null, includeIds = [], exclu
           if (seg.id === selectedId) option.selected = true;
           segmentSelect.appendChild(option);
         });
+        // If editing with a pre-selected segment, show its conditions
+        if (selectedId) {
+          onAudienceSegmentChange(String(selectedId));
+        }
       }
       initSegmentPickers(includeIds, excludeIds);
     } else {
@@ -8429,6 +8863,88 @@ async function loadSegmentsForAudience(selectedId = null, includeIds = [], exclu
   } catch (error) {
     console.error('Error loading segments:', error);
   }
+}
+
+async function onAudienceSegmentChange(segmentId) {
+  const preview = document.getElementById('audience-segment-conditions-preview');
+  if (!preview) return;
+
+  if (!segmentId) {
+    preview.style.display = 'none';
+    preview.innerHTML = '';
+    return;
+  }
+
+  try {
+    const response = await fetch(`${API_BASE}/segments/${segmentId}`);
+    if (!response.ok) throw new Error('Segment not found');
+    const segment = await response.json();
+
+    let conditions = segment.conditions;
+    if (!conditions || (typeof conditions === 'object' && Object.keys(conditions).length === 0)) {
+      preview.style.display = 'block';
+      preview.innerHTML = `<div class="scp-header">${ICONS.sliders} Segment Conditions</div><div class="scp-empty">No conditions defined on this segment.</div>`;
+      refreshAudienceEstimate(true);
+      return;
+    }
+
+    // Normalize legacy conditions
+    let rules = [];
+    let logic = 'AND';
+    if (conditions.rules && Array.isArray(conditions.rules)) {
+      rules = conditions.rules;
+      logic = conditions.logic || 'AND';
+    } else {
+      // Legacy flat format
+      for (const [key, value] of Object.entries(conditions)) {
+        if (['logic', 'rules', 'base_entity'].includes(key)) continue;
+        rules.push({ entity: 'customer', attribute: key, operator: 'equals', value: String(value) });
+      }
+    }
+
+    if (rules.length === 0) {
+      preview.style.display = 'block';
+      preview.innerHTML = `<div class="scp-header">${ICONS.sliders} Segment Conditions</div><div class="scp-empty">No conditions defined on this segment.</div>`;
+    } else {
+      const conditionsHtml = rules.map((rule, idx) => {
+        const label = rule.label || formatAttrName(rule.attribute);
+        const op = formatOperatorLabel(rule.operator);
+        const val = rule.value ?? '';
+        return `
+          <div class="scp-rule">
+            ${idx > 0 ? `<span class="scp-logic">${logic}</span>` : ''}
+            <span class="scp-attr">${label}</span>
+            <span class="scp-op">${op}</span>
+            <span class="scp-val">${val}</span>
+          </div>`;
+      }).join('');
+
+      preview.style.display = 'block';
+      preview.innerHTML = `
+        <div class="scp-header">${ICONS.sliders} Segment Conditions <span class="scp-count">${rules.length} condition${rules.length > 1 ? 's' : ''}</span></div>
+        <div class="scp-rules">${conditionsHtml}</div>`;
+    }
+
+    refreshAudienceEstimate(true);
+  } catch (error) {
+    preview.style.display = 'block';
+    preview.innerHTML = `<div class="scp-header">${ICONS.sliders} Segment Conditions</div><div class="scp-empty">Unable to load segment conditions.</div>`;
+  }
+}
+
+function formatAttrName(name) {
+  if (!name) return 'Unknown';
+  return name.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+}
+
+function formatOperatorLabel(op) {
+  const labels = {
+    equals: 'is', not_equals: 'is not', contains: 'contains', not_contains: 'does not contain',
+    starts_with: 'starts with', ends_with: 'ends with', greater_than: '>', less_than: '<',
+    greater_than_or_equal: '>=', less_than_or_equal: '<=', is_empty: 'is empty',
+    is_not_empty: 'is not empty', in_last: 'in last (days)', not_in_last: 'not in last (days)'
+  };
+  return labels[op] || op;
 }
 
 function updateAudienceTypeUI() {
@@ -8647,13 +9163,51 @@ async function handleAudienceSubmit(event) {
       throw new Error(error.error || 'Failed to save audience');
     }
     
+    const saved = await response.json();
     hideLoading();
     showToast(`Audience ${isEdit ? 'updated' : 'created'} successfully`, 'success');
+
+    const wfCtx = window.createAudienceFromWorkflow;
+    if (wfCtx && wfCtx.workflowId && saved.id) {
+      window.createAudienceFromWorkflow = null;
+      localStorage.setItem('workflowAudienceSelection', JSON.stringify({
+        workflowId: wfCtx.workflowId,
+        nodeId: wfCtx.nodeId,
+        audienceId: saved.id,
+        audienceName: saved.name || audienceData.name || ''
+      }));
+      const base = window.location.pathname.replace(/\/index\.html$/, '') || '';
+      window.location.href = `${base}/orchestration.html?workflowId=${encodeURIComponent(wfCtx.workflowId)}`;
+      return;
+    }
     navigateTo('audiences', 'list');
   } catch (error) {
     hideLoading();
     showToast(`Error ${isEdit ? 'updating' : 'creating'} audience: ${error.message}`, 'error');
   }
+}
+
+async function goBackToWorkflowFromAudience() {
+  const wfCtx = window.createAudienceFromWorkflow;
+  if (!wfCtx || !wfCtx.workflowId) {
+    navigateTo('audiences', 'list');
+    return;
+  }
+
+  const nameEl = document.getElementById('audience-name');
+  const name = nameEl ? nameEl.value.trim() : '';
+
+  if (name) {
+    const form = document.getElementById('audience-form');
+    if (form) {
+      form.requestSubmit();
+      return;
+    }
+  }
+
+  window.createAudienceFromWorkflow = null;
+  const base = window.location.pathname.replace(/\/index\.html$/, '') || '';
+  window.location.href = `${base}/orchestration.html?workflowId=${encodeURIComponent(wfCtx.workflowId)}`;
 }
 
 // Query Service
@@ -9197,6 +9751,8 @@ function formatSqlValue(v) {
   if (v === null || v === undefined) return 'null';
   if (typeof v === 'number') return String(v);
   if (typeof v === 'boolean') return v ? 'true' : 'false';
+  // So that boolean columns match: emit unquoted true/false when value is string "true"/"false"
+  if (v === 'true' || v === 'false') return v;
   return "'" + String(v).replace(/'/g, "''") + "'";
 }
 

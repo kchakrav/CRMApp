@@ -457,6 +457,40 @@ console.log(`✅ Created ${recurringWorkflows.length} recurring workflows`);
 const totalWorkflows = broadcastWorkflows.length + automatedWorkflows.length + recurringWorkflows.length;
 console.log(`✅ Total unified workflows created: ${totalWorkflows}`);
 
+// Seed campaign_orchestrations from workflow orchestration data
+console.log('📝 Seeding campaign orchestrations...');
+const typeToCategoryMap = {
+  entry: 'flow', exit: 'flow', stop: 'flow',
+  query: 'targeting', build_audience: 'targeting', segment: 'targeting',
+  filter: 'targeting', exclude: 'targeting', combine: 'targeting',
+  deduplication: 'targeting', enrichment: 'targeting', incremental_query: 'targeting',
+  reconciliation: 'targeting', save_audience: 'targeting', split: 'targeting',
+  change_dimension: 'targeting', change_data_source: 'targeting',
+  scheduler: 'flow_control', wait: 'flow_control', condition: 'flow_control',
+  random: 'flow_control', fork: 'flow_control', jump: 'flow_control',
+  external_signal: 'flow_control', alert: 'flow_control',
+  offer_decision: 'intelligence',
+  email: 'channels', sms: 'channels', push: 'channels',
+  direct_mail: 'channels', in_app: 'channels'
+};
+const wfListForOrch = query.all('workflows');
+wfListForOrch.forEach(wf => {
+  const orch = wf.orchestration;
+  if (!orch || !orch.nodes || orch.nodes.length === 0) return;
+  const enrichedNodes = orch.nodes.map(n => ({
+    ...n,
+    category: n.category || typeToCategoryMap[n.type] || 'flow',
+    icon: n.icon || ''
+  }));
+  query.insert('campaign_orchestrations', {
+    campaign_id: wf.id,
+    nodes: enrichedNodes,
+    connections: orch.connections || [],
+    canvas_state: { zoom: 1, pan: { x: 0, y: 0 } }
+  });
+});
+console.log(`✅ Created ${wfListForOrch.length} campaign orchestrations`);
+
 console.log('📝 Seeding segments...');
 const segments = [
   { name: 'VIP Shoppers', description: 'Platinum tier customers', conditions: { logic: 'AND', base_entity: 'customer', rules: [{ entity: 'customer', attribute: 'lifecycle_stage', label: 'Lifecycle Stage', type: 'select', operator: 'equals', value: 'vip' }] }, status: 'active' },
@@ -585,6 +619,39 @@ const formulasData = [
 ];
 formulasData.forEach(f => query.insert('ranking_formulas', f));
 console.log(`✅ Created ${formulasData.length} ranking formulas`);
+
+// ── Item Catalog Schema (custom attributes) ──
+console.log('📝 Seeding catalog schema...');
+const catalogSchemaData = [
+  { name: 'product_category', label: 'Product Category', type: 'string', required: false, default_value: null, description: 'Category of the product being offered', sort_order: 0 },
+  { name: 'discount_value', label: 'Discount Value', type: 'integer', required: false, default_value: '0', description: 'Discount amount or percentage', sort_order: 1 },
+  { name: 'is_seasonal', label: 'Seasonal Offer', type: 'boolean', required: false, default_value: 'false', description: 'Whether this offer is tied to a season', sort_order: 2 },
+  { name: 'target_region', label: 'Target Region', type: 'string', required: false, default_value: null, description: 'Geographic region targeting', sort_order: 3 },
+  { name: 'campaign_theme', label: 'Campaign Theme', type: 'string', required: false, default_value: null, description: 'Associated marketing campaign theme', sort_order: 4 }
+];
+catalogSchemaData.forEach(a => query.insert('catalog_schema', a));
+console.log(`✅ Created ${catalogSchemaData.length} catalog schema attributes`);
+
+// ── Context Data Schema ──
+console.log('📝 Seeding context schema...');
+const contextSchemaData = [
+  { name: 'page_type', label: 'Page Type', type: 'string', description: 'Current page the visitor is viewing', example_value: 'homepage', sort_order: 0 },
+  { name: 'device_type', label: 'Device Type', type: 'string', description: 'Device used by the visitor', example_value: 'mobile', sort_order: 1 },
+  { name: 'cart_value', label: 'Cart Value', type: 'number', description: 'Current shopping cart total', example_value: '89.99', sort_order: 2 },
+  { name: 'time_of_day', label: 'Time of Day', type: 'string', description: 'Time bucket (morning, afternoon, evening)', example_value: 'afternoon', sort_order: 3 },
+  { name: 'referral_source', label: 'Referral Source', type: 'string', description: 'Where the visitor came from', example_value: 'google', sort_order: 4 }
+];
+contextSchemaData.forEach(a => query.insert('context_schema', a));
+console.log(`✅ Created ${contextSchemaData.length} context schema attributes`);
+
+// ── AI Ranking Models ──
+console.log('📝 Seeding AI models...');
+const aiModelsData = [
+  { name: 'Click Optimizer', description: 'Maximizes click-through rates using Thompson sampling', type: 'auto_optimization', optimization_goal: 'clicks', status: 'active', training_status: 'trained', last_trained_at: new Date().toISOString(), metrics: { lift: 12.5, confidence: 92.3, offers_evaluated: 12, propositions_analyzed: 0, min_impressions: 100, training_duration_seconds: 45 }, features: ['placement_id', 'offer_priority', 'offer_age', 'user_segment'] },
+  { name: 'Conversion Maximizer', description: 'Supervised ML model for conversion optimization', type: 'personalized', optimization_goal: 'conversions', status: 'active', training_status: 'trained', last_trained_at: new Date().toISOString(), metrics: { lift: 18.7, confidence: 88.1, offers_evaluated: 12, propositions_analyzed: 0, min_impressions: 250, training_duration_seconds: 92 }, features: ['placement_id', 'offer_priority', 'user_engagement', 'user_ltv', 'device_type'] }
+];
+aiModelsData.forEach(m => query.insert('ranking_ai_models', m));
+console.log(`✅ Created ${aiModelsData.length} AI ranking models`);
 
 // ── Personalized Offers ──
 console.log('📝 Seeding offers...');
@@ -831,6 +898,379 @@ for (let i = 0; i < 500; i++) {
 }
 console.log(`✅ Created ${propCount} offer propositions with events`);
 
+// ══════════════════════════════════════════════════════
+// DELIVERIES  (Sample email / SMS / push deliveries)
+// ══════════════════════════════════════════════════════
+
+console.log('\n📝 Seeding deliveries...');
+
+// ── DEMO delivery with full HTML content and impressive metrics ──
+const demoDeliveryHtml = `<!DOCTYPE html>
+<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<style>body{margin:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#f5f5f5}
+.wrapper{max-width:640px;margin:0 auto;background:#fff}
+.header{background:linear-gradient(135deg,#1a1a2e 0%,#16213e 50%,#0f3460 100%);padding:32px 40px;text-align:center}
+.header img{width:140px;margin-bottom:16px}.header h1{color:#fff;font-size:28px;margin:0 0 4px}.header p{color:rgba(255,255,255,0.8);font-size:14px;margin:0}
+.hero{position:relative;overflow:hidden}.hero img{width:100%;display:block}
+.hero-overlay{position:absolute;bottom:0;left:0;right:0;background:linear-gradient(transparent,rgba(0,0,0,0.7));padding:40px 32px 24px;color:#fff}
+.hero-overlay h2{font-size:32px;margin:0 0 8px;font-weight:800}.hero-overlay p{font-size:16px;margin:0 0 16px;opacity:0.9}
+.cta-btn{display:inline-block;background:#e94560;color:#fff;text-decoration:none;padding:14px 36px;border-radius:6px;font-weight:700;font-size:16px}
+.cta-btn:hover{background:#d63851}
+.section{padding:32px 40px}.section h3{font-size:20px;color:#1a1a2e;margin:0 0 16px;font-weight:700}
+.products{display:flex;gap:16px}.product-card{flex:1;border:1px solid #e5e7eb;border-radius:8px;overflow:hidden;text-align:center}
+.product-card img{width:100%;height:180px;object-fit:cover}.product-card .info{padding:12px}
+.product-card h4{margin:0 0 4px;font-size:14px;color:#1a1a2e}.product-card .price{color:#e94560;font-weight:700;font-size:18px}
+.product-card .old-price{color:#94a3b8;text-decoration:line-through;font-size:13px;margin-left:6px}
+.product-card .shop-btn{display:inline-block;margin:8px 0;padding:8px 20px;background:#1a1a2e;color:#fff;border-radius:4px;text-decoration:none;font-size:12px;font-weight:600}
+.benefits{display:flex;gap:16px;margin-top:16px}.benefit{flex:1;text-align:center;padding:16px;background:#f8fafc;border-radius:8px}
+.benefit .icon{font-size:24px;margin-bottom:6px}.benefit h4{margin:0 0 4px;font-size:13px;color:#1a1a2e}.benefit p{margin:0;font-size:11px;color:#64748b}
+.countdown{text-align:center;padding:24px 40px;background:linear-gradient(135deg,#e94560,#ff6b6b)}.countdown h3{color:#fff;margin:0 0 12px;font-size:18px}
+.timer{display:flex;justify-content:center;gap:12px}.timer-block{background:rgba(255,255,255,0.2);border-radius:6px;padding:10px 16px;color:#fff;text-align:center}
+.timer-block .num{font-size:28px;font-weight:800;line-height:1}.timer-block .label{font-size:10px;text-transform:uppercase;opacity:0.8}
+.secondary-cta{text-align:center;padding:32px 40px;background:#f8fafc}
+.secondary-cta .btn{display:inline-block;padding:12px 32px;border:2px solid #1a1a2e;color:#1a1a2e;text-decoration:none;border-radius:6px;font-weight:600}
+.social{text-align:center;padding:24px}.social a{display:inline-block;margin:0 6px;width:36px;height:36px;background:#e5e7eb;border-radius:50%;line-height:36px;text-decoration:none;color:#475569}
+.footer{background:#1a1a2e;color:rgba(255,255,255,0.6);padding:24px 40px;text-align:center;font-size:11px}
+.footer a{color:#e94560;text-decoration:none}.footer p{margin:4px 0}
+</style></head><body>
+<div class="wrapper">
+<div class="header"><h1>LUXE BRANDS</h1><p>Exclusive Member Offer</p></div>
+<div class="hero"><div style="background:linear-gradient(135deg,#667eea,#764ba2);height:320px;display:flex;align-items:center;justify-content:center">
+<div style="text-align:center;color:#fff"><p style="font-size:14px;text-transform:uppercase;letter-spacing:3px;margin:0 0 8px;opacity:0.8">Limited Time Only</p>
+<h2 style="font-size:42px;margin:0 0 8px;font-weight:900">SPRING COLLECTION</h2>
+<p style="font-size:22px;margin:0 0 20px">Up to <strong>50% OFF</strong> Everything</p>
+<a href="#" class="cta-btn">SHOP THE SALE</a></div></div></div>
+<div class="section"><h3>Trending This Season</h3>
+<div class="products">
+<div class="product-card"><div style="background:linear-gradient(135deg,#f093fb,#f5576c);height:180px"></div><div class="info"><h4>Designer Handbag</h4><p><span class="price">$149</span><span class="old-price">$299</span></p><a href="#" class="shop-btn">Shop Now</a></div></div>
+<div class="product-card"><div style="background:linear-gradient(135deg,#4facfe,#00f2fe);height:180px"></div><div class="info"><h4>Premium Watch</h4><p><span class="price">$199</span><span class="old-price">$399</span></p><a href="#" class="shop-btn">Shop Now</a></div></div>
+<div class="product-card"><div style="background:linear-gradient(135deg,#43e97b,#38f9d7);height:180px"></div><div class="info"><h4>Silk Scarf</h4><p><span class="price">$59</span><span class="old-price">$120</span></p><a href="#" class="shop-btn">Shop Now</a></div></div>
+</div>
+<div class="benefits"><div class="benefit"><div class="icon">🚚</div><h4>Free Shipping</h4><p>On orders over $75</p></div>
+<div class="benefit"><div class="icon">↩️</div><h4>Easy Returns</h4><p>30-day guarantee</p></div>
+<div class="benefit"><div class="icon">🔒</div><h4>Secure Payment</h4><p>256-bit encryption</p></div>
+<div class="benefit"><div class="icon">💎</div><h4>VIP Rewards</h4><p>Earn 2x points today</p></div></div></div>
+<div class="countdown"><h3>Sale Ends In</h3>
+<div class="timer"><div class="timer-block"><div class="num">02</div><div class="label">Days</div></div>
+<div class="timer-block"><div class="num">14</div><div class="label">Hours</div></div>
+<div class="timer-block"><div class="num">37</div><div class="label">Minutes</div></div></div></div>
+<div class="secondary-cta"><p style="font-size:16px;color:#475569;margin:0 0 12px">Can't decide? Browse our full catalog</p>
+<a href="#" class="btn">View All Products</a></div>
+<div class="social"><p style="font-size:12px;color:#94a3b8;margin:0 0 8px">Follow us</p>
+<a href="#">FB</a><a href="#">TW</a><a href="#">IG</a><a href="#">PIN</a></div>
+<div class="footer"><p>&copy; 2026 Luxe Brands Inc. All rights reserved.</p>
+<p>123 Fashion Ave, New York, NY 10001</p>
+<p><a href="#">Unsubscribe</a> · <a href="#">Privacy Policy</a> · <a href="#">View in browser</a></p></div>
+</div></body></html>`;
+
+const demoInsert = query.insert('deliveries', {
+  name: 'Spring Collection Launch Demo',
+  channel: 'Email',
+  channel_key: 'email',
+  status: 'completed',
+  subject: '🌸 Spring Collection — Up to 50% OFF Everything!',
+  preheader: 'Exclusive member offer: Free shipping + 2x VIP points. Sale ends in 2 days!',
+  content: demoDeliveryHtml,
+  html_output: demoDeliveryHtml,
+  content_blocks: [
+    { type: 'header', data: { logo: 'LUXE BRANDS', tagline: 'Exclusive Member Offer' } },
+    { type: 'hero', data: { headline: 'SPRING COLLECTION', subtext: 'Up to 50% OFF Everything', cta: 'SHOP THE SALE' } },
+    { type: 'products', data: { items: ['Designer Handbag', 'Premium Watch', 'Silk Scarf'] } },
+    { type: 'countdown', data: { label: 'Sale Ends In' } },
+    { type: 'cta', data: { text: 'View All Products' } },
+    { type: 'footer', data: { unsubscribe: true, social: true } }
+  ],
+  scheduled_at: null,
+  audience_id: null,
+  segment_id: 1,
+  approval_required: true,
+  document_title: 'Spring Collection Launch',
+  document_language: 'en',
+  wizard_step: 5,
+  last_saved_step: 5,
+  draft_state: {},
+  proof_emails: ['marketing@luxebrands.com', 'qa@luxebrands.com'],
+  ab_test_enabled: true,
+  ab_split_pct: 30,
+  ab_winner_rule: 'click_rate',
+  ab_weighted_metrics: ['open_rate', 'click_rate', 'revenue'],
+  ab_guardrails: [],
+  sto_enabled: true,
+  sto_model: 'engagement_history',
+  sto_window_hours: 24,
+  wave_enabled: true,
+  wave_count: 4,
+  wave_interval_minutes: 45,
+  wave_start_pct: 10,
+  wave_ramp_type: 'exponential',
+  wave_custom_pcts: null,
+  wave_timing_mode: 'interval',
+  wave_custom_times: null,
+  approved_at: new Date(Date.now() - 2 * 86400000).toISOString(),
+  sent_at: new Date(Date.now() - 2 * 86400000 + 1800000).toISOString(),
+  sent: 48500,
+  delivered: 47200,
+  opens: 21800,
+  clicks: 6540,
+  folder_id: null,
+  created_by: 'Marketing Team',
+  updated_by: 'Marketing Team',
+  created_at: new Date(Date.now() - 5 * 86400000).toISOString(),
+  updated_at: '2099-01-01T00:00:00.000Z'
+});
+if (demoInsert && demoInsert.record) {
+  demoInsert.record.updated_at = '2099-01-01T00:00:00.000Z';
+}
+console.log(`✅ Created demo delivery (id: ${demoInsert.lastID}): "Spring Collection Launch Demo"`);
+
+const deliverySamples = [
+  { name: 'Summer Sale Announcement', channel: 'Email', status: 'completed', subject: 'Summer Sale - Up to 50% Off!', preheader: 'Don\'t miss our biggest sale of the year', sent: 12450, delivered: 12100, opens: 4800, clicks: 1200 },
+  { name: 'Welcome Series - Day 1', channel: 'Email', status: 'active', subject: 'Welcome to our family!', preheader: 'Here\'s what you need to know', sent: 3200, delivered: 3150, opens: 2100, clicks: 890 },
+  { name: 'Welcome Series - Day 3', channel: 'Email', status: 'active', subject: 'Explore our top picks for you', preheader: 'Curated just for you', sent: 2800, delivered: 2750, opens: 1400, clicks: 620 },
+  { name: 'Flash Sale SMS Blast', channel: 'SMS', status: 'completed', subject: '', preheader: '', sent: 8500, delivered: 8200, opens: 0, clicks: 2100 },
+  { name: 'Cart Abandonment Reminder', channel: 'Email', status: 'active', subject: 'You left something behind...', preheader: 'Complete your purchase and get 10% off', sent: 5600, delivered: 5400, opens: 3200, clicks: 1800 },
+  { name: 'Product Launch Push', channel: 'Push', status: 'completed', subject: 'New arrivals are here!', preheader: '', sent: 15000, delivered: 14200, opens: 9800, clicks: 4500 },
+  { name: 'Monthly Newsletter - January', channel: 'Email', status: 'completed', subject: 'Your January Newsletter', preheader: 'New year, new deals', sent: 20000, delivered: 19500, opens: 7800, clicks: 2400 },
+  { name: 'Monthly Newsletter - February', channel: 'Email', status: 'draft', subject: 'Your February Newsletter', preheader: 'Love is in the air', sent: 0, delivered: 0, opens: 0, clicks: 0 },
+  { name: 'VIP Exclusive Offer', channel: 'Email', status: 'completed', subject: 'Exclusive: Early access for VIPs', preheader: 'You\'re invited to shop first', sent: 1200, delivered: 1180, opens: 950, clicks: 620 },
+  { name: 'Re-engagement Campaign', channel: 'Email', status: 'scheduled', subject: 'We miss you!', preheader: 'Come back and save 20%', scheduled_at: '2026-03-01T10:00:00Z', sent: 0, delivered: 0, opens: 0, clicks: 0 },
+  { name: 'Order Confirmation SMS', channel: 'SMS', status: 'active', subject: '', preheader: '', sent: 9200, delivered: 9100, opens: 0, clicks: 0 },
+  { name: 'Black Friday Preview', channel: 'Email', status: 'draft', subject: 'Black Friday is coming...', preheader: 'Get ready for massive savings', sent: 0, delivered: 0, opens: 0, clicks: 0 },
+  { name: 'Loyalty Points Reminder', channel: 'Push', status: 'active', subject: 'Your points are expiring soon!', preheader: '', sent: 4500, delivered: 4300, opens: 3100, clicks: 1500 },
+  { name: 'Birthday Special', channel: 'Email', status: 'active', subject: 'Happy Birthday! Here\'s a gift for you', preheader: 'Enjoy your special day with a special offer', sent: 800, delivered: 790, opens: 650, clicks: 420 },
+  { name: 'Survey Invitation', channel: 'Email', status: 'completed', subject: 'We value your feedback', preheader: 'Take 2 minutes to help us improve', sent: 6000, delivered: 5800, opens: 2400, clicks: 960 },
+];
+
+const channelNormalize = (ch) => {
+  const map = { 'Email': { label: 'Email', key: 'email' }, 'SMS': { label: 'SMS', key: 'sms' }, 'Push': { label: 'Push', key: 'push' } };
+  return map[ch] || { label: ch, key: ch.toLowerCase() };
+};
+
+for (const d of deliverySamples) {
+  const norm = channelNormalize(d.channel);
+  query.insert('deliveries', {
+    name: d.name,
+    channel: norm.label,
+    channel_key: norm.key,
+    status: d.status,
+    subject: d.subject || '',
+    preheader: d.preheader || '',
+    content: '',
+    html_output: '',
+    content_blocks: [],
+    scheduled_at: d.scheduled_at || null,
+    audience_id: null,
+    segment_id: null,
+    approval_required: false,
+    document_title: '',
+    document_language: '',
+    wizard_step: 5,
+    last_saved_step: 5,
+    draft_state: {},
+    proof_emails: [],
+    ab_test_enabled: false,
+    ab_split_pct: 50,
+    ab_winner_rule: 'open_rate',
+    approved_at: d.status === 'completed' ? new Date(Date.now() - Math.random() * 30 * 86400000).toISOString() : null,
+    sent_at: d.sent > 0 ? new Date(Date.now() - Math.random() * 30 * 86400000).toISOString() : null,
+    sent: d.sent,
+    delivered: d.delivered,
+    opens: d.opens,
+    clicks: d.clicks,
+    folder_id: null,
+    created_by: 'System',
+    updated_by: 'System'
+  });
+}
+console.log(`✅ Created ${deliverySamples.length} deliveries`);
+
+// ── Delivery logs: opens and clicks per delivery (persisted for STO and reports) ──
+const contactIds = query.all('contacts').map(c => c.id);
+const allDeliveries = query.all('deliveries');
+// Weighted slots for STO: peak hours 9–11, 14–16, 19–21; best days Tue–Thu
+const hourWeights = Array.from({ length: 24 }, (_, h) => {
+  if (h >= 9 && h <= 11) return 2.2;
+  if (h >= 14 && h <= 16) return 1.9;
+  if (h >= 19 && h <= 21) return 1.7;
+  if (h < 6 || h > 22) return 0.25;
+  return 1;
+});
+const dayWeights = [0.6, 1.3, 1.3, 1.2, 1, 0.7, 0.5]; // Sun–Sat
+function weightedRandomTime(baseTime, daysWindow = 7) {
+  const totalDw = dayWeights.reduce((a, b) => a + b, 0);
+  const totalHw = hourWeights.reduce((a, b) => a + b, 0);
+  let r = Math.random() * totalDw;
+  let dow = 0;
+  for (; dow < 7; dow++) {
+    r -= dayWeights[dow];
+    if (r <= 0) break;
+  }
+  r = Math.random() * totalHw;
+  let h = 0;
+  for (; h < 24; h++) {
+    r -= hourWeights[h];
+    if (r <= 0) break;
+  }
+  const ms = baseTime.getTime() + dow * 86400000 + h * 3600000 + Math.floor(Math.random() * 3600000);
+  return new Date(Math.min(ms, baseTime.getTime() + daysWindow * 86400000));
+}
+let logsCreated = 0;
+for (const d of allDeliveries) {
+  const opens = d.opens || 0;
+  const clicks = d.clicks || 0;
+  const baseTime = d.sent_at ? new Date(d.sent_at) : new Date(Date.now() - 14 * 86400000);
+  for (let i = 0; i < opens; i++) {
+    const t = weightedRandomTime(baseTime);
+    const contactId = contactIds[Math.floor(Math.random() * contactIds.length)];
+    query.insert('delivery_logs', {
+      delivery_id: d.id,
+      contact_id: contactId,
+      event_type: 'open',
+      occurred_at: t.toISOString(),
+      created_at: new Date().toISOString()
+    });
+    logsCreated++;
+  }
+  for (let i = 0; i < clicks; i++) {
+    const t = weightedRandomTime(baseTime);
+    const contactId = contactIds[Math.floor(Math.random() * contactIds.length)];
+    query.insert('delivery_logs', {
+      delivery_id: d.id,
+      contact_id: contactId,
+      event_type: 'click',
+      occurred_at: t.toISOString(),
+      link_url: '/cta',
+      created_at: new Date().toISOString()
+    });
+    logsCreated++;
+  }
+}
+console.log(`✅ Created ${logsCreated} delivery log events (opens + clicks) for STO and reports`);
+
+// ══════════════════════════════════════════════════════
+// FOLDER HIERARCHY  (Adobe Campaign Explorer style)
+// ══════════════════════════════════════════════════════
+
+console.log('\n📝 Seeding folder hierarchy...');
+
+// Helper to create a folder and return its id
+function mkFolder(name, parentId, entityType, icon, description) {
+  const siblings = query.all('folders', f => f.parent_id === (parentId || null));
+  const r = query.insert('folders', {
+    name,
+    parent_id: parentId || null,
+    entity_type: entityType || null,
+    icon: icon || 'folder',
+    description: description || '',
+    sort_order: siblings.length
+  });
+  return r.lastID;
+}
+
+// ── Root-level organisational folders ──
+const rootProfiles = mkFolder('Profiles & Targets', null, null, 'users', 'Contact management and audiences');
+const rootCampaigns = mkFolder('Campaign Management', null, null, 'send', 'Workflows and deliveries');
+const rootContent = mkFolder('Content Management', null, null, 'file-text', 'Templates, fragments, and assets');
+const rootOffers = mkFolder('Offer Decisioning', null, null, 'gift', 'Offer management and decisioning');
+const rootData = mkFolder('Data & Segments', null, null, 'database', 'Segments and data configuration');
+
+// ── Profiles & Targets ──
+const fldContacts = mkFolder('All Contacts', rootProfiles, 'contacts', 'users', 'All contact profiles');
+const fldVipContacts = mkFolder('VIP Contacts', rootProfiles, 'contacts', 'star', 'High-value contacts');
+const fldNewContacts = mkFolder('New Contacts', rootProfiles, 'contacts', 'user-plus', 'Recently acquired contacts');
+const fldAudiences = mkFolder('Audiences', rootProfiles, 'audiences', 'users', 'Audience definitions');
+const fldSubscriptions = mkFolder('Subscriptions', rootProfiles, 'subscription_services', 'mail', 'Subscription services');
+
+// ── Campaign Management ──
+const fldWorkflows = mkFolder('Workflows', rootCampaigns, 'workflows', 'git-branch', 'All campaign workflows');
+const fldWfBroadcast = mkFolder('Broadcast', fldWorkflows, 'workflows', 'radio', 'Broadcast / one-shot workflows');
+const fldWfAutomated = mkFolder('Automated', fldWorkflows, 'workflows', 'zap', 'Event-triggered automated workflows');
+const fldWfRecurring = mkFolder('Recurring', fldWorkflows, 'workflows', 'clock', 'Recurring scheduled workflows');
+const fldDeliveries = mkFolder('Deliveries', rootCampaigns, 'deliveries', 'send', 'All deliveries');
+const fldDelEmail = mkFolder('Email Deliveries', fldDeliveries, 'deliveries', 'mail', 'Email deliveries');
+const fldDelSms = mkFolder('SMS Deliveries', fldDeliveries, 'deliveries', 'message-square', 'SMS deliveries');
+const fldDelPush = mkFolder('Push Deliveries', fldDeliveries, 'deliveries', 'bell', 'Push notifications');
+
+// ── Content Management ──
+const fldTemplates = mkFolder('Templates', rootContent, 'content_templates', 'file-text', 'Email & content templates');
+const fldFragments = mkFolder('Fragments', rootContent, 'fragments', 'layers', 'Reusable content fragments');
+const fldAssets = mkFolder('Asset Library', rootContent, 'assets', 'image', 'Images and files');
+const fldAssetsImages = mkFolder('Images', fldAssets, 'assets', 'image', 'Image assets');
+const fldAssetsDocuments = mkFolder('Documents', fldAssets, 'assets', 'file', 'Document assets');
+const fldLandingPages = mkFolder('Landing Pages', rootContent, 'landing_pages', 'globe', 'Web landing pages');
+const fldBrands = mkFolder('Brands', rootContent, 'brands', 'tag', 'Brand configurations');
+
+// ── Offer Decisioning ──
+const fldOffers = mkFolder('Offers', rootOffers, 'offers', 'gift', 'All offers');
+const fldOffersPersonalized = mkFolder('Personalized', fldOffers, 'offers', 'user', 'Personalized offers');
+const fldOffersFallback = mkFolder('Fallback', fldOffers, 'offers', 'shield', 'Fallback offers');
+const fldPlacements = mkFolder('Placements', rootOffers, 'placements', 'layout', 'Offer placements');
+const fldCollections = mkFolder('Collections', rootOffers, 'collections', 'layers', 'Offer collections');
+const fldRules = mkFolder('Decision Rules', rootOffers, 'decision_rules', 'filter', 'Eligibility rules');
+const fldStrategies = mkFolder('Strategies', rootOffers, 'selection_strategies', 'bar-chart', 'Selection strategies');
+const fldDecisions = mkFolder('Decisions', rootOffers, 'decisions', 'globe', 'Decision policies');
+
+// ── Data & Segments ──
+const fldSegments = mkFolder('Segments', rootData, 'segments', 'target', 'Audience segments');
+const fldSegActive = mkFolder('Active Segments', fldSegments, 'segments', 'check-circle', 'Published segments');
+const fldSegDraft = mkFolder('Draft Segments', fldSegments, 'segments', 'edit', 'Segments in development');
+
+console.log(`✅ Created ${query.count('folders')} folders`);
+
+// ── Assign existing entities to folders ──
+console.log('📝 Assigning items to folders...');
+
+// Assign workflows by type
+const allWorkflows = query.all('workflows');
+allWorkflows.forEach(wf => {
+  let fid = fldWorkflows;
+  if (wf.workflow_type === 'broadcast') fid = fldWfBroadcast;
+  else if (wf.workflow_type === 'automated') fid = fldWfAutomated;
+  else if (wf.workflow_type === 'recurring') fid = fldWfRecurring;
+  query.update('workflows', wf.id, { folder_id: fid });
+});
+
+// Assign segments by status
+const allSegments = query.all('segments');
+allSegments.forEach(seg => {
+  const fid = seg.status === 'active' ? fldSegActive : fldSegDraft;
+  query.update('segments', seg.id, { folder_id: fid });
+});
+
+// Assign offers by type
+const allOffersForFolders = query.all('offers');
+allOffersForFolders.forEach(o => {
+  const fid = o.type === 'fallback' ? fldOffersFallback : fldOffersPersonalized;
+  query.update('offers', o.id, { folder_id: fid });
+});
+
+// Assign placements, collections, rules, strategies, decisions
+query.all('placements').forEach(p => query.update('placements', p.id, { folder_id: fldPlacements }));
+query.all('collections').forEach(c => query.update('collections', c.id, { folder_id: fldCollections }));
+query.all('decision_rules').forEach(r => query.update('decision_rules', r.id, { folder_id: fldRules }));
+query.all('selection_strategies').forEach(s => query.update('selection_strategies', s.id, { folder_id: fldStrategies }));
+query.all('decisions').forEach(d => query.update('decisions', d.id, { folder_id: fldDecisions }));
+
+// Assign deliveries by channel
+query.all('deliveries').forEach(d => {
+  let fid = fldDeliveries;
+  if (d.channel_key === 'email' || d.channel === 'Email') fid = fldDelEmail;
+  else if (d.channel_key === 'sms' || d.channel === 'SMS') fid = fldDelSms;
+  else if (d.channel_key === 'push' || d.channel === 'Push') fid = fldDelPush;
+  query.update('deliveries', d.id, { folder_id: fid });
+});
+
+// Assign contacts: first 20 as VIP, next 20 as New, rest as All Contacts
+const sortedContacts = query.all('contacts').sort((a, b) => b.lifetime_value - a.lifetime_value);
+sortedContacts.forEach((c, idx) => {
+  let fid = fldContacts;
+  if (idx < 20) fid = fldVipContacts;
+  else if (idx >= sortedContacts.length - 20) fid = fldNewContacts;
+  query.update('contacts', c.id, { folder_id: fid });
+});
+
+console.log('✅ Assigned items to folders');
+
 // Save database
 saveDatabase();
 
@@ -840,6 +1280,7 @@ console.log(`   - ${query.count('contacts')} contacts (B2C consumers)`);
 console.log(`   - ${query.count('products')} products`);
 console.log(`   - ${query.count('orders')} orders`);
 console.log(`   - ${query.count('contact_events')} contact events`);
+console.log(`   - ${query.count('deliveries')} deliveries (email + SMS + push)`);
 console.log(`   - ${query.count('workflows')} workflows (unified: broadcast + automated + recurring)`);
 console.log(`   - ${query.count('segments')} segments`);
 console.log(`   - ${query.count('offers')} offers (${query.count('offers', o => o.type === 'personalized')} personalized + ${query.count('offers', o => o.type === 'fallback')} fallback)`);
@@ -850,4 +1291,8 @@ console.log(`   - ${query.count('decision_rules')} decision rules`);
 console.log(`   - ${query.count('selection_strategies')} selection strategies`);
 console.log(`   - ${query.count('decisions')} decisions`);
 console.log(`   - ${query.count('offer_propositions')} offer propositions`);
+console.log(`   - ${query.count('catalog_schema')} catalog schema attributes`);
+console.log(`   - ${query.count('context_schema')} context data attributes`);
+console.log(`   - ${query.count('ranking_ai_models')} AI ranking models`);
+console.log(`   - ${query.count('folders')} folders (Adobe Campaign-style hierarchy)`);
 console.log('\n🚀 Ready to start the server with: npm start\n');

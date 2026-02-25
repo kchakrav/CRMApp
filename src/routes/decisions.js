@@ -103,17 +103,26 @@ router.get('/strategies/:id', (req, res) => {
 
 router.post('/strategies', (req, res) => {
   try {
-    const { name, description, collection_id, eligibility_rule_id, ranking_method = 'priority', ranking_formula_id, ranking_model_id } = req.body;
+    const {
+      name, description, collection_id, eligibility_rule_id,
+      ranking_method = 'priority', ranking_formula_id, ranking_model_id,
+      folder_id = null, eligibility_type = 'all',
+      eligibility_audience_ids = [], audience_logic = 'OR'
+    } = req.body;
     if (!name) return res.status(400).json({ error: 'name is required' });
 
     const result = query.insert('selection_strategies', {
       name,
       description: description || '',
       collection_id: collection_id ? parseInt(collection_id) : null,
+      eligibility_type: eligibility_type || 'all',
       eligibility_rule_id: eligibility_rule_id ? parseInt(eligibility_rule_id) : null,
+      eligibility_audience_ids: eligibility_audience_ids || [],
+      audience_logic: audience_logic || 'OR',
       ranking_method,
       ranking_formula_id: ranking_formula_id ? parseInt(ranking_formula_id) : null,
       ranking_model_id: ranking_model_id ? parseInt(ranking_model_id) : null,
+      folder_id: folder_id ? parseInt(folder_id) : null,
       status: 'active'
     });
     res.status(201).json(result.record);
@@ -129,12 +138,13 @@ router.put('/strategies/:id', (req, res) => {
     if (!strategy) return res.status(404).json({ error: 'Strategy not found' });
 
     const updates = {};
-    ['name', 'description', 'collection_id', 'eligibility_rule_id', 'ranking_method', 'ranking_formula_id', 'ranking_model_id', 'status'].forEach(f => {
+    ['name', 'description', 'collection_id', 'eligibility_rule_id', 'ranking_method', 'ranking_formula_id', 'ranking_model_id', 'status', 'folder_id', 'eligibility_type', 'audience_logic'].forEach(f => {
       if (req.body[f] !== undefined) {
-        updates[f] = ['collection_id', 'eligibility_rule_id', 'ranking_formula_id', 'ranking_model_id'].includes(f) && req.body[f]
+        updates[f] = ['collection_id', 'eligibility_rule_id', 'ranking_formula_id', 'ranking_model_id', 'folder_id'].includes(f) && req.body[f]
           ? parseInt(req.body[f]) : req.body[f];
       }
     });
+    if (req.body.eligibility_audience_ids !== undefined) updates.eligibility_audience_ids = req.body.eligibility_audience_ids;
 
     query.update('selection_strategies', id, updates);
     res.json(query.get('selection_strategies', id));
@@ -151,6 +161,126 @@ router.delete('/strategies/:id', (req, res) => {
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
+});
+
+// ══════════════════════════════════════════════════════
+// CONTEXT DATA SCHEMA
+// ══════════════════════════════════════════════════════
+
+router.get('/context-schema', (req, res) => {
+  try {
+    const attrs = query.all('context_schema');
+    attrs.sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0));
+    res.json({ attributes: attrs });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+router.post('/context-schema', (req, res) => {
+  try {
+    const { name, label, type = 'string', description, example_value } = req.body;
+    if (!name || !label) return res.status(400).json({ error: 'name and label are required' });
+    const existing = query.all('context_schema');
+    if (existing.find(a => a.name === name)) return res.status(400).json({ error: 'Attribute name already exists' });
+    const result = query.insert('context_schema', {
+      name, label, type, description: description || '', example_value: example_value || null, sort_order: existing.length
+    });
+    res.status(201).json(result.record);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+router.put('/context-schema/:id', (req, res) => {
+  try {
+    const id = parseInt(req.params.id);
+    const attr = query.get('context_schema', id);
+    if (!attr) return res.status(404).json({ error: 'Attribute not found' });
+    const updates = {};
+    ['label', 'type', 'description', 'example_value', 'sort_order'].forEach(f => { if (req.body[f] !== undefined) updates[f] = req.body[f]; });
+    query.update('context_schema', id, updates);
+    res.json(query.get('context_schema', id));
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+router.delete('/context-schema/:id', (req, res) => {
+  try { const id = parseInt(req.params.id); query.delete('context_schema', id); res.json({ success: true }); }
+  catch (error) { res.status(500).json({ error: error.message }); }
+});
+
+// ══════════════════════════════════════════════════════
+// AI RANKING MODELS
+// ══════════════════════════════════════════════════════
+
+router.get('/ai-models', (req, res) => {
+  try {
+    const models = query.all('ranking_ai_models');
+    models.sort((a, b) => new Date(b.updated_at) - new Date(a.updated_at));
+    res.json({ models });
+  } catch (error) { res.status(500).json({ error: error.message }); }
+});
+
+router.post('/ai-models', (req, res) => {
+  try {
+    const { name, description, type = 'auto_optimization', optimization_goal = 'clicks' } = req.body;
+    if (!name) return res.status(400).json({ error: 'name is required' });
+    const result = query.insert('ranking_ai_models', {
+      name, description: description || '', type, optimization_goal,
+      status: 'draft', training_status: 'not_started', last_trained_at: null,
+      metrics: { lift: null, confidence: null, offers_evaluated: 0, min_impressions: type === 'personalized' ? 250 : 100 },
+      features: ['placement_id', 'offer_priority', 'offer_age', 'user_segment']
+    });
+    res.status(201).json(result.record);
+  } catch (error) { res.status(500).json({ error: error.message }); }
+});
+
+router.put('/ai-models/:id', (req, res) => {
+  try {
+    const id = parseInt(req.params.id);
+    const model = query.get('ranking_ai_models', id);
+    if (!model) return res.status(404).json({ error: 'Model not found' });
+    const updates = {};
+    ['name', 'description', 'type', 'optimization_goal', 'status', 'training_status', 'metrics', 'features'].forEach(f => { if (req.body[f] !== undefined) updates[f] = req.body[f]; });
+    query.update('ranking_ai_models', id, updates);
+    res.json(query.get('ranking_ai_models', id));
+  } catch (error) { res.status(500).json({ error: error.message }); }
+});
+
+router.post('/ai-models/:id/train', (req, res) => {
+  try {
+    const id = parseInt(req.params.id);
+    const model = query.get('ranking_ai_models', id);
+    if (!model) return res.status(404).json({ error: 'Model not found' });
+    const offersCount = query.count('offers', o => o.status === 'live');
+    const propsCount = query.count('offer_propositions');
+    const lift = (5 + Math.random() * 25).toFixed(1);
+    const confidence = (80 + Math.random() * 19).toFixed(1);
+    query.update('ranking_ai_models', id, {
+      status: 'active', training_status: 'trained', last_trained_at: new Date().toISOString(),
+      metrics: { lift: parseFloat(lift), confidence: parseFloat(confidence), offers_evaluated: offersCount, propositions_analyzed: propsCount, min_impressions: model.type === 'personalized' ? 250 : 100, training_duration_seconds: Math.floor(30 + Math.random() * 120) }
+    });
+    res.json(query.get('ranking_ai_models', id));
+  } catch (error) { res.status(500).json({ error: error.message }); }
+});
+
+router.delete('/ai-models/:id', (req, res) => {
+  try { const id = parseInt(req.params.id); query.delete('ranking_ai_models', id); res.json({ success: true }); }
+  catch (error) { res.status(500).json({ error: error.message }); }
+});
+
+// Ranking formula test
+router.post('/ranking-formulas/test', (req, res) => {
+  try {
+    const { expression, offer_data = {}, profile_data = {}, context_data = {} } = req.body;
+    if (!expression) return res.status(400).json({ error: 'expression is required' });
+    const { evaluateFormula } = require('../services/rankingService');
+    const testOffer = { priority: 50, attributes: {}, ...offer_data };
+    const score = evaluateFormula(expression, testOffer, profile_data, context_data);
+    res.json({ expression, score, valid: typeof score === 'number' && isFinite(score) });
+  } catch (error) { res.status(500).json({ error: error.message }); }
 });
 
 // ══════════════════════════════════════════════════════
@@ -208,18 +338,30 @@ router.get('/:id', (req, res) => {
 
 router.post('/', (req, res) => {
   try {
-    const { name, description, placement_configs = [] } = req.body;
+    const { name, description, placement_configs = [], folder_id = null, arbitration = {} } = req.body;
     if (!name) return res.status(400).json({ error: 'name is required' });
 
     const result = query.insert('decisions', {
       name,
       description: description || '',
       status: 'draft',
+      folder_id: folder_id ? parseInt(folder_id) : null,
       placement_configs: placement_configs.map(pc => ({
         placement_id: parseInt(pc.placement_id),
         selection_strategy_id: pc.selection_strategy_id ? parseInt(pc.selection_strategy_id) : null,
-        fallback_offer_id: pc.fallback_offer_id ? parseInt(pc.fallback_offer_id) : null
-      }))
+        fallback_offer_id: pc.fallback_offer_id ? parseInt(pc.fallback_offer_id) : null,
+        max_items: parseInt(pc.max_items) || 1
+      })),
+      arbitration: {
+        method: arbitration.method || 'priority_order',
+        dedup_policy: arbitration.dedup_policy || 'no_duplicates',
+        tiebreak_rule: arbitration.tiebreak_rule || 'random',
+        global_offer_limit: parseInt(arbitration.global_offer_limit) || 0,
+        suppression_window_hours: parseInt(arbitration.suppression_window_hours) || 0,
+        priority_weight: parseFloat(arbitration.priority_weight) || 60,
+        recency_weight: parseFloat(arbitration.recency_weight) || 20,
+        performance_weight: parseFloat(arbitration.performance_weight) || 20
+      }
     });
 
     res.status(201).json(result.record);
@@ -243,6 +385,28 @@ router.put('/:id', (req, res) => {
         placement_id: parseInt(pc.placement_id),
         selection_strategy_id: pc.selection_strategy_id ? parseInt(pc.selection_strategy_id) : null,
         fallback_offer_id: pc.fallback_offer_id ? parseInt(pc.fallback_offer_id) : null
+      }));
+    }
+    if (req.body.folder_id !== undefined) updates.folder_id = req.body.folder_id ? parseInt(req.body.folder_id) : null;
+    if (req.body.arbitration !== undefined) {
+      const arb = req.body.arbitration;
+      updates.arbitration = {
+        method: arb.method || 'priority_order',
+        dedup_policy: arb.dedup_policy || 'no_duplicates',
+        tiebreak_rule: arb.tiebreak_rule || 'random',
+        global_offer_limit: parseInt(arb.global_offer_limit) || 0,
+        suppression_window_hours: parseInt(arb.suppression_window_hours) || 0,
+        priority_weight: parseFloat(arb.priority_weight) || 60,
+        recency_weight: parseFloat(arb.recency_weight) || 20,
+        performance_weight: parseFloat(arb.performance_weight) || 20
+      };
+    }
+    if (req.body.placement_configs !== undefined) {
+      updates.placement_configs = req.body.placement_configs.map(pc => ({
+        placement_id: parseInt(pc.placement_id),
+        selection_strategy_id: pc.selection_strategy_id ? parseInt(pc.selection_strategy_id) : null,
+        fallback_offer_id: pc.fallback_offer_id ? parseInt(pc.fallback_offer_id) : null,
+        max_items: parseInt(pc.max_items) || 1
       }));
     }
 
@@ -461,10 +625,10 @@ router.post('/:id/resolve', (req, res) => {
 router.post('/:id/simulate', (req, res) => {
   try {
     const decisionId = parseInt(req.params.id);
-    const { contact_id, context = {} } = req.body;
+    const { contact_id, context = {}, trace = false } = req.body;
     if (!contact_id) return res.status(400).json({ error: 'contact_id is required' });
 
-    const result = simulate(parseInt(contact_id), decisionId, context);
+    const result = simulate(parseInt(contact_id), decisionId, context, trace);
     res.json(result);
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -776,6 +940,123 @@ router.get('/analytics/overview', (req, res) => {
         fallback: offers.filter(o => o.type === 'fallback').length
       }
     });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// ══════════════════════════════════════════════════════
+// EXPERIMENTS (A/B Testing on Decisions)
+// ══════════════════════════════════════════════════════
+
+router.get('/:id/experiments', (req, res) => {
+  try {
+    const decisionId = parseInt(req.params.id);
+    const experiments = query.all('experiments', e => e.decision_id === decisionId);
+    experiments.sort((a, b) => new Date(b.updated_at) - new Date(a.updated_at));
+    res.json({ experiments });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+router.post('/:id/experiments', (req, res) => {
+  try {
+    const decisionId = parseInt(req.params.id);
+    const decision = query.get('decisions', decisionId);
+    if (!decision) return res.status(404).json({ error: 'Decision not found' });
+
+    const { name, description, treatments = [], start_date, end_date, objective = 'clicks' } = req.body;
+    if (!name) return res.status(400).json({ error: 'name is required' });
+    if (treatments.length < 2) return res.status(400).json({ error: 'At least 2 treatments required' });
+
+    const totalPct = treatments.reduce((sum, t) => sum + (t.traffic_pct || 0), 0);
+    if (Math.abs(totalPct - 100) > 1) return res.status(400).json({ error: 'Traffic percentages must sum to 100%' });
+
+    const result = query.insert('experiments', {
+      decision_id: decisionId,
+      name,
+      description: description || '',
+      status: 'draft',
+      objective,
+      treatments: treatments.map((t, i) => ({
+        id: i + 1,
+        name: t.name || `Treatment ${String.fromCharCode(65 + i)}`,
+        selection_strategy_id: t.selection_strategy_id ? parseInt(t.selection_strategy_id) : null,
+        traffic_pct: parseFloat(t.traffic_pct) || 0,
+        impressions: 0, clicks: 0, conversions: 0
+      })),
+      start_date: start_date || null,
+      end_date: end_date || null,
+      winner_treatment_id: null,
+      confidence_level: null
+    });
+    res.status(201).json(result.record);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+router.put('/experiments/:expId', (req, res) => {
+  try {
+    const expId = parseInt(req.params.expId);
+    const exp = query.get('experiments', expId);
+    if (!exp) return res.status(404).json({ error: 'Experiment not found' });
+
+    const updates = {};
+    ['name', 'description', 'status', 'objective', 'treatments', 'start_date', 'end_date', 'winner_treatment_id', 'confidence_level'].forEach(f => {
+      if (req.body[f] !== undefined) updates[f] = req.body[f];
+    });
+    query.update('experiments', expId, updates);
+    res.json(query.get('experiments', expId));
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+router.post('/experiments/:expId/start', (req, res) => {
+  try {
+    const expId = parseInt(req.params.expId);
+    const exp = query.get('experiments', expId);
+    if (!exp) return res.status(404).json({ error: 'Experiment not found' });
+    query.update('experiments', expId, { status: 'running', started_at: new Date().toISOString() });
+    res.json(query.get('experiments', expId));
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+router.post('/experiments/:expId/stop', (req, res) => {
+  try {
+    const expId = parseInt(req.params.expId);
+    const exp = query.get('experiments', expId);
+    if (!exp) return res.status(404).json({ error: 'Experiment not found' });
+
+    const treatments = exp.treatments || [];
+    let winner = null;
+    let bestRate = -1;
+    for (const t of treatments) {
+      const rate = t.impressions > 0 ? (exp.objective === 'conversions' ? t.conversions : t.clicks) / t.impressions : 0;
+      if (rate > bestRate) { bestRate = rate; winner = t.id; }
+    }
+
+    query.update('experiments', expId, {
+      status: 'completed',
+      completed_at: new Date().toISOString(),
+      winner_treatment_id: winner,
+      confidence_level: treatments.length >= 2 ? (85 + Math.random() * 14).toFixed(1) : null
+    });
+    res.json(query.get('experiments', expId));
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+router.delete('/experiments/:expId', (req, res) => {
+  try {
+    const expId = parseInt(req.params.expId);
+    query.delete('experiments', expId);
+    res.json({ success: true });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }

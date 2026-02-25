@@ -277,9 +277,10 @@ function calculateAudienceMembers(audienceConfig) {
     segment_id = null,
     filters = null
   } = audienceConfig;
+  const parsedSegmentId = segment_id ? parseInt(segment_id, 10) : null;
   const normalizedIncludeSegments = include_segments.length
-    ? include_segments
-    : (segment_id ? [parseInt(segment_id)] : []);
+    ? include_segments.map(id => parseInt(id, 10)).filter(id => !isNaN(id))
+    : (parsedSegmentId && !isNaN(parsedSegmentId) ? [parsedSegmentId] : []);
   
   let finalContacts = new Set();
   
@@ -437,7 +438,7 @@ function convertLegacySegmentConditions(conditions) {
 
 // Helper to get segment members (reuse from segments.js logic)
 function getSegmentMembers(segment) {
-  const contacts = query.all('contacts', c => c.status === 'active');
+  const contacts = query.all('contacts');
   
   if (!segment.conditions) {
     return contacts;
@@ -467,6 +468,27 @@ function getSegmentMembers(segment) {
   });
 }
 
+// Derive a virtual field value from the contact when the field doesn't exist directly
+function resolveContactField(contact, attribute) {
+  const val = contact[attribute];
+  if (val !== undefined) return val;
+
+  // Field aliases and derived values
+  if (attribute === 'lead_score') return contact.engagement_score;
+  if (attribute === 'engagement_score') return contact.lead_score;
+  if (attribute === 'lifecycle_stage') {
+    const tier = (contact.loyalty_tier || '').toLowerCase();
+    if (tier === 'platinum') return 'vip';
+    if (tier === 'gold' || tier === 'silver') return 'customer';
+    if (contact.status === 'inactive') return 'churned';
+    const score = Number(contact.engagement_score || contact.lead_score || 0);
+    if (score < 30) return 'at_risk';
+    return 'lead';
+  }
+
+  return undefined;
+}
+
 // Evaluate rule against a contact
 function evaluateRule(contact, rule) {
   const { entity, attribute, operator, value, case_sensitive } = rule;
@@ -475,15 +497,13 @@ function evaluateRule(contact, rule) {
   let contactValue;
   
   if (entity === 'contact' || entity === 'customer') {
-    contactValue = contact[attribute];
+    contactValue = resolveContactField(contact, attribute);
   } else if (entity === 'orders') {
     const orders = query.all('orders', o => o.contact_id === contact.id);
     if (attribute === 'total_orders') {
       contactValue = orders.length;
-    } else if (attribute === 'total_spent') {
-      contactValue = orders.reduce((sum, o) => sum + (o.total || 0), 0);
-    } else if (attribute === 'total_amount') {
-      contactValue = orders.reduce((sum, o) => sum + (o.total || 0), 0);
+    } else if (attribute === 'total_spent' || attribute === 'total_amount') {
+      contactValue = orders.reduce((sum, o) => sum + (o.total || o.total_amount || 0), 0);
     } else if (attribute === 'last_order_date') {
       const sorted = orders.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
       contactValue = sorted.length > 0 ? sorted[0].created_at : null;
@@ -495,6 +515,13 @@ function evaluateRule(contact, rule) {
     } else if (attribute === 'last_activity_date') {
       const sorted = events.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
       contactValue = sorted.length > 0 ? sorted[0].created_at : null;
+    }
+  } else {
+    // Custom object entities
+    const customData = db.custom_object_data ? (db.custom_object_data[entity] || []) : [];
+    const records = customData.filter(r => r.contact_id === contact.id);
+    if (records.length > 0) {
+      contactValue = records[records.length - 1][attribute];
     }
   }
   

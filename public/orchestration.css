@@ -704,7 +704,7 @@ body {
   --node-icon-bg: #f1f5f9;
 }
 
-/* Right Sidebar */
+/* Right Sidebar — Properties Only */
 .right-sidebar {
   width: 340px;
   background: #fff;
@@ -716,44 +716,14 @@ body {
 }
 
 .right-sidebar.properties-hidden {
-  width: 280px;
-}
-
-/* When AI Assistant is collapsed, sidebar becomes a narrow strip to free canvas space */
-.right-sidebar.ai-collapsed {
-  width: 48px;
-  min-width: 48px;
-}
-
-.right-sidebar.ai-collapsed.properties-hidden {
-  width: 48px;
+  width: 0;
+  min-width: 0;
+  overflow: hidden;
+  border-left: none;
 }
 
 .properties-panel.hidden {
   display: none;
-}
-
-/* AI Assistant Panel */
-.ai-assistant-panel {
-  padding: 1rem;
-  border-bottom: 1px solid var(--border-color);
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-  min-height: 0;
-}
-
-.ai-assistant-body {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  overflow-y: auto;
-  min-height: 0;
-}
-
-.ai-assistant-panel.collapsed {
-  flex: 0 0 auto;
 }
 
 .panel-header {
@@ -769,59 +739,102 @@ body {
   color: #1e293b;
 }
 
-.panel-toggle {
-  margin-left: auto;
-  background: #fff;
-  border: 1px solid #e2e4e8;
-  border-radius: 6px;
-  width: 24px;
-  height: 24px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  font-size: 0.7rem;
-  color: var(--text-secondary);
-  transition: all 0.15s;
-}
-
-.panel-toggle:hover {
-  border-color: #93b4fd;
-  color: var(--text-primary);
-  background: #f0f4ff;
-}
-
-.ai-assistant-panel.collapsed .ai-assistant-body {
-  display: none;
-}
-
-.ai-assistant-panel.collapsed .panel-header {
-  margin-bottom: 0;
-  padding: 0.5rem 0;
-  flex-direction: column;
-  gap: 0.35rem;
-  justify-content: center;
-  align-items: center;
-}
-
-.ai-assistant-panel.collapsed .panel-header h3 {
-  display: none;
-}
-
-.ai-assistant-panel.collapsed .panel-toggle {
-  margin-left: 0;
-  transform: rotate(0deg);
-}
-
-.ai-assistant-panel:not(.collapsed) .panel-toggle {
-  transform: rotate(90deg);
-}
-
 .panel-icon {
   display: flex;
   align-items: center;
   justify-content: center;
   color: var(--text-secondary);
+}
+
+/* ── Floating AI Assistant Panel ── */
+.ai-assistant-floating {
+  position: fixed;
+  top: 60px;
+  right: 16px;
+  width: 380px;
+  max-height: calc(100vh - 80px);
+  background: #fff;
+  border-radius: 12px;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.12), 0 2px 8px rgba(0,0,0,0.08);
+  border: 1px solid #e5e7eb;
+  display: flex;
+  flex-direction: column;
+  z-index: 1000;
+  overflow: hidden;
+  animation: aiPanelSlideIn 0.2s ease-out;
+}
+
+.ai-assistant-floating.hidden {
+  display: none;
+}
+
+@keyframes aiPanelSlideIn {
+  from { opacity: 0; transform: translateY(-8px) scale(0.98); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.ai-floating-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  border-bottom: 1px solid #e5e7eb;
+  background: linear-gradient(135deg, #f0f0ff 0%, #f8f7ff 100%);
+  border-radius: 12px 12px 0 0;
+}
+
+.ai-floating-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: #1e293b;
+}
+
+.ai-floating-title svg {
+  color: var(--primary-color, #6366f1);
+}
+
+.ai-floating-close {
+  background: none;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  width: 28px;
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: #64748b;
+  transition: all 0.15s;
+}
+
+.ai-floating-close:hover {
+  background: #fff;
+  border-color: #e2e4e8;
+  color: #1e293b;
+}
+
+.ai-floating-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+/* AI toolbar button active state */
+.toolbar-btn-ai.active {
+  background: var(--primary-color, #6366f1);
+  color: #fff;
+  border-color: var(--primary-color, #6366f1);
+}
+
+.toolbar-btn-ai.active:hover {
+  background: #4f46e5;
+  border-color: #4f46e5;
 }
 
 .ai-suggestions {

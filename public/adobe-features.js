@@ -21,69 +21,192 @@ function toggleNavSection(header) {
 async function loadExplorer() {
   showLoading();
   try {
+    // Fetch the full folder tree
+    await fetchFolderTree();
+
+    // Expand root-level folders by default
+    window._folderTreeFlat.forEach(f => {
+      if (f.parent_id === null) _folderExpandedState[f.id] = true;
+    });
+
     const content = `
-      <div class="card">
-        <div class="card-header">
-          <h3 class="card-title">${_afIco('<circle cx="12" cy="12" r="10"/><polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76"/>')} Explorer</h3>
-          <div class="card-subtitle">Browse and search all system entities</div>
+      <div class="explorer-tree-layout">
+        <div class="explorer-tree-sidebar">
+          <div class="explorer-tree-sidebar-header">
+            ${_afIco('<circle cx="12" cy="12" r="10"/><polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76"/>', 16)}
+            Explorer
+          </div>
+          <div id="explorer-folder-tree" style="flex:1;overflow-y:auto;"></div>
         </div>
-        <div class="card-body">
-          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: var(--spacing-400);">
-            <div class="explorer-card" onclick="navigateTo('contacts', 'list')">
-              <div class="explorer-icon">${_afIco('<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>')}</div>
-              <div class="explorer-title">Profiles</div>
-              <div class="explorer-desc">Contact database</div>
-            </div>
-            <div class="explorer-card" onclick="navigateTo('workflows', 'list')">
-              <div class="explorer-icon">${_afIco('<polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>')}</div>
-              <div class="explorer-title">Workflows</div>
-              <div class="explorer-desc">Campaign workflows</div>
-            </div>
-            <div class="explorer-card" onclick="navigateTo('deliveries', 'list')">
-              <div class="explorer-icon">${_afIco('<path d="m22 2-7 20-4-9-9-4Z"/><path d="m22 2-11 11"/>')}</div>
-              <div class="explorer-title">Deliveries</div>
-              <div class="explorer-desc">Message deliveries</div>
-            </div>
-            <div class="explorer-card" onclick="navigateTo('segments', 'list')">
-              <div class="explorer-icon">${_afIco('<circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/>')}</div>
-              <div class="explorer-title">Segments</div>
-              <div class="explorer-desc">Audience segments</div>
-            </div>
-            <div class="explorer-card" onclick="navigateTo('content-templates', 'list')">
-              <div class="explorer-icon">${_afIco('<path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M10 9H8"/><path d="M16 13H8"/><path d="M16 17H8"/>')}</div>
-              <div class="explorer-title">Templates</div>
-              <div class="explorer-desc">Content templates</div>
-            </div>
-            <div class="explorer-card" onclick="navigateTo('assets', 'list')">
-              <div class="explorer-icon">${_afIco('<rect width="18" height="18" x="3" y="3" rx="2" ry="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/>')}</div>
-              <div class="explorer-title">Asset Library</div>
-              <div class="explorer-desc">Images and files</div>
-            </div>
-            <div class="explorer-card" onclick="navigateTo('landing-pages', 'list')">
-              <div class="explorer-icon">${_afIco('<circle cx="12" cy="12" r="10"/><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"/><path d="M2 12h20"/>')}</div>
-              <div class="explorer-title">Landing Pages</div>
-              <div class="explorer-desc">Web landing pages</div>
-            </div>
-            <div class="explorer-card" onclick="navigateTo('brands', 'list')">
-              <div class="explorer-icon">${_afIco('<path d="M12 2H2v10l9.29 9.29c.94.94 2.48.94 3.42 0l6.58-6.58c.94-.94.94-2.48 0-3.42L12 2Z"/><path d="M7 7h.01"/>')}</div>
-              <div class="explorer-title">Brands</div>
-              <div class="explorer-desc">Brand management</div>
-            </div>
-            <div class="explorer-card" onclick="navigateTo('subscription-services', 'list')">
-              <div class="explorer-icon">${_afIco('<rect width="20" height="16" x="2" y="4" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/>', 20)}</div>
-              <div class="explorer-title">Subscriptions</div>
-              <div class="explorer-desc">Service subscriptions</div>
-            </div>
+        <div class="explorer-tree-content" id="explorer-content-panel">
+          <div class="explorer-tree-content-header">
+            <h3 id="explorer-panel-title">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5V19A9 3 0 0 0 21 19V5"/><path d="M3 12A9 3 0 0 0 21 12"/></svg>
+              All Items
+            </h3>
+            <div id="explorer-panel-breadcrumbs"></div>
+          </div>
+          <div class="explorer-tree-content-body" id="explorer-panel-body">
+            <div style="text-align:center;padding:40px;color:#9ca3af;">Select a folder from the tree to browse its contents</div>
           </div>
         </div>
       </div>
     `;
     document.getElementById('content').innerHTML = content;
+
+    // Render tree
+    renderFolderTree('explorer-folder-tree', {
+      onSelect: onExplorerFolderSelect,
+      showRoot: true,
+      showActions: true
+    });
+
+    // Auto-select root (All Items)
+    onExplorerFolderSelect(null);
   } catch (error) {
+    console.error('Explorer error:', error);
     showError('Failed to load Explorer');
   } finally {
     hideLoading();
   }
+}
+
+// View mapping for entity types to navigation views
+const ENTITY_VIEW_MAP = {
+  contacts: 'contacts', workflows: 'workflows', deliveries: 'deliveries',
+  segments: 'segments', content_templates: 'content-templates', fragments: 'fragments',
+  landing_pages: 'landing-pages', assets: 'assets', brands: 'brands',
+  offers: 'offers', placements: 'placements', collections: 'offer-collections',
+  decision_rules: 'decision-rules', selection_strategies: 'strategies',
+  decisions: 'decisions', audiences: 'audiences', subscription_services: 'subscription-services'
+};
+
+const ENTITY_DISPLAY_NAMES = {
+  contacts: 'Profiles', workflows: 'Workflows', deliveries: 'Deliveries',
+  segments: 'Segments', content_templates: 'Templates', fragments: 'Fragments',
+  landing_pages: 'Landing Pages', assets: 'Assets', brands: 'Brands',
+  offers: 'Offers', placements: 'Placements', collections: 'Collections',
+  decision_rules: 'Decision Rules', selection_strategies: 'Strategies',
+  decisions: 'Decisions', audiences: 'Audiences', subscription_services: 'Subscriptions'
+};
+
+async function onExplorerFolderSelect(folder) {
+  const titleEl = document.getElementById('explorer-panel-title');
+  const bcEl = document.getElementById('explorer-panel-breadcrumbs');
+  const bodyEl = document.getElementById('explorer-panel-body');
+  if (!titleEl || !bodyEl) return;
+
+  if (!folder) {
+    // Show root-level: display all root folders as cards
+    titleEl.innerHTML = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5V19A9 3 0 0 0 21 19V5"/><path d="M3 12A9 3 0 0 0 21 12"/></svg> All Items`;
+    bcEl.innerHTML = '';
+
+    const rootFolders = window._folderTreeFlat.filter(f => f.parent_id === null);
+    let html = '<div class="explorer-folder-grid">';
+    for (const rf of rootFolders) {
+      const childCount = window._folderTreeFlat.filter(f => f.parent_id === rf.id).length;
+      html += `
+        <div class="explorer-folder-card" onclick="selectFolder(${rf.id})">
+          <div class="folder-card-icon">${getFolderIcon(rf.icon || 'folder', 24)}</div>
+          <div class="folder-card-name">${escapeHtml(rf.name)}</div>
+          <div class="folder-card-count">${childCount} subfolder${childCount !== 1 ? 's' : ''}</div>
+        </div>`;
+    }
+    html += '</div>';
+    bodyEl.innerHTML = html;
+    return;
+  }
+
+  // Show selected folder contents
+  const icon = getFolderIcon(folder.icon || 'folder', 18);
+  titleEl.innerHTML = `${icon} ${escapeHtml(folder.name)}`;
+  bcEl.innerHTML = renderFolderBreadcrumbs(folder.id);
+
+  // Get child folders
+  const childFolders = window._folderTreeFlat.filter(f => f.parent_id === folder.id);
+
+  // Build content
+  let html = '';
+
+  // Child folders grid
+  if (childFolders.length > 0) {
+    html += '<div class="explorer-folder-grid">';
+    for (const cf of childFolders) {
+      const subCount = window._folderTreeFlat.filter(f => f.parent_id === cf.id).length;
+      html += `
+        <div class="explorer-folder-card" onclick="selectFolder(${cf.id})"
+             ondragover="onFolderDragOver(event)" ondrop="onFolderDrop(event, ${cf.id})">
+          <div class="folder-card-icon">${getFolderIcon(cf.icon || 'folder', 24)}</div>
+          <div class="folder-card-name">${escapeHtml(cf.name)}</div>
+          <div class="folder-card-count">${subCount > 0 ? subCount + ' subfolder' + (subCount !== 1 ? 's' : '') : ''}</div>
+        </div>`;
+    }
+    html += '</div>';
+  }
+
+  // Items in this folder (fetch via API)
+  if (folder.entity_type) {
+    try {
+      const resp = await fetch(`/api/folders/${folder.id}`);
+      const data = await resp.json();
+      const items = data.items || [];
+
+      if (items.length > 0) {
+        const entityType = folder.entity_type;
+        const viewKey = ENTITY_VIEW_MAP[entityType] || entityType;
+        const displayName = ENTITY_DISPLAY_NAMES[entityType] || entityType;
+
+        html += `<div style="margin-top:${childFolders.length > 0 ? '20px' : '0'}">`;
+        html += `<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+          <h4 style="margin:0;font-size:14px;color:#374151;">${displayName} (${items.length})</h4>
+          <a href="#" onclick="event.preventDefault();navigateTo('${viewKey}','list')" style="font-size:12px;color:#1473E6;text-decoration:none;">View all &rarr;</a>
+        </div>`;
+        html += '<table class="explorer-items-table"><thead><tr>';
+        html += '<th>Name</th><th>Status</th><th>Modified</th>';
+        html += '</tr></thead><tbody>';
+        for (const item of items.slice(0, 50)) {
+          const name = item.name || item.first_name && `${item.first_name} ${item.last_name || ''}` || item.email || `#${item.id}`;
+          const status = item.status || '-';
+          const modified = item.updated_at ? new Date(item.updated_at).toLocaleDateString() : '-';
+          html += `<tr draggable="true" ondragstart="event.dataTransfer.setData('text/plain', JSON.stringify({type:'item',entityType:'${entityType}',itemIds:[${item.id}]}))">
+            <td><a class="item-link" onclick="navigateTo('${viewKey}','detail',${item.id})">${escapeHtml(String(name).trim())}</a></td>
+            <td>${createExplorerStatusBadge(status)}</td>
+            <td style="color:#9ca3af;font-size:12px;">${modified}</td>
+          </tr>`;
+        }
+        if (items.length > 50) {
+          html += `<tr><td colspan="3" style="text-align:center;color:#9ca3af;padding:12px;">... and ${items.length - 50} more items. <a href="#" onclick="event.preventDefault();navigateTo('${viewKey}','list')" style="color:#1473E6;">View all</a></td></tr>`;
+        }
+        html += '</tbody></table></div>';
+      } else if (childFolders.length === 0) {
+        html += `<div class="explorer-empty-folder">
+          <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"/></svg>
+          <div style="font-size:14px;margin-bottom:4px;">This folder is empty</div>
+          <div style="font-size:12px;">Drag items here or navigate to a ${displayName || 'list'} page to organize content</div>
+        </div>`;
+      }
+    } catch (err) {
+      console.error('Failed to load folder items:', err);
+    }
+  } else if (childFolders.length === 0) {
+    html += `<div class="explorer-empty-folder">
+      <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"/></svg>
+      <div style="font-size:14px;margin-bottom:4px;">This is an organisational folder</div>
+      <div style="font-size:12px;">Browse the sub-folders to see contents</div>
+    </div>`;
+  }
+
+  bodyEl.innerHTML = html;
+}
+
+function createExplorerStatusBadge(status) {
+  const colors = {
+    active: '#059669', live: '#059669', completed: '#6366f1',
+    draft: '#9ca3af', paused: '#f59e0b', inactive: '#9ca3af',
+    approved: '#3b82f6', subscribed: '#059669', unsubscribed: '#dc2626'
+  };
+  const color = colors[(status || '').toLowerCase()] || '#9ca3af';
+  return `<span style="display:inline-flex;align-items:center;gap:4px;font-size:12px;color:${color};"><span style="width:6px;height:6px;border-radius:50%;background:${color};display:inline-block;"></span>${status}</span>`;
 }
 
 // Deliveries View
@@ -92,6 +215,17 @@ let deliveriesFilters = {
   status: 'all',
   search: ''
 };
+
+// Folder toggle for deliveries
+window._folderToggle_deliveries = function() {
+  toggleListFolderSidebar('deliveries', 'deliveries', loadDeliveries);
+};
+// Folder toggles for content management
+window['_folderToggle_content-templates'] = function() { toggleListFolderSidebar('content-templates', 'content_templates', _renderContentTemplatesPage); };
+window['_folderToggle_landing-pages'] = function() { toggleListFolderSidebar('landing-pages', 'landing_pages', loadLandingPages); };
+window._folderToggle_fragments = function() { toggleListFolderSidebar('fragments', 'fragments', loadFragments); };
+window._folderToggle_assets = function() { toggleListFolderSidebar('assets', 'assets', loadAssets); };
+window._folderToggle_brands = function() { toggleListFolderSidebar('brands', 'brands', loadBrands); };
 
 function clearDeliveriesFilters() {
   deliveriesFilters = { channel: 'all', status: 'all', search: '' };
@@ -122,6 +256,7 @@ function updateDeliveriesFilter(key, value) {
 async function loadDeliveries() {
   showLoading();
   try {
+    if (typeof ensureAllFoldersLoaded === 'function') await ensureAllFoldersLoaded();
     const response = await fetch('/api/deliveries');
     const data = await response.json();
     const deliveries = data.deliveries || [];
@@ -139,6 +274,11 @@ async function loadDeliveries() {
       }
       return true;
     });
+
+    // Apply folder filter
+    if (typeof applyFolderFilter === 'function') {
+      filteredDeliveries = applyFolderFilter('deliveries', filteredDeliveries);
+    }
 
     const filterTags = [];
     if (deliveriesFilters.channel !== 'all') {
@@ -199,6 +339,7 @@ async function loadDeliveries() {
       
       const actions = [
         {icon: _afIco('<line x1="12" x2="12" y1="20" y2="10"/><line x1="18" x2="18" y1="20" y2="4"/><line x1="6" x2="6" y1="20" y2="16"/>', 14), label: 'View Report', onclick: `showDeliveryReport(${d.id})`},
+        {icon: _afIco('<rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/>', 14), label: 'Heatmap', onclick: `showDeliveryHeatmap(${d.id})`},
         {icon: _afIco('<path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/><path d="m15 5 4 4"/>', 14), label: 'Edit', onclick: `editDelivery(${d.id})`},
         {icon: _afIco('<rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/>', 14), label: 'Duplicate', onclick: `duplicateDelivery(${d.id})`},
         {divider: true},
@@ -231,6 +372,9 @@ async function loadDeliveries() {
           <td data-column-id="updated_at">${d.updated_at ? new Date(d.updated_at).toLocaleString() : '-'}</td>
           <td data-column-id="created_by">${d.created_by || 'System'}</td>
           <td data-column-id="sent_at">${d.sent_at ? new Date(d.sent_at).toLocaleString() : (d.scheduled_at ? `Scheduled: ${new Date(d.scheduled_at).toLocaleString()}` : 'Not sent')}</td>
+          <td data-column-id="sto">${d.sto_enabled ? '<span class="badge badge-info" title="Send Time Optimization enabled"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v4"/><path d="M12 18v4"/><path d="m4.9 4.9 2.9 2.9"/><path d="m16.2 16.2 2.9 2.9"/><path d="M2 12h4"/><path d="M18 12h4"/><path d="m4.9 19.1 2.9-2.9"/><path d="m16.2 7.8 2.9-2.9"/></svg> STO</span>' : '<span style="color:var(--text-tertiary,#94a3b8)">—</span>'}</td>
+          <td data-column-id="wave">${d.wave_enabled ? '<span class="badge badge-info" title="Wave Sending: ' + d.wave_count + ' waves, ' + d.wave_interval_minutes + 'min interval"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 6c.6.5 1.2 1 2.5 1C7 7 7 5 9.5 5c2.6 0 2.4 2 5 2 2.5 0 2.5-2 5-2 1.3 0 1.9.5 2.5 1"/><path d="M2 12c.6.5 1.2 1 2.5 1 2.5 0 2.5-2 5-2 2.6 0 2.4 2 5 2 2.5 0 2.5-2 5-2 1.3 0 1.9.5 2.5 1"/><path d="M2 18c.6.5 1.2 1 2.5 1 2.5 0 2.5-2 5-2 2.6 0 2.4 2 5 2 2.5 0 2.5-2 5-2 1.3 0 1.9.5 2.5 1"/></svg> ' + d.wave_count + ' waves</span>' : '<span style="color:var(--text-tertiary,#94a3b8)">—</span>'}</td>
+          <td data-column-id="folder">${typeof folderCellHtml === 'function' ? folderCellHtml(d.folder_id) : ''}</td>
           <td>${createActionMenu(d.id, actions)}</td>
         </tr>
       `;
@@ -248,16 +392,21 @@ async function loadDeliveries() {
       { id: 'created_at', label: 'Creation date' },
       { id: 'updated_at', label: 'Last modified' },
       { id: 'created_by', label: 'Created by' },
-      { id: 'sent_at', label: 'Sent date' }
+      { id: 'sent_at', label: 'Sent date' },
+      { id: 'sto', label: 'STO', visible: false },
+      { id: 'wave', label: 'Waves', visible: false },
+      { id: 'folder', label: 'Folder', visible: false }
     ];
     
-    const content = `
+    let content = `
       <div class="card">
         <div class="card-header">
           <h3 class="card-title">${_afIco('<path d="m22 2-7 20-4-9-9-4Z"/><path d="m22 2-11 11"/>')} Deliveries</h3>
           <div style="display:flex;gap:8px;align-items:center">
             <span id="sendgrid-status-badge"></span>
+            ${typeof getFolderToggleButtonHtml === 'function' ? getFolderToggleButtonHtml('deliveries') : ''}
             <button class="btn btn-secondary btn-sm" onclick="openSendGridConfig()" title="Email Provider Settings">${_afIco('<path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/>', 14)} Brevo</button>
+          <button class="btn btn-secondary btn-sm" onclick="showAggregateDeliveryHeatmap()" title="Cross-delivery engagement heatmap">${_afIco('<rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/>', 14)} Heatmap</button>
           <button class="btn btn-primary" onclick="showDeliveryForm()">+ Create Delivery</button>
           </div>
         </div>
@@ -322,23 +471,43 @@ async function loadDeliveries() {
                 ${createSortableHeader('updated_at', 'Last modified', currentTableSort)}
                 ${createSortableHeader('created_by', 'Created by', currentTableSort)}
                 ${createSortableHeader('sent_at', 'Sent date', currentTableSort)}
+                <th data-column-id="sto">STO</th>
+                <th data-column-id="wave">Waves</th>
+                <th data-column-id="folder">Folder</th>
                 <th style="width: 50px;"></th>
               </tr>
             </thead>
             <tbody>
-              ${tableRows || '<tr><td colspan="13" style="text-align: center; padding: 2rem; color: #6B7280;">No deliveries found</td></tr>'}
+              ${tableRows || '<tr><td colspan="16" style="text-align: center; padding: 2rem; color: #6B7280;">No deliveries found</td></tr>'}
             </tbody>
           </table>
         </div>
       </div>
     `;
+    // Wrap with folder sidebar if enabled
+    if (typeof wrapWithFolderSidebarHtml === 'function') {
+      content = wrapWithFolderSidebarHtml('deliveries', 'deliveries', content);
+    }
     document.getElementById('content').innerHTML = content;
     applyColumnVisibility('deliveries');
     _refreshSendGridBadge();
+    // Initialize folder tree for deliveries
+    if (typeof initListFolderTree === 'function') {
+      initListFolderTree('deliveries', 'deliveries', loadDeliveries);
+    }
     if (window.pendingDeliveryId) {
       const id = window.pendingDeliveryId;
       window.pendingDeliveryId = null;
       setTimeout(() => editDelivery(id), 0);
+    } else if (window.createDeliveryFromWorkflow) {
+      const ctx = window.createDeliveryFromWorkflow;
+      window.createDeliveryFromWorkflow = null;
+      const draft = { name: ctx.defaultName || '', channel: ctx.channel || 'Email' };
+      setTimeout(async () => {
+        await showDeliveryForm(draft);
+        deliveryWizard.fromWorkflow = { workflowId: ctx.workflowId, nodeId: ctx.nodeId };
+        renderDeliveryWizard();
+      }, 0);
     }
   } catch (error) {
     showError('Failed to load Deliveries');
@@ -370,6 +539,19 @@ let deliveryWizard = {
 async function showDeliveryForm(delivery = null) {
   initDeliveryWizard(delivery);
   await loadDeliveryLists();
+  if (typeof ensureFolderPickerData === 'function') await ensureFolderPickerData('deliveries');
+  if (!delivery && !deliveryWizard.folder_id && typeof getDefaultFolderForEntity === 'function') {
+    deliveryWizard.folder_id = getDefaultFolderForEntity('deliveries');
+  }
+  // Fetch workflow schedule context for existing deliveries
+  deliveryWizard.workflowSchedules = [];
+  if (delivery?.id) {
+    try {
+      const wsResp = await fetch('/api/deliveries/' + delivery.id + '/workflow-schedule');
+      const wsData = await wsResp.json();
+      if (wsData.linked_workflows) deliveryWizard.workflowSchedules = wsData.linked_workflows;
+    } catch (e) { /* non-critical */ }
+  }
   renderDeliveryWizard();
 }
 
@@ -378,6 +560,7 @@ function initDeliveryWizard(delivery) {
     ? delivery.draft_state
     : {};
   deliveryWizard.deliveryId = delivery?.id || null;
+  deliveryWizard.folder_id = delivery?.folder_id || draftState.folder_id || null;
   deliveryWizard.currentStep = delivery?.last_saved_step || delivery?.wizard_step || 1;
   const deliveryBlocks = delivery?.content_blocks;
   const draftBlocks = draftState.content_blocks;
@@ -405,7 +588,20 @@ function initDeliveryWizard(delivery) {
     ab_split_pct: delivery?.ab_split_pct || draftState.ab_split_pct || 50,
     ab_winner_rule: delivery?.ab_winner_rule || draftState.ab_winner_rule || 'open_rate',
     ab_weighted_metrics: delivery?.ab_weighted_metrics || draftState.ab_weighted_metrics || [],
-    ab_guardrails: delivery?.ab_guardrails || draftState.ab_guardrails || []
+    ab_guardrails: delivery?.ab_guardrails || draftState.ab_guardrails || [],
+    // Send Time Optimization
+    sto_enabled: delivery?.sto_enabled ?? draftState.sto_enabled ?? false,
+    sto_model: delivery?.sto_model || draftState.sto_model || 'engagement_history',
+    sto_window_hours: delivery?.sto_window_hours ?? draftState.sto_window_hours ?? 24,
+    // Wave Sending
+    wave_enabled: delivery?.wave_enabled ?? draftState.wave_enabled ?? false,
+    wave_count: delivery?.wave_count ?? draftState.wave_count ?? 3,
+    wave_interval_minutes: delivery?.wave_interval_minutes ?? draftState.wave_interval_minutes ?? 60,
+    wave_start_pct: delivery?.wave_start_pct ?? draftState.wave_start_pct ?? 10,
+    wave_ramp_type: delivery?.wave_ramp_type || draftState.wave_ramp_type || 'linear',
+    wave_custom_pcts: delivery?.wave_custom_pcts || draftState.wave_custom_pcts || null,
+    wave_timing_mode: delivery?.wave_timing_mode || draftState.wave_timing_mode || 'interval',
+    wave_custom_times: delivery?.wave_custom_times || draftState.wave_custom_times || null
   };
   applyPendingSegmentSelection();
   applyPendingDeliveryStep();
@@ -437,13 +633,18 @@ function renderDeliveryWizard() {
     </div>
   `).join('');
   
+  const backToWorkflow = deliveryWizard.fromWorkflow
+    ? `<button class="btn btn-secondary" onclick="goBackToWorkflow()" title="Return to workflow">${BACK_CHEVRON} Back to Workflow</button>`
+    : '';
+  const backToDeliveries = `<button class="btn-back" onclick="loadDeliveries()" title="Back to Deliveries">${BACK_CHEVRON}</button>`;
   const content = `
     <div class="form-container">
       <div class="wizard-header">
         <div class="wizard-title">${_afIco('<path d="m22 2-7 20-4-9-9-4Z"/><path d="m22 2-11 11"/>')} Delivery</div>
         <div class="wizard-actions" style="display:flex;align-items:center;gap:8px">
           <button class="btn btn-secondary" onclick="saveDeliveryDraft()">Save</button>
-          <button class="btn-back" onclick="loadDeliveries()" title="Back to Deliveries">${BACK_CHEVRON}</button>
+          ${backToWorkflow}
+          ${backToDeliveries}
         </div>
       </div>
       <div class="wizard-steps">${stepper}</div>
@@ -506,7 +707,7 @@ function renderDeliveryStepContent() {
               </button>
             </div>
             <div id="delivery-schedule-picker" style="display:${d.scheduled_at ? 'block' : 'none'}">
-            <input type="datetime-local" class="form-input" value="${scheduleValue}" onchange="updateDeliveryField('scheduled_at', this.value)">
+            <input type="datetime-local" class="form-input" value="${scheduleValue}" onchange="updateDeliveryField('scheduled_at', this.value); syncWave1WithSchedule()">
               <span class="form-helper">Date and time to send</span>
             </div>
             ${!d.scheduled_at ? '<span class="form-helper" style="color:var(--color-success, #10b981)">Sent as soon as published</span>' : ''}
@@ -518,28 +719,88 @@ function renderDeliveryStepContent() {
               <option value="yes" ${d.approval_required ? 'selected' : ''}>Yes</option>
             </select>
           </div>
+          ${typeof folderPickerHtml === 'function' ? folderPickerHtml('delivery-folder-id', 'deliveries', deliveryWizard.folder_id) : ''}
         </div>
       </div>
+
+      ${renderWorkflowScheduleContext()}
+
+      <!-- Send Time Optimization -->
+      <div class="form-section compact-form" style="margin-top:16px">
+        <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px">
+          <h3 class="form-section-title" style="margin:0;flex:1">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:6px"><path d="M12 2v4"/><path d="m16.2 7.8 2.9-2.9"/><path d="M18 12h4"/><path d="m16.2 16.2 2.9 2.9"/><path d="M12 18v4"/><path d="m4.9 19.1 2.9-2.9"/><path d="M2 12h4"/><path d="m4.9 4.9 2.9 2.9"/><circle cx="12" cy="12" r="4"/></svg>
+            Send Time Optimization
+          </h3>
+          <label class="toggle-switch" style="margin:0">
+            <input type="checkbox" ${d.sto_enabled ? 'checked' : ''} onchange="toggleSTO(this.checked)">
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+        <p class="form-helper" style="margin:-4px 0 12px 0">Use AI to determine the optimal send time for each recipient based on their engagement patterns.</p>
+        <div id="sto-settings" style="display:${d.sto_enabled ? 'block' : 'none'}">
+          <div class="form-grid">
+            <div class="form-group">
+              <label class="form-label">Optimization Model</label>
+              <select class="form-input" onchange="updateDeliveryField('sto_model', this.value)">
+                <option value="engagement_history" ${d.sto_model === 'engagement_history' ? 'selected' : ''}>Engagement History</option>
+                <option value="open_time_prediction" ${d.sto_model === 'open_time_prediction' ? 'selected' : ''}>Open Time Prediction</option>
+                <option value="click_time_prediction" ${d.sto_model === 'click_time_prediction' ? 'selected' : ''}>Click Time Prediction</option>
+                <option value="timezone_aware" ${d.sto_model === 'timezone_aware' ? 'selected' : ''}>Timezone-Aware</option>
+              </select>
+              <span class="form-helper">Algorithm used to predict best send time</span>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Delivery Window (hours)</label>
+              <select class="form-input" onchange="updateDeliveryField('sto_window_hours', parseInt(this.value))">
+                <option value="6" ${d.sto_window_hours === 6 ? 'selected' : ''}>6 hours</option>
+                <option value="12" ${d.sto_window_hours === 12 ? 'selected' : ''}>12 hours</option>
+                <option value="24" ${d.sto_window_hours === 24 ? 'selected' : ''}>24 hours</option>
+                <option value="48" ${d.sto_window_hours === 48 ? 'selected' : ''}>48 hours</option>
+                <option value="72" ${d.sto_window_hours === 72 ? 'selected' : ''}>72 hours</option>
+              </select>
+              <span class="form-helper">Maximum time window to spread sends across</span>
+            </div>
+          </div>
+          <div class="sto-info-card" style="background:var(--bg-secondary, #f8fafc);border:1px solid var(--border-default, #e2e8f0);border-radius:8px;padding:12px 16px;margin-top:8px">
+            <div style="display:flex;align-items:flex-start;gap:10px">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--color-info, #3b82f6)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;margin-top:2px"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
+              <div style="font-size:12px;color:var(--text-secondary, #64748b);line-height:1.5">
+                <strong style="color:var(--text-primary, #1e293b)">How it works:</strong> Each recipient will receive the message at their predicted optimal engagement time within the <strong>${d.sto_window_hours}-hour</strong> window after the scheduled send time. Recipients without sufficient engagement data will receive at the scheduled time.
+              </div>
+            </div>
+          </div>
+
+          <!-- System-wide STO insights -->
+          <div id="sto-insights-container"></div>
+        </div>
+      </div>
+
     `;
   }
   
   if (step === 2) {
+    // Estimate audience size from selected segment/audience
+    const selectedSegment = segments.find(s => s.id == d.segment_id);
+    const selectedAudience = audiences.find(a => a.id == d.audience_id);
+    const estAudienceSize = selectedSegment?.size || selectedSegment?.population || selectedAudience?.size || selectedAudience?.population || 0;
+
     html = `
       <div class="form-section compact-form">
         <h3 class="form-section-title">2. Segments & Audience</h3>
         <div class="form-grid">
           <div class="form-group">
             <label class="form-label">Audience</label>
-            <select class="form-input" onchange="updateDeliveryField('audience_id', this.value)">
+            <select class="form-input" onchange="updateDeliveryField('audience_id', this.value); renderDeliveryStepContent()">
               <option value="">Select audience...</option>
-              ${audiences.map(a => `<option value="${a.id}" ${d.audience_id == a.id ? 'selected' : ''}>${a.name}</option>`).join('')}
+              ${audiences.map(a => `<option value="${a.id}" ${d.audience_id == a.id ? 'selected' : ''}>${a.name}${a.size || a.population ? ' (' + (a.size || a.population).toLocaleString() + ')' : ''}</option>`).join('')}
             </select>
           </div>
           <div class="form-group">
             <label class="form-label">Segment</label>
-            <select class="form-input" onchange="updateDeliveryField('segment_id', this.value)">
+            <select class="form-input" onchange="updateDeliveryField('segment_id', this.value); renderDeliveryStepContent()">
               <option value="">Select segment...</option>
-              ${segments.map(s => `<option value="${s.id}" ${d.segment_id == s.id ? 'selected' : ''}>${s.name}</option>`).join('')}
+              ${segments.map(s => `<option value="${s.id}" ${d.segment_id == s.id ? 'selected' : ''}>${s.name}${s.size || s.population ? ' (' + (s.size || s.population).toLocaleString() + ')' : ''}</option>`).join('')}
             </select>
           </div>
           <div class="form-group form-grid-full">
@@ -548,6 +809,98 @@ function renderDeliveryStepContent() {
               <button class="btn btn-secondary" onclick="refreshDeliveryLists()">Refresh lists</button>
             </div>
           </div>
+        </div>
+        ${estAudienceSize > 0 ? `<div style="background:#eef2ff;border:1px solid #c7d2fe;border-radius:8px;padding:10px 14px;margin-top:4px;display:flex;align-items:center;gap:8px">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#4f46e5" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+          <span style="font-size:13px;color:#3730a3"><strong>Estimated audience size:</strong> ${estAudienceSize.toLocaleString()} recipients</span>
+        </div>` : ''}
+      </div>
+
+      <!-- Wave Sending (after audience selection) -->
+      <div class="form-section compact-form" style="margin-top:16px">
+        <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px">
+          <h3 class="form-section-title" style="margin:0;flex:1">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:6px"><path d="M2 6c.6.5 1.2 1 2.5 1C7 7 7 5 9.5 5c2.6 0 2.4 2 5 2 2.5 0 2.5-2 5-2 1.3 0 1.9.5 2.5 1"/><path d="M2 12c.6.5 1.2 1 2.5 1 2.5 0 2.5-2 5-2 2.6 0 2.4 2 5 2 2.5 0 2.5-2 5-2 1.3 0 1.9.5 2.5 1"/><path d="M2 18c.6.5 1.2 1 2.5 1 2.5 0 2.5-2 5-2 2.6 0 2.4 2 5 2 2.5 0 2.5-2 5-2 1.3 0 1.9.5 2.5 1"/></svg>
+            Wave Sending
+          </h3>
+          <label class="toggle-switch" style="margin:0">
+            <input type="checkbox" ${d.wave_enabled ? 'checked' : ''} onchange="toggleWaveSending(this.checked)">
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+        <p class="form-helper" style="margin:-4px 0 12px 0">Split your audience into waves and send progressively to manage server load and monitor early results before full rollout.</p>
+        <div id="wave-settings" style="display:${d.wave_enabled ? 'block' : 'none'}">
+          <div class="form-grid">
+            <div class="form-group">
+              <label class="form-label">Number of Waves</label>
+              <select class="form-input" onchange="updateWaveConfig('wave_count', parseInt(this.value))">
+                <option value="2" ${d.wave_count === 2 ? 'selected' : ''}>2 waves</option>
+                <option value="3" ${d.wave_count === 3 ? 'selected' : ''}>3 waves</option>
+                <option value="4" ${d.wave_count === 4 ? 'selected' : ''}>4 waves</option>
+                <option value="5" ${d.wave_count === 5 ? 'selected' : ''}>5 waves</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Wave Timing</label>
+              <select class="form-input" onchange="updateWaveConfig('wave_timing_mode', this.value); toggleWaveTimingMode()">
+                <option value="interval" ${d.wave_timing_mode === 'interval' ? 'selected' : ''}>Fixed Interval</option>
+                <option value="custom_times" ${d.wave_timing_mode === 'custom_times' ? 'selected' : ''}>Custom Times</option>
+              </select>
+              <span class="form-helper">Fixed intervals or pick a specific date &amp; time per wave</span>
+            </div>
+            <div class="form-group" id="wave-interval-group" style="display:${d.wave_timing_mode !== 'custom_times' ? 'block' : 'none'}">
+              <label class="form-label">Interval Between Waves</label>
+              <select class="form-input" onchange="updateWaveConfig('wave_interval_minutes', parseInt(this.value))">
+                <option value="15" ${d.wave_interval_minutes === 15 ? 'selected' : ''}>15 minutes</option>
+                <option value="30" ${d.wave_interval_minutes === 30 ? 'selected' : ''}>30 minutes</option>
+                <option value="60" ${d.wave_interval_minutes === 60 ? 'selected' : ''}>1 hour</option>
+                <option value="120" ${d.wave_interval_minutes === 120 ? 'selected' : ''}>2 hours</option>
+                <option value="240" ${d.wave_interval_minutes === 240 ? 'selected' : ''}>4 hours</option>
+                <option value="480" ${d.wave_interval_minutes === 480 ? 'selected' : ''}>8 hours</option>
+                <option value="720" ${d.wave_interval_minutes === 720 ? 'selected' : ''}>12 hours</option>
+                <option value="1440" ${d.wave_interval_minutes === 1440 ? 'selected' : ''}>1 day</option>
+                <option value="2880" ${d.wave_interval_minutes === 2880 ? 'selected' : ''}>2 days</option>
+                <option value="4320" ${d.wave_interval_minutes === 4320 ? 'selected' : ''}>3 days</option>
+                <option value="7200" ${d.wave_interval_minutes === 7200 ? 'selected' : ''}>5 days</option>
+                <option value="10080" ${d.wave_interval_minutes === 10080 ? 'selected' : ''}>1 week</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label class="form-label">First Wave Size</label>
+              <select class="form-input" onchange="updateWaveConfig('wave_start_pct', parseInt(this.value))">
+                <option value="5" ${d.wave_start_pct === 5 ? 'selected' : ''}>5% of audience</option>
+                <option value="10" ${d.wave_start_pct === 10 ? 'selected' : ''}>10% of audience</option>
+                <option value="15" ${d.wave_start_pct === 15 ? 'selected' : ''}>15% of audience</option>
+                <option value="20" ${d.wave_start_pct === 20 ? 'selected' : ''}>20% of audience</option>
+                <option value="25" ${d.wave_start_pct === 25 ? 'selected' : ''}>25% of audience</option>
+                <option value="33" ${d.wave_start_pct === 33 ? 'selected' : ''}>33% of audience</option>
+                <option value="50" ${d.wave_start_pct === 50 ? 'selected' : ''}>50% of audience</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Ramp Type</label>
+              <select class="form-input" onchange="updateWaveConfig('wave_ramp_type', this.value); toggleCustomWaveInputs()">
+                <option value="linear" ${d.wave_ramp_type === 'linear' ? 'selected' : ''}>Linear (equal increments)</option>
+                <option value="exponential" ${d.wave_ramp_type === 'exponential' ? 'selected' : ''}>Exponential (doubling)</option>
+                <option value="front_loaded" ${d.wave_ramp_type === 'front_loaded' ? 'selected' : ''}>Front-loaded (bulk early)</option>
+                <option value="equal" ${d.wave_ramp_type === 'equal' ? 'selected' : ''}>Equal split</option>
+                <option value="custom" ${d.wave_ramp_type === 'custom' ? 'selected' : ''}>Custom (define percentages)</option>
+              </select>
+              <span class="form-helper">How audience is distributed across waves</span>
+            </div>
+          </div>
+          <div id="custom-wave-inputs" style="display:${d.wave_ramp_type === 'custom' ? 'block' : 'none'}">
+            <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:14px;margin-top:8px">
+              <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+                <label class="form-label" style="margin:0;font-weight:600;font-size:13px">Custom Wave Percentages</label>
+                <span id="custom-wave-total" class="badge badge-success" style="font-size:12px">Total: 100%</span>
+              </div>
+              <div id="custom-wave-fields" style="display:flex;flex-wrap:wrap;gap:8px"></div>
+              <div id="custom-wave-error" style="display:none;color:#ef4444;font-size:12px;margin-top:8px"></div>
+            </div>
+          </div>
+          <div id="custom-wave-times" style="display:${d.wave_timing_mode === 'custom_times' ? 'block' : 'none'}"></div>
+          <div id="wave-schedule-preview" style="margin-top:12px"></div>
         </div>
       </div>
     `;
@@ -1109,6 +1462,14 @@ function renderDeliveryStepContent() {
   }
   
   document.getElementById('delivery-step-content').innerHTML = html;
+  if (step === 1 && d.sto_enabled) {
+    loadSTOInsights();
+  }
+  if (step === 2 && d.wave_enabled) {
+    renderWaveSchedulePreview();
+    if (d.wave_ramp_type === 'custom') renderCustomWaveFields();
+    if (d.wave_timing_mode === 'custom_times') renderCustomWaveTimeFields();
+  }
   if (step === 3 && d.channel === 'Email') {
     initEmailDesigner();
   }
@@ -1116,22 +1477,732 @@ function renderDeliveryStepContent() {
 
 function updateDeliveryField(field, value) {
   deliveryWizard.data[field] = value;
+  // Re-render STO insights when channel changes and STO is enabled
+  if (field === 'channel' && deliveryWizard.data.sto_enabled && _stoInsightsCache) {
+    renderSTOInsights(_stoInsightsCache);
+  }
+}
+
+function renderWorkflowScheduleContext() {
+  const wfs = deliveryWizard.workflowSchedules || [];
+  if (wfs.length === 0) return '';
+
+  const cards = wfs.map(ws => {
+    const statusColor = ws.workflow_status === 'active' ? '#10b981' : ws.workflow_status === 'draft' ? '#f59e0b' : '#6b7280';
+    const statusIcon = ws.workflow_status === 'active'
+      ? '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="6 3 20 12 6 21 6 3"/></svg>'
+      : '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/></svg>';
+
+    // Schedule description
+    let schedDesc = '';
+    if (ws.trigger_type === 'manual') {
+      schedDesc = 'Manual trigger (run on demand)';
+    } else if (ws.frequency) {
+      const freqLabels = { daily: 'Daily', weekly: 'Weekly', monthly: 'Monthly', hourly: 'Hourly' };
+      schedDesc = '<strong>' + (freqLabels[ws.frequency] || ws.frequency) + '</strong>';
+      if (ws.recurring_day) schedDesc += ' on ' + ws.recurring_day;
+      if (ws.recurring_time) schedDesc += ' at ' + ws.recurring_time;
+    } else if (ws.scheduled_at) {
+      schedDesc = 'Scheduled: <strong>' + new Date(ws.scheduled_at).toLocaleString() + '</strong>';
+    } else {
+      schedDesc = 'No schedule configured';
+    }
+
+    // Delivery timing within workflow
+    let timingDesc = '';
+    if (ws.wait_before_delivery_minutes > 0) {
+      const h = Math.floor(ws.wait_before_delivery_minutes / 60);
+      const m = ws.wait_before_delivery_minutes % 60;
+      const durStr = h > 0 ? (m > 0 ? h + 'h ' + m + 'min' : h + 'h') : m + 'min';
+      timingDesc = 'This delivery sends <strong>' + durStr + ' after</strong> workflow starts';
+    } else {
+      timingDesc = 'This delivery sends <strong>immediately</strong> when workflow starts';
+    }
+
+    let estTime = '';
+    if (ws.estimated_delivery_time) {
+      estTime = '<div style="margin-top:6px;padding:6px 10px;background:#dcfce7;border-radius:6px;font-size:11px;color:#166534">' +
+        '<strong>Est. delivery time:</strong> ' + new Date(ws.estimated_delivery_time).toLocaleString() + '</div>';
+    }
+
+    return `
+      <div style="background:#fff;border:1px solid #e2e8f0;border-radius:8px;padding:12px 14px">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+          <div style="display:flex;align-items:center;gap:8px">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#4f46e5" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="6" height="6" rx="1"/><rect x="15" y="3" width="6" height="6" rx="1"/><rect x="9" y="15" width="6" height="6" rx="1"/><path d="M6 9v3a1 1 0 0 0 1 1h3"/><path d="M18 9v3a1 1 0 0 1-1 1h-3"/></svg>
+            <a href="#" onclick="navigateTo('workflows','edit',${ws.workflow_id});return false" style="font-weight:600;color:#4f46e5;text-decoration:none;font-size:13px">${ws.workflow_name}</a>
+          </div>
+          <span style="display:inline-flex;align-items:center;gap:4px;font-size:11px;color:${statusColor};font-weight:500">${statusIcon} ${ws.workflow_status}</span>
+        </div>
+        <div style="font-size:12px;color:#374151;line-height:1.6">
+          <div style="display:flex;align-items:center;gap:6px;margin-bottom:3px">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#6b7280" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+            <span>Workflow schedule: ${schedDesc}</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:6px;margin-bottom:3px">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#6b7280" stroke-width="2"><path d="m22 2-7 20-4-9-9-4Z"/><path d="m22 2-11 11"/></svg>
+            <span>${timingDesc} (step ${ws.delivery_position} of ${ws.total_nodes})</span>
+          </div>
+        </div>
+        ${estTime}
+        <div style="margin-top:8px;display:flex;gap:6px">
+          <button class="btn btn-secondary btn-sm" style="font-size:11px;padding:4px 10px" onclick="syncWorkflowScheduleToDelivery(${JSON.stringify(ws).replace(/"/g, '&quot;')})">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/></svg>
+            Sync schedule from workflow
+          </button>
+          <button class="btn btn-secondary btn-sm" style="font-size:11px;padding:4px 10px" onclick="navigateTo('workflows','edit',${ws.workflow_id})">
+            Open workflow
+          </button>
+        </div>
+      </div>
+    `;
+  }).join('');
+
+  return `
+    <div class="form-section compact-form" style="margin-top:16px">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#4f46e5" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="6" height="6" rx="1"/><rect x="15" y="3" width="6" height="6" rx="1"/><rect x="9" y="15" width="6" height="6" rx="1"/><path d="M6 9v3a1 1 0 0 0 1 1h3"/><path d="M18 9v3a1 1 0 0 1-1 1h-3"/></svg>
+        <h3 class="form-section-title" style="margin:0">Workflow Schedule</h3>
+        <span class="badge badge-info" style="font-size:11px">${wfs.length} workflow${wfs.length > 1 ? 's' : ''}</span>
+      </div>
+      <p class="form-helper" style="margin:-2px 0 12px">This delivery is used in the following workflow(s). The delivery timing is determined by the workflow schedule and any wait steps before it.</p>
+      <div style="display:flex;flex-direction:column;gap:8px">
+        ${cards}
+      </div>
+    </div>
+  `;
+}
+
+function syncWorkflowScheduleToDelivery(ws) {
+  if (ws.scheduled_at) {
+    // If workflow has a specific scheduled time, calculate estimated delivery time
+    const wfStart = new Date(ws.scheduled_at);
+    const estDelivery = new Date(wfStart.getTime() + (ws.wait_before_delivery_minutes || 0) * 60000);
+    deliveryWizard.data.scheduled_at = estDelivery.toISOString().slice(0, 16);
+    showToast('Schedule synced from workflow: ' + estDelivery.toLocaleString(), 'success');
+  } else if (ws.frequency && ws.recurring_time) {
+    // For recurring workflows, set schedule to the next occurrence
+    const now = new Date();
+    const [hh, mm] = ws.recurring_time.split(':');
+    const next = new Date(now.getFullYear(), now.getMonth(), now.getDate(), parseInt(hh), parseInt(mm));
+    if (next <= now) next.setDate(next.getDate() + 1);
+    const waitMs = (ws.wait_before_delivery_minutes || 0) * 60000;
+    const estDelivery = new Date(next.getTime() + waitMs);
+    deliveryWizard.data.scheduled_at = estDelivery.toISOString().slice(0, 16);
+    showToast('Schedule synced from recurring workflow (' + ws.frequency + ')', 'success');
+  } else {
+    deliveryWizard.data.scheduled_at = null;
+    showToast('Workflow uses manual trigger — delivery set to send immediately', 'info');
+  }
+  syncWave1WithSchedule();
+  renderDeliveryStepContent();
 }
 
 function clearDeliverySchedule() {
   deliveryWizard.data.scheduled_at = null;
+  syncWave1WithSchedule();
   renderDeliveryStepContent();
 }
 
 function showDeliverySchedulePicker() {
-  // If no scheduled_at yet, set a default (tomorrow at 10am)
   if (!deliveryWizard.data.scheduled_at) {
     var tomorrow = new Date();
     tomorrow.setDate(tomorrow.getDate() + 1);
     tomorrow.setHours(10, 0, 0, 0);
     deliveryWizard.data.scheduled_at = tomorrow.toISOString().slice(0, 16);
   }
+  syncWave1WithSchedule();
   renderDeliveryStepContent();
+}
+
+function syncWave1WithSchedule() {
+  const d = deliveryWizard.data;
+  if (d.wave_custom_times && d.wave_custom_times.length > 0) {
+    d.wave_custom_times[0] = d.scheduled_at || new Date().toISOString().slice(0, 16);
+  }
+}
+
+/* ── Send Time Optimization ─────────────────────────────────── */
+let _stoInsightsCache = null;
+
+function toggleSTO(enabled) {
+  deliveryWizard.data.sto_enabled = enabled;
+  const panel = document.getElementById('sto-settings');
+  if (panel) panel.style.display = enabled ? 'block' : 'none';
+  if (enabled) loadSTOInsights();
+}
+
+async function loadSTOInsights() {
+  const container = document.getElementById('sto-insights-container');
+  if (!container) return;
+  container.innerHTML = '<div style="text-align:center;padding:12px;color:#6b7280;font-size:12px"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="animation:spin 1s linear infinite;vertical-align:-3px;margin-right:6px"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>Loading system-wide STO insights...</div>';
+  try {
+    if (!_stoInsightsCache) {
+      const resp = await fetch('/api/deliveries/sto-insights');
+      _stoInsightsCache = await resp.json();
+    }
+    renderSTOInsights(_stoInsightsCache);
+  } catch (e) {
+    container.innerHTML = '<div style="padding:8px;color:#6b7280;font-size:12px">Could not load STO insights.</div>';
+  }
+}
+
+function renderSTOInsights(data) {
+  const container = document.getElementById('sto-insights-container');
+  if (!container || !data || !data.available) {
+    if (container) container.innerHTML = '<div style="padding:8px;color:#6b7280;font-size:12px">No historical data available for STO recommendations yet.</div>';
+    return;
+  }
+
+  const ch = (deliveryWizard.data.channel || 'email').toLowerCase();
+  const channelInsight = data.by_channel?.[ch];
+  const overall = data.overall;
+  const insight = channelInsight || overall;
+  if (!insight) { container.innerHTML = ''; return; }
+
+  const channelLabel = ch === 'email' ? 'Email' : ch === 'sms' ? 'SMS' : ch === 'push' ? 'Push' : 'All';
+
+  // Best hours bar
+  const bestHoursHtml = (insight.best_hours || []).map((h, i) => {
+    const colors = ['#10b981', '#3b82f6', '#8b5cf6'];
+    const medals = ['#fbbf24', '#94a3b8', '#cd7f32'];
+    return `<div style="display:flex;align-items:center;gap:8px;padding:6px 0;${i < 2 ? 'border-bottom:1px solid #f1f5f9;' : ''}">
+      <span style="width:20px;height:20px;border-radius:50%;background:${medals[i]};color:#fff;font-size:10px;font-weight:700;display:flex;align-items:center;justify-content:center">${i + 1}</span>
+      <span style="font-weight:600;font-size:13px;min-width:48px">${h.label}</span>
+      <div style="flex:1;height:6px;background:#f1f5f9;border-radius:3px;overflow:hidden">
+        <div style="height:100%;width:${Math.min(100, parseFloat(h.pct_of_total) * 3)}%;background:${colors[i]};border-radius:3px"></div>
+      </div>
+      <span style="font-size:11px;color:#6b7280;min-width:36px;text-align:right">${h.pct_of_total}%</span>
+    </div>`;
+  }).join('');
+
+  // Best days chips
+  const bestDaysHtml = (insight.best_days || []).map((d, i) => {
+    const colors = ['#dcfce7', '#dbeafe', '#ede9fe'];
+    const textColors = ['#15803d', '#1d4ed8', '#6d28d9'];
+    return `<span style="display:inline-flex;align-items:center;gap:4px;padding:4px 10px;border-radius:12px;background:${colors[i]};color:${textColors[i]};font-size:11px;font-weight:600">${d.day} <span style="font-weight:400;opacity:0.8">${d.pct_of_total}%</span></span>`;
+  }).join(' ');
+
+  // Best slots (peak combos)
+  const bestSlotsHtml = (insight.best_slots || []).map(s =>
+    `<span style="display:inline-flex;align-items:center;gap:3px;padding:3px 8px;border-radius:6px;background:#fef3c7;color:#92400e;font-size:11px;font-weight:500"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v4"/><circle cx="12" cy="12" r="4"/><path d="M12 18v4"/></svg>${s.label}</span>`
+  ).join(' ');
+
+  // Avoid hours
+  const avoidHtml = (insight.avoid_hours || []).map(h =>
+    `<span style="padding:3px 8px;border-radius:6px;background:#fef2f2;color:#dc2626;font-size:11px;font-weight:500">${h.label}</span>`
+  ).join(' ');
+
+  // STO adoption & lift
+  let stoAdoptionHtml = '';
+  const sto = insight.sto_adoption;
+  if (sto) {
+    const liftBadge = sto.lift_pct !== null
+      ? `<span style="display:inline-flex;align-items:center;gap:3px;padding:2px 8px;border-radius:10px;background:${parseFloat(sto.lift_pct) > 0 ? '#dcfce7' : '#fef2f2'};color:${parseFloat(sto.lift_pct) > 0 ? '#15803d' : '#dc2626'};font-size:11px;font-weight:600">${parseFloat(sto.lift_pct) > 0 ? '+' : ''}${sto.lift_pct}% open rate lift</span>`
+      : '<span style="font-size:11px;color:#6b7280">Not enough data to compare</span>';
+    stoAdoptionHtml = `
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-top:1px solid #f1f5f9;margin-top:8px">
+        <div style="font-size:12px;color:#374151">
+          <strong>${sto.enabled_count}</strong> of ${sto.total_count} ${channelLabel} deliveries use STO (<strong>${sto.pct}%</strong>)
+        </div>
+        <div>${liftBadge}</div>
+      </div>`;
+  }
+
+  // Channel tabs for switching view
+  const channelOptions = Object.keys(data.by_channel || {});
+  const channelTabsHtml = channelOptions.length > 1
+    ? `<div style="display:flex;gap:4px;margin-bottom:10px">${channelOptions.map(c => {
+        const isActive = c === ch;
+        const label = c === 'email' ? 'Email' : c === 'sms' ? 'SMS' : 'Push';
+        const ci = data.by_channel[c];
+        return `<button onclick="switchSTOInsightChannel('${c}')" style="padding:3px 10px;border-radius:12px;border:1px solid ${isActive ? '#4f46e5' : '#e2e8f0'};background:${isActive ? '#eef2ff' : '#fff'};color:${isActive ? '#4f46e5' : '#6b7280'};font-size:11px;font-weight:${isActive ? '600' : '400'};cursor:pointer">${label} (${ci?.delivery_count || 0})</button>`;
+      }).join('')}</div>`
+    : '';
+
+  container.innerHTML = `
+    <div style="background:linear-gradient(135deg, #f0f9ff 0%, #eff6ff 50%, #f5f3ff 100%);border:1px solid #bfdbfe;border-radius:10px;padding:14px 16px;margin-top:12px">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#4f46e5" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v4"/><path d="m16.2 7.8 2.9-2.9"/><path d="M18 12h4"/><path d="m16.2 16.2 2.9 2.9"/><path d="M12 18v4"/><path d="m4.9 19.1 2.9-2.9"/><path d="M2 12h4"/><path d="m4.9 4.9 2.9 2.9"/><circle cx="12" cy="12" r="4"/></svg>
+        <span style="font-weight:700;font-size:13px;color:#1e293b">System-Wide STO Insights</span>
+        <span style="font-size:11px;color:#6b7280">Based on ${insight.delivery_count} ${channelLabel.toLowerCase()} deliver${insight.delivery_count === 1 ? 'y' : 'ies'} &bull; ${(insight.total_sent || 0).toLocaleString()} messages</span>
+      </div>
+
+      ${channelTabsHtml}
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+        <!-- Best Hours -->
+        <div style="background:#fff;border-radius:8px;padding:10px 12px;border:1px solid #e2e8f0">
+          <div style="font-size:11px;font-weight:600;color:#374151;margin-bottom:6px;text-transform:uppercase;letter-spacing:0.5px">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#10b981" stroke-width="2" style="vertical-align:-1px;margin-right:4px"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+            Peak Hours
+          </div>
+          ${bestHoursHtml}
+        </div>
+
+        <!-- Best Days -->
+        <div style="background:#fff;border-radius:8px;padding:10px 12px;border:1px solid #e2e8f0">
+          <div style="font-size:11px;font-weight:600;color:#374151;margin-bottom:8px;text-transform:uppercase;letter-spacing:0.5px">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#3b82f6" stroke-width="2" style="vertical-align:-1px;margin-right:4px"><rect width="18" height="18" x="3" y="4" rx="2" ry="2"/><line x1="16" x2="16" y1="2" y2="6"/><line x1="8" x2="8" y1="2" y2="6"/><line x1="3" x2="21" y1="10" y2="10"/></svg>
+            Best Days
+          </div>
+          <div style="display:flex;flex-wrap:wrap;gap:6px">${bestDaysHtml}</div>
+
+          <div style="font-size:11px;font-weight:600;color:#374151;margin:12px 0 6px;text-transform:uppercase;letter-spacing:0.5px">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" stroke-width="2" style="vertical-align:-1px;margin-right:4px"><polygon points="12 2 15.1 8.3 22 9.2 17 14.1 18.2 21 12 17.8 5.8 21 7 14.1 2 9.2 8.9 8.3 12 2"/></svg>
+            Peak Slots
+          </div>
+          <div style="display:flex;flex-wrap:wrap;gap:6px">${bestSlotsHtml}</div>
+        </div>
+      </div>
+
+      <!-- Avoid & Adoption row -->
+      <div style="margin-top:10px;background:#fff;border-radius:8px;padding:10px 12px;border:1px solid #e2e8f0">
+        <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+          <div style="font-size:11px;font-weight:600;color:#374151;text-transform:uppercase;letter-spacing:0.5px">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#dc2626" stroke-width="2" style="vertical-align:-1px;margin-right:4px"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg>
+            Avoid Sending
+          </div>
+          ${avoidHtml}
+        </div>
+        ${stoAdoptionHtml}
+      </div>
+
+      <div style="margin-top:8px;font-size:11px;color:#6b7280;display:flex;align-items:center;gap:4px">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
+        STO will automatically schedule sends during peak engagement windows for each recipient.
+      </div>
+    </div>`;
+}
+
+function switchSTOInsightChannel(ch) {
+  if (!_stoInsightsCache) return;
+  deliveryWizard._stoViewChannel = ch;
+  renderSTOInsightsForChannel(ch);
+}
+
+function renderSTOInsightsForChannel(ch) {
+  if (!_stoInsightsCache) return;
+  // Temporarily override channel to render for that channel
+  const origCh = deliveryWizard.data.channel;
+  deliveryWizard.data.channel = ch;
+  renderSTOInsights(_stoInsightsCache);
+  deliveryWizard.data.channel = origCh;
+}
+
+/* ── Wave Sending ────────────────────────────────────────────── */
+function toggleWaveSending(enabled) {
+  deliveryWizard.data.wave_enabled = enabled;
+  const panel = document.getElementById('wave-settings');
+  if (panel) {
+    panel.style.display = enabled ? 'block' : 'none';
+    if (enabled) {
+      toggleWaveTimingMode();
+      renderWaveSchedulePreview();
+    }
+  }
+}
+
+function updateWaveConfig(field, value) {
+  deliveryWizard.data[field] = value;
+  // When wave count changes, reset custom percentages and custom times
+  if (field === 'wave_count') {
+    if (deliveryWizard.data.wave_ramp_type === 'custom') {
+      deliveryWizard.data.wave_custom_pcts = null;
+      renderCustomWaveFields();
+    }
+    if (deliveryWizard.data.wave_timing_mode === 'custom_times') {
+      deliveryWizard.data.wave_custom_times = null;
+      renderCustomWaveTimeFields();
+    }
+  }
+  renderWaveSchedulePreview();
+}
+
+function toggleWaveTimingMode() {
+  const d = deliveryWizard.data;
+  const intervalGroup = document.getElementById('wave-interval-group');
+  const customTimesContainer = document.getElementById('custom-wave-times');
+  if (d.wave_timing_mode === 'custom_times') {
+    if (intervalGroup) intervalGroup.style.display = 'none';
+    if (customTimesContainer) customTimesContainer.style.display = 'block';
+    renderCustomWaveTimeFields();
+  } else {
+    if (intervalGroup) intervalGroup.style.display = 'block';
+    if (customTimesContainer) customTimesContainer.style.display = 'none';
+  }
+  renderWaveSchedulePreview();
+}
+
+function renderCustomWaveTimeFields() {
+  const d = deliveryWizard.data;
+  const count = d.wave_count || 3;
+  const container = document.getElementById('custom-wave-times');
+  if (!container) return;
+
+  // Initialize custom times if not set or wrong length
+  if (!d.wave_custom_times || d.wave_custom_times.length !== count) {
+    const baseTime = d.scheduled_at ? new Date(d.scheduled_at) : new Date();
+    d.wave_custom_times = [];
+    for (let i = 0; i < count; i++) {
+      if (i === 0) {
+        // Wave 1 = delivery scheduled time
+        d.wave_custom_times.push(d.scheduled_at || baseTime.toISOString().slice(0, 16));
+      } else {
+        // Subsequent waves default to +1h increments
+        const t = new Date(baseTime.getTime() + i * 60 * 60000);
+        d.wave_custom_times.push(t.toISOString().slice(0, 16));
+      }
+    }
+  }
+
+  // Ensure wave 1 always matches the delivery schedule
+  if (d.scheduled_at) {
+    d.wave_custom_times[0] = d.scheduled_at;
+  }
+
+  const schedLabel = d.scheduled_at
+    ? new Date(d.scheduled_at).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
+    : null;
+
+  const fieldsHtml = d.wave_custom_times.map((t, i) => {
+    const isFirst = i === 0;
+    const val = t || '';
+    const minVal = i > 0 && d.wave_custom_times[i - 1] ? d.wave_custom_times[i - 1] : '';
+    return `
+      <div style="display:flex;align-items:center;gap:10px;padding:8px 0;${i > 0 ? 'border-top:1px solid #f1f5f9;' : ''}">
+        <span style="width:60px;font-size:12px;font-weight:600;color:${isFirst ? '#4f46e5' : '#374151'}">Wave ${i + 1}</span>
+        ${isFirst
+          ? `<div style="flex:1;display:flex;align-items:center;gap:8px">
+              <input type="datetime-local" class="form-input" value="${val}" style="flex:1;font-size:12px;background:#eef2ff;border-color:#c7d2fe" disabled title="Wave 1 is aligned with delivery schedule">
+              <span style="font-size:11px;color:#4f46e5;white-space:nowrap">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;margin-right:3px"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+                Aligned with delivery schedule
+              </span>
+            </div>`
+          : `<input type="datetime-local" class="form-input" value="${val}" ${minVal ? 'min="' + minVal + '"' : ''} style="flex:1;font-size:12px" onchange="updateCustomWaveTime(${i}, this.value)">`
+        }
+      </div>`;
+  }).join('');
+
+  let validationHtml = '';
+  if (d.wave_custom_times.length > 1) {
+    const issues = [];
+    for (let i = 1; i < d.wave_custom_times.length; i++) {
+      if (d.wave_custom_times[i] && d.wave_custom_times[i - 1]) {
+        if (new Date(d.wave_custom_times[i]) <= new Date(d.wave_custom_times[i - 1])) {
+          issues.push('Wave ' + (i + 1) + ' must be after Wave ' + i);
+        }
+      }
+    }
+    if (issues.length > 0) {
+      validationHtml = `<div style="color:#ef4444;font-size:12px;margin-top:4px;display:flex;align-items:center;gap:4px">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
+        ${issues.join('; ')}
+      </div>`;
+    }
+  }
+
+  container.innerHTML = `
+    <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:14px;margin-top:8px">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+        <label class="form-label" style="margin:0;font-weight:600;font-size:13px">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#4f46e5" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:4px"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+          Custom Wave Schedule
+        </label>
+        ${!d.scheduled_at ? '<span style="font-size:11px;color:#f59e0b;display:flex;align-items:center;gap:3px"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>Set delivery schedule in Step 1 to auto-align Wave 1</span>' : ''}
+      </div>
+      <p class="form-helper" style="margin:0 0 8px;font-size:11px">Wave 1 is automatically aligned with the delivery schedule. Set specific times for subsequent waves.</p>
+      ${fieldsHtml}
+      ${validationHtml}
+    </div>`;
+}
+
+function updateCustomWaveTime(waveIndex, value) {
+  const d = deliveryWizard.data;
+  if (!d.wave_custom_times) return;
+  d.wave_custom_times[waveIndex] = value;
+  renderCustomWaveTimeFields();
+  renderWaveSchedulePreview();
+}
+
+function computeWaveDistribution() {
+  const d = deliveryWizard.data;
+  const count = d.wave_count || 3;
+  const startPct = d.wave_start_pct || 10;
+  const ramp = d.wave_ramp_type || 'linear';
+  const interval = d.wave_interval_minutes || 60;
+  const timingMode = d.wave_timing_mode || 'interval';
+  let pcts = [];
+
+  if (ramp === 'custom') {
+    const customPcts = d.wave_custom_pcts || [];
+    if (customPcts.length === count) {
+      pcts = customPcts.map(v => parseInt(v) || 0);
+    } else {
+      const eachPct = Math.floor(100 / count);
+      pcts = Array(count).fill(eachPct);
+      pcts[pcts.length - 1] += (100 - eachPct * count);
+    }
+  } else if (ramp === 'equal') {
+    const eachPct = Math.floor(100 / count);
+    pcts = Array(count).fill(eachPct);
+    pcts[pcts.length - 1] += (100 - eachPct * count);
+  } else if (ramp === 'exponential') {
+    pcts.push(startPct);
+    let remaining = 100 - startPct;
+    for (let i = 1; i < count; i++) {
+      if (i === count - 1) {
+        pcts.push(remaining);
+      } else {
+        const next = Math.min(Math.round(pcts[i - 1] * 2), remaining);
+        pcts.push(next);
+        remaining -= next;
+      }
+    }
+  } else if (ramp === 'front_loaded') {
+    const bigWave = Math.round(100 * 0.6);
+    pcts.push(bigWave);
+    const rem = 100 - bigWave;
+    const each = Math.floor(rem / (count - 1));
+    for (let i = 1; i < count; i++) {
+      pcts.push(i === count - 1 ? rem - each * (count - 2) : each);
+    }
+  } else {
+    pcts.push(startPct);
+    const remaining = 100 - startPct;
+    const step = Math.floor(remaining / (count - 1));
+    for (let i = 1; i < count; i++) {
+      pcts.push(i === count - 1 ? remaining - step * (count - 2) : step);
+    }
+  }
+
+  // Compute schedule-aware times
+  const scheduledAt = d.scheduled_at ? new Date(d.scheduled_at) : null;
+
+  if (timingMode === 'custom_times' && d.wave_custom_times && d.wave_custom_times.length === count) {
+    // Custom times mode: each wave has an explicit datetime
+    const waves = pcts.map((pct, idx) => {
+      const waveTime = d.wave_custom_times[idx] ? new Date(d.wave_custom_times[idx]) : null;
+      const offsetMinutes = (scheduledAt && waveTime) ? Math.round((waveTime - scheduledAt) / 60000) : idx * interval;
+      return {
+        wave: idx + 1,
+        pct,
+        offsetMinutes,
+        sendAt: waveTime ? waveTime.toISOString() : null,
+        sendAtFormatted: waveTime ? waveTime.toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : null
+      };
+    });
+    return waves;
+  }
+
+  // Interval mode: compute absolute send times from delivery schedule
+  const waves = pcts.map((pct, idx) => {
+    const offsetMinutes = idx * interval;
+    let sendAt = null;
+    let sendAtFormatted = null;
+    if (scheduledAt) {
+      const waveTime = new Date(scheduledAt.getTime() + offsetMinutes * 60000);
+      sendAt = waveTime.toISOString();
+      sendAtFormatted = waveTime.toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+    }
+    return { wave: idx + 1, pct, offsetMinutes, sendAt, sendAtFormatted };
+  });
+  return waves;
+}
+
+function toggleCustomWaveInputs() {
+  const d = deliveryWizard.data;
+  const container = document.getElementById('custom-wave-inputs');
+  if (!container) return;
+  const isCustom = d.wave_ramp_type === 'custom';
+  container.style.display = isCustom ? 'block' : 'none';
+  if (isCustom) renderCustomWaveFields();
+}
+
+function renderCustomWaveFields() {
+  const d = deliveryWizard.data;
+  const count = d.wave_count || 3;
+  const fieldsContainer = document.getElementById('custom-wave-fields');
+  if (!fieldsContainer) return;
+
+  // Initialize custom percentages if not set or wrong length
+  if (!d.wave_custom_pcts || d.wave_custom_pcts.length !== count) {
+    const eachPct = Math.floor(100 / count);
+    d.wave_custom_pcts = Array(count).fill(eachPct);
+    d.wave_custom_pcts[count - 1] += (100 - eachPct * count);
+  }
+
+  fieldsContainer.innerHTML = d.wave_custom_pcts.map((pct, i) => `
+    <div style="display:flex;flex-direction:column;align-items:center;gap:4px;min-width:70px">
+      <label style="font-size:11px;color:#6b7280;font-weight:500">Wave ${i + 1}</label>
+      <div style="position:relative;display:flex;align-items:center">
+        <input type="number" min="1" max="100" value="${pct}"
+          class="form-input" style="width:65px;text-align:center;padding-right:20px;font-weight:600"
+          onchange="updateCustomWavePct(${i}, this.value)"
+          oninput="validateCustomWaveTotal()">
+        <span style="position:absolute;right:8px;color:#6b7280;font-size:12px;pointer-events:none">%</span>
+      </div>
+    </div>
+  `).join('');
+
+  validateCustomWaveTotal();
+}
+
+function updateCustomWavePct(index, value) {
+  const d = deliveryWizard.data;
+  const val = parseInt(value) || 0;
+  if (!d.wave_custom_pcts) return;
+  d.wave_custom_pcts[index] = Math.max(1, Math.min(99, val));
+  validateCustomWaveTotal();
+  renderWaveSchedulePreview();
+}
+
+function validateCustomWaveTotal() {
+  const d = deliveryWizard.data;
+  if (!d.wave_custom_pcts) return;
+  const total = d.wave_custom_pcts.reduce((s, v) => s + (parseInt(v) || 0), 0);
+  const badge = document.getElementById('custom-wave-total');
+  const errorDiv = document.getElementById('custom-wave-error');
+
+  if (badge) {
+    badge.textContent = 'Total: ' + total + '%';
+    if (total === 100) {
+      badge.className = 'badge badge-success';
+      badge.style.cssText = 'font-size:12px;background:#dcfce7;color:#166534;border:1px solid #86efac';
+    } else if (total > 100) {
+      badge.className = 'badge badge-danger';
+      badge.style.cssText = 'font-size:12px;background:#fef2f2;color:#991b1b;border:1px solid #fca5a5';
+    } else {
+      badge.className = 'badge badge-warning';
+      badge.style.cssText = 'font-size:12px;background:#fffbeb;color:#92400e;border:1px solid #fcd34d';
+    }
+  }
+
+  if (errorDiv) {
+    if (total !== 100) {
+      errorDiv.style.display = 'block';
+      errorDiv.textContent = total > 100
+        ? 'Total exceeds 100%. Please reduce wave percentages by ' + (total - 100) + '%.'
+        : 'Total is only ' + total + '%. Please add ' + (100 - total) + '% more across waves.';
+    } else {
+      errorDiv.style.display = 'none';
+    }
+  }
+}
+
+function formatDuration(minutes) {
+  if (minutes === 0) return 'Immediately';
+  if (minutes < 60) return minutes + ' min';
+  const totalHours = Math.floor(minutes / 60);
+  const m = minutes % 60;
+  if (totalHours < 24) {
+    return m === 0 ? totalHours + 'h' : totalHours + 'h ' + m + 'min';
+  }
+  const days = Math.floor(totalHours / 24);
+  const h = totalHours % 24;
+  let result = days + (days === 1 ? ' day' : ' days');
+  if (h > 0) result += ' ' + h + 'h';
+  if (m > 0) result += ' ' + m + 'min';
+  return result;
+}
+
+function getEstimatedAudienceSize() {
+  const d = deliveryWizard.data;
+  const segments = deliveryWizard.lists.segments || [];
+  const audiences = deliveryWizard.lists.audiences || [];
+  const seg = segments.find(s => s.id == d.segment_id);
+  const aud = audiences.find(a => a.id == d.audience_id);
+  return seg?.size || seg?.population || aud?.size || aud?.population || 0;
+}
+
+function renderWaveSchedulePreview() {
+  const container = document.getElementById('wave-schedule-preview');
+  if (!container) return;
+  const waves = computeWaveDistribution();
+  const totalMinutes = waves.length > 1 ? waves[waves.length - 1].offsetMinutes : 0;
+  const maxPct = Math.max(...waves.map(w => w.pct));
+  const audienceSize = getEstimatedAudienceSize();
+  const hasSchedule = !!deliveryWizard.data.scheduled_at;
+  const isCustomTimes = deliveryWizard.data.wave_timing_mode === 'custom_times';
+
+  const barsHtml = waves.map(w => {
+    const barHeight = Math.max(8, Math.round((w.pct / maxPct) * 60));
+    const color = w.wave === 1 ? 'var(--color-primary, #6366f1)' : `hsl(${230 + (w.wave - 1) * 25}, 60%, ${55 + (w.wave - 1) * 5}%)`;
+    const recipientCount = audienceSize > 0 ? Math.round(audienceSize * w.pct / 100) : 0;
+    const timeLabel = w.sendAtFormatted
+      ? w.sendAtFormatted
+      : (w.wave === 1 ? 'Start' : '+' + formatDuration(w.offsetMinutes));
+    return `
+      <div style="display:flex;flex-direction:column;align-items:center;flex:1;gap:4px">
+        <span style="font-size:11px;font-weight:600;color:var(--text-primary, #1e293b)">${w.pct}%</span>
+        ${audienceSize > 0 ? `<span style="font-size:10px;color:#4f46e5;font-weight:600">${recipientCount.toLocaleString()}</span>` : ''}
+        <div style="width:100%;max-width:48px;height:${barHeight}px;background:${color};border-radius:4px 4px 0 0;transition:height 0.3s"></div>
+        <div style="font-size:10px;font-weight:600;color:var(--text-secondary, #64748b)">Wave ${w.wave}</div>
+        <div style="font-size:9px;color:var(--text-tertiary, #94a3b8);text-align:center;max-width:80px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${timeLabel}">${timeLabel}</div>
+      </div>
+    `;
+  }).join('');
+
+  // Schedule alignment notice
+  let scheduleNotice = '';
+  if (hasSchedule) {
+    const schedTime = new Date(deliveryWizard.data.scheduled_at).toLocaleString(undefined, { weekday: 'short', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+    scheduleNotice = `<div style="display:flex;align-items:center;gap:8px;margin-top:8px;padding:8px 12px;background:#f0fdf4;border-radius:6px;border:1px solid #86efac">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#10b981" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+      <span style="font-size:12px;color:#15803d"><strong>Wave 1 starts:</strong> ${schedTime} (aligned with delivery schedule)</span>
+    </div>`;
+  } else {
+    scheduleNotice = `<div style="display:flex;align-items:center;gap:8px;margin-top:8px;padding:8px 12px;background:#fffbeb;border-radius:6px;border:1px solid #fcd34d">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#d97706" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
+      <span style="font-size:12px;color:#92400e">Set a delivery schedule (Step 1) to see actual send times per wave.</span>
+    </div>`;
+  }
+
+  const audienceNotice = audienceSize > 0 ? `<div style="display:flex;align-items:center;gap:8px;margin-top:8px;padding:8px 12px;background:#eef2ff;border-radius:6px;border:1px solid #c7d2fe">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#4f46e5" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+    <span style="font-size:12px;color:#3730a3"><strong>${audienceSize.toLocaleString()}</strong> total recipients across <strong>${waves.length}</strong> waves</span>
+  </div>` : '';
+
+  container.innerHTML = `
+    <div style="background:var(--bg-secondary, #f8fafc);border:1px solid var(--border-default, #e2e8f0);border-radius:8px;padding:16px">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+        <span style="font-size:12px;font-weight:600;color:var(--text-primary, #1e293b)">Wave Schedule Preview</span>
+        <span style="font-size:11px;color:var(--text-secondary, #64748b)">${isCustomTimes ? 'Custom schedule' : 'Total duration: ' + formatDuration(totalMinutes)}</span>
+      </div>
+      <div style="display:flex;align-items:flex-end;gap:8px;padding:8px 0">
+        ${barsHtml}
+      </div>
+      ${scheduleNotice}
+      ${audienceNotice}
+      <div style="border-top:1px solid var(--border-default, #e2e8f0);margin-top:12px;padding-top:12px">
+        <table style="width:100%;font-size:12px;border-collapse:collapse">
+          <thead>
+            <tr style="text-align:left;color:var(--text-secondary, #64748b)">
+              <th style="padding:4px 8px;font-weight:600">Wave</th>
+              <th style="padding:4px 8px;font-weight:600">% of Audience</th>
+              ${audienceSize > 0 ? '<th style="padding:4px 8px;font-weight:600">Recipients</th>' : ''}
+              <th style="padding:4px 8px;font-weight:600">Send Time</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${waves.map(w => {
+              const count = audienceSize > 0 ? Math.round(audienceSize * w.pct / 100) : 0;
+              const timeCell = w.sendAtFormatted
+                ? `<span style="color:#1e293b;font-weight:500">${w.sendAtFormatted}</span>${w.wave === 1 ? ' <span style="font-size:10px;color:#10b981;font-weight:500">(scheduled)</span>' : ''}`
+                : `<span style="color:var(--text-secondary, #64748b)">${w.wave === 1 ? 'At scheduled time' : '+' + formatDuration(w.offsetMinutes)}</span>`;
+              return `<tr style="border-top:1px solid var(--border-default, #e5e7eb)">
+                <td style="padding:6px 8px;font-weight:600">${w.wave === 1 ? '<span style="display:inline-flex;align-items:center;gap:4px">Wave 1 <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#10b981" stroke-width="2"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg></span>' : 'Wave ' + w.wave}</td>
+                <td style="padding:6px 8px"><span style="background:#e0e7ff;color:#3730a3;padding:2px 8px;border-radius:10px;font-weight:600">${w.pct}%</span></td>
+                ${audienceSize > 0 ? '<td style="padding:6px 8px;font-weight:600;color:#4f46e5">' + count.toLocaleString() + '</td>' : ''}
+                <td style="padding:6px 8px">${timeCell}</td>
+              </tr>`;
+            }).join('')}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  `;
 }
 
 function sendDeliveryNow() {
@@ -1159,12 +2230,33 @@ function prevDeliveryStep() {
 }
 
 function nextDeliveryStep() {
+  if (!validateDeliveryStep(deliveryWizard.currentStep)) return;
   if (deliveryWizard.currentStep < 5) {
     deliveryWizard.currentStep += 1;
     renderDeliveryWizard();
   } else {
     publishDelivery();
   }
+}
+
+function validateDeliveryStep(step) {
+  if (step === 1) {
+    const name = (deliveryWizard.data.name || '').trim();
+    if (!name) {
+      showToast('Delivery name is required', 'error');
+      const nameInput = document.querySelector('#delivery-step-content .form-input');
+      if (nameInput) {
+        nameInput.classList.add('input-error');
+        nameInput.focus();
+        nameInput.addEventListener('input', function handler() {
+          nameInput.classList.remove('input-error');
+          nameInput.removeEventListener('input', handler);
+        });
+      }
+      return false;
+    }
+  }
+  return true;
 }
 
 async function openSegmentBuilder() {
@@ -1175,7 +2267,8 @@ async function openSegmentBuilder() {
     showToast('Save delivery draft before creating a segment', 'warning');
     return;
   }
-  const url = `/segment-builder.html?return=deliveries&deliveryId=${encodeURIComponent(deliveryWizard.deliveryId)}`;
+  const defaultName = (deliveryWizard.data && deliveryWizard.data.name) ? String(deliveryWizard.data.name).trim() : '';
+  const url = `/segment-builder.html?return=deliveries&deliveryId=${encodeURIComponent(deliveryWizard.deliveryId)}${defaultName ? '&defaultName=' + encodeURIComponent(defaultName) : ''}`;
   window.open(url, '_blank');
 }
 
@@ -1697,7 +2790,40 @@ function buildTestProfilePickerHtml() {
   `;
 }
 
+async function goBackToWorkflow() {
+  const from = deliveryWizard.fromWorkflow;
+  if (!from || !from.workflowId) {
+    loadDeliveries();
+    return;
+  }
+  if (!deliveryWizard.deliveryId) {
+    await saveDeliveryDraft();
+    if (!deliveryWizard.deliveryId) {
+      showToast('Save the delivery first, then use Back to Workflow', 'warning');
+      return;
+    }
+  }
+  const payload = {
+    workflowId: from.workflowId,
+    nodeId: from.nodeId,
+    deliveryId: deliveryWizard.deliveryId,
+    deliveryName: (deliveryWizard.data && deliveryWizard.data.name) || ''
+  };
+  try {
+    localStorage.setItem('workflowDeliverySelection', JSON.stringify(payload));
+    const base = window.location.pathname.replace(/\/index\.html$/, '') || '';
+    window.location.href = `${base}/orchestration.html?workflowId=${encodeURIComponent(from.workflowId)}`;
+  } catch (e) {
+    showToast('Could not return to workflow', 'error');
+  }
+}
+
 async function saveDeliveryDraft() {
+  // Capture folder selection from form if on step 1
+  if (typeof getSelectedFolderId === 'function') {
+    const fid = getSelectedFolderId('delivery-folder-id');
+    if (fid !== undefined) deliveryWizard.folder_id = fid;
+  }
   const contentBlocks = deliveryWizard.data.ab_test_enabled ? deliveryWizard.blocksByVariant : deliveryWizard.blocks;
   const htmlOutput = deliveryWizard.data.ab_test_enabled ? {
     A: generateEmailHtml(deliveryWizard.blocksByVariant.A || []),
@@ -1705,6 +2831,7 @@ async function saveDeliveryDraft() {
   } : (deliveryWizard.data.html_output || generateEmailHtml(deliveryWizard.blocks));
   const payload = {
     ...deliveryWizard.data,
+    folder_id: deliveryWizard.folder_id || null,
     status: 'draft',
     wizard_step: deliveryWizard.currentStep,
     last_saved_step: deliveryWizard.currentStep,
@@ -2604,7 +3731,7 @@ async function approveDelivery(id) {
   }
 }
 
-async function showDeliveryReport(id) {
+async function showDeliveryReport(id, fromWorkflowId) {
   try {
     showLoading();
     const response = await fetch(`/api/deliveries/${id}/report`);
@@ -2624,41 +3751,56 @@ async function showDeliveryReport(id) {
 
     const statusBadge = '<span class="badge badge-' + ({completed:'success','in-progress':'info',draft:'secondary',scheduled:'warning',paused:'warning',stopped:'danger',failed:'danger'}[d.status] || 'secondary') + '">' + d.status + '</span>';
 
+    const backAction = fromWorkflowId
+      ? `showWorkflowReport(${fromWorkflowId})`
+      : `loadDeliveries()`;
+    const backTitle = fromWorkflowId ? 'Back to Workflow Report' : 'Back to Deliveries';
+    const wfBackBtn = fromWorkflowId
+      ? `<button class="btn btn-secondary btn-sm" onclick="showWorkflowReport(${fromWorkflowId})" style="display:inline-flex;align-items:center;gap:4px">${BACK_CHEVRON} Workflow Report</button>`
+      : '';
+
     // ── Header ──
     let html = `
     <div class="rpt-page">
       <div class="rpt-header card">
         <div class="rpt-header-left">
-          <button class="btn-back" onclick="loadDeliveries()" title="Back">${BACK_CHEVRON}</button>
+          <button class="btn-back" onclick="${backAction}" title="${backTitle}">${BACK_CHEVRON}</button>
           <div>
             <div class="rpt-header-title">${channelIcon} ${d.name}</div>
             <div class="rpt-header-sub">${d.channel} Delivery Report ${statusBadge} ${d.sent_at ? '&middot; Sent ' + new Date(d.sent_at).toLocaleString() : ''}</div>
-        </div>
           </div>
+        </div>
         <div class="rpt-header-actions">
+          ${wfBackBtn}
+          <button class="btn btn-primary btn-sm" onclick="showDeliveryHeatmap(${id}${fromWorkflowId ? ', ' + fromWorkflowId : ''})">
+            ${_afIco('<rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/>', 14)} Hotclicks
+          </button>
           <button class="btn btn-secondary btn-sm" onclick="exportDeliveryCSV(${id})">
             ${_afIco('<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>', 14)} Export CSV
           </button>
-            </div>
-          </div>
+        </div>
+      </div>
 
-    <!-- Tab Nav -->
+    <!-- Tab Nav – Adobe Campaign v8 style -->
     <div class="rpt-tabs">
       <button class="rpt-tab active" data-tab="summary" onclick="switchDeliveryReportTab(this,'summary')">
         ${_afIco('<line x1="12" x2="12" y1="20" y2="10"/><line x1="18" x2="18" y1="20" y2="4"/><line x1="6" x2="6" y1="20" y2="16"/>', 14)} Delivery Summary
       </button>
       <button class="rpt-tab" data-tab="tracking" onclick="switchDeliveryReportTab(this,'tracking')">
-        ${_afIco('<polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>', 14)} Tracking
+        ${_afIco('<polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>', 14)} Tracking Indicators
       </button>`;
 
     if (ch === 'email') {
       html += `<button class="rpt-tab" data-tab="urls" onclick="switchDeliveryReportTab(this,'urls')">
         ${_afIco('<path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>', 14)} URLs &amp; Click Streams
+      </button>
+      <button class="rpt-tab" data-tab="user-activities" onclick="switchDeliveryReportTab(this,'user-activities')">
+        ${_afIco('<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>', 14)} User Activities
       </button>`;
     }
 
-    html += `<button class="rpt-tab" data-tab="exclusions" onclick="switchDeliveryReportTab(this,'exclusions')">
-        ${_afIco('<circle cx="12" cy="12" r="10"/><path d="m4.9 4.9 14.2 14.2"/>', 14)} Exclusions
+    html += `<button class="rpt-tab" data-tab="non-deliverables" onclick="switchDeliveryReportTab(this,'non-deliverables')">
+        ${_afIco('<path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><path d="M12 9v4"/><path d="M12 17h.01"/>', 14)} Non-deliverables
       </button>
       <button class="rpt-tab" data-tab="throughput" onclick="switchDeliveryReportTab(this,'throughput')">
         ${_afIco('<path d="M13 2 3 14h9l-1 8 10-12h-9l1-8z"/>', 14)} Throughput
@@ -2697,8 +3839,12 @@ async function showDeliveryReport(id) {
     }
     html += '</div>';
 
-    // Targeted population
-    html += `<div class="rpt-section-title">Targeted Population</div>
+    // Engagement Timeline (in summary – Adobe Campaign v8 style)
+    html += '<div class="rpt-section-title">Delivery Statistics</div>';
+    html += '<div class="card"><div class="card-body"><canvas id="drpt-engagement-chart" style="max-height:280px;width:100%"></canvas></div></div>';
+
+    // Targeted population (Adobe Campaign v8: Initial target population)
+    html += `<div class="rpt-section-title">Initial Target Population</div>
       <div class="rpt-stats-table">
         <table><thead><tr><th></th><th>Count</th><th>Percentage</th></tr></thead><tbody>
           <tr><td>Initial target</td><td>${(rpt.summary.targeted || 0).toLocaleString()}</td><td>100%</td></tr>
@@ -2716,6 +3862,26 @@ async function showDeliveryReport(id) {
           <tr class="rpt-row-warning"><td>New quarantine</td><td>${(rpt.summary.new_quarantine || 0).toLocaleString()}</td><td>${m.sent > 0 ? ((rpt.summary.new_quarantine / m.sent) * 100).toFixed(1) : 0}%</td></tr>
         </tbody></table>
       </div>`;
+
+    // Causes of Exclusion (Adobe Campaign v8 style)
+    html += '<div class="rpt-section-title">Causes of Exclusion</div>';
+    if (rpt.exclusions && rpt.exclusions.length > 0) {
+      html += '<div class="rpt-grid-2"><div class="card"><div class="card-body"><canvas id="drpt-exclusion-chart" style="max-height:240px;width:100%"></canvas></div></div>';
+      html += '<div class="rpt-stats-table"><table><thead><tr><th>Reason</th><th>Count</th><th>Percentage</th></tr></thead><tbody>';
+      rpt.exclusions.forEach(function(e) { html += '<tr><td>' + e.reason + '</td><td>' + e.count.toLocaleString() + '</td><td>' + e.pct + '%</td></tr>'; });
+      html += '</tbody></table></div></div>';
+    } else {
+      html += '<div style="text-align:center;padding:2rem;color:#94a3b8">No exclusions</div>';
+    }
+
+    // Broadcast Statistics (Adobe Campaign v8 – per-domain)
+    if (ch === 'email' && rpt.broadcast_stats && rpt.broadcast_stats.length > 0) {
+      html += '<div class="rpt-section-title">Broadcast Statistics</div><div class="rpt-stats-table"><table><thead><tr><th>Domain</th><th>Processed</th><th>Delivered</th><th>Hard Bounces</th><th>Soft Bounces</th><th>Opens</th><th>Clicks</th><th>Unsubs</th></tr></thead><tbody>';
+      rpt.broadcast_stats.forEach(function(bs) {
+        html += '<tr><td><strong>' + bs.domain + '</strong></td><td>' + bs.processed.toLocaleString() + '</td><td>' + bs.delivered_pct + '%</td><td>' + bs.hard_bounces_pct + '%</td><td>' + bs.soft_bounces_pct + '%</td><td>' + bs.opens_pct + '%</td><td>' + bs.clicks_pct + '%</td><td>' + bs.unsubs_pct + '%</td></tr>';
+      });
+      html += '</tbody></table></div>';
+    }
 
     // Channel specific sections inside summary
     if (ch === 'sms' && cd.carrier_breakdown) {
@@ -2742,31 +3908,76 @@ async function showDeliveryReport(id) {
 
     html += '</div>'; // end summary tab
 
-    // ═══════ TAB: Tracking ═══════
+    // ═══════ TAB: Tracking Indicators (Adobe Campaign v8) ═══════
     html += '<div class="rpt-tab-content" id="rpt-tab-tracking" style="display:none">';
-    html += '<div class="rpt-section-title">Engagement Timeline</div>';
-    html += '<div class="card"><div class="card-body"><canvas id="drpt-engagement-chart" style="max-height:280px;width:100%"></canvas></div></div>';
+
+    // Delivery Statistics KPIs
+    html += '<div class="rpt-section-title">Delivery Statistics</div>';
+    html += '<div class="rpt-kpi-grid rpt-kpi-sm">';
+    html += _rptKpi('Success', m.delivered.toLocaleString(), r.delivery_rate + '% of sent', '<path d="M20 6 9 17l-5-5"/>');
+    html += _rptKpi('Distinct Opens', (cd.unique_opens || Math.round(m.opens * 0.72)).toLocaleString(), '', '<path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/>');
+    html += _rptKpi('Opens', m.opens.toLocaleString(), r.open_rate + '% open rate', '<path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/>');
+    html += _rptKpi('Opt-out Clicks', m.unsubscribed.toLocaleString(), r.unsubscribe_rate + '%', '<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="22" x2="16" y1="11" y2="11"/>');
+    html += _rptKpi('Mirror Link', (cd.mirror_page || Math.round(m.opens * 0.03)).toLocaleString(), '', '<rect width="18" height="18" x="3" y="3" rx="2"/><path d="M3 9h18"/>');
+    html += _rptKpi('Forwards', (cd.forwards || Math.round(m.opens * 0.02)).toLocaleString(), 'Estimation', '<path d="m22 2-7 20-4-9-9-4 20-7z"/>');
+    html += '</div>';
+
+    // Open and click-through rate table (Adobe Campaign v8)
+    if (rpt.open_click_rate) {
+      const ocr = rpt.open_click_rate;
+      html += '<div class="rpt-section-title">Open and Click-through Rate</div>';
+      html += '<div class="rpt-stats-table"><table><thead><tr><th>Metric</th><th>Value</th><th>Percentage</th></tr></thead><tbody>';
+      html += '<tr><td>Sent</td><td>' + ocr.sent.toLocaleString() + '</td><td>—</td></tr>';
+      html += '<tr><td>Complaints</td><td>' + ocr.complaints.toLocaleString() + '</td><td>' + (ocr.sent > 0 ? ((ocr.complaints / ocr.sent) * 100).toFixed(2) : 0) + '%</td></tr>';
+      html += '<tr><td>Opens</td><td>' + ocr.opens.toLocaleString() + '</td><td>' + r.open_rate + '%</td></tr>';
+      html += '<tr><td>Clicks</td><td>' + ocr.clicks.toLocaleString() + '</td><td>' + r.click_rate + '%</td></tr>';
+      html += '<tr class="rpt-row-highlight"><td><strong>Raw Reactivity</strong></td><td>—</td><td><strong>' + ocr.raw_reactivity + '%</strong></td></tr>';
+      html += '</tbody></table></div>';
+    }
+
+    // Tracking Statistics chart
+    html += '<div class="rpt-section-title">Tracking Statistics</div>';
+    html += '<div class="card"><div class="card-body"><canvas id="drpt-tracking-stats-chart" style="max-height:280px;width:100%"></canvas></div></div>';
 
     if (ch === 'email') {
-      // Reaction statistics
-      html += `<div class="rpt-section-title">Reaction Statistics</div>
-        <div class="rpt-kpi-grid rpt-kpi-sm">
-          ${_rptKpi('Unique Opens', (cd.unique_opens || 0).toLocaleString(), '', '<path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/>')}
-          ${_rptKpi('Total Opens', (cd.total_opens || 0).toLocaleString(), '', '<path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/>')}
-          ${_rptKpi('Unique Clicks', (cd.unique_clicks || 0).toLocaleString(), '', '<path d="m3 3 7.07 16.97 2.51-7.39 7.39-2.51L3 3z"/><path d="m13 13 6 6"/>')}
-          ${_rptKpi('Total Clicks', (cd.total_clicks || 0).toLocaleString(), '', '<path d="m3 3 7.07 16.97 2.51-7.39 7.39-2.51L3 3z"/><path d="m13 13 6 6"/>')}
-          ${_rptKpi('Forwards', (cd.forwards || 0).toLocaleString(), '', '<path d="m22 2-7 20-4-9-9-4 20-7z"/>')}
-          ${_rptKpi('Mirror Page', (cd.mirror_page || 0).toLocaleString(), '', '<rect width="18" height="18" x="3" y="3" rx="2"/><path d="M3 9h18"/>')}
-          ${_rptKpi('Unsubscriptions', m.unsubscribed.toLocaleString(), r.unsubscribe_rate + '%', '<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="22" x2="16" y1="11" y2="11"/>')}
-        </div>`;
+      // Breakdown of Opens (Adobe Campaign v8)
+      html += '<div class="rpt-section-title">Breakdown of Opens</div>';
+      html += '<div class="rpt-grid-3">';
 
-      // Device & mail client
-      html += '<div class="rpt-grid-2"><div>';
-      html += '<div class="rpt-section-title">Device Breakdown</div><div class="card"><div class="card-body"><canvas id="drpt-device-chart" style="max-height:240px;width:100%"></canvas></div></div>';
-      html += '</div><div>';
+      // By Device
+      html += '<div><div class="rpt-sub-title">By Device</div><div class="card"><div class="card-body"><canvas id="drpt-device-chart" style="max-height:200px;width:100%"></canvas></div></div>';
+      if (cd.device_breakdown) {
+        html += '<div class="rpt-mini-table"><table><tbody>';
+        html += '<tr><td>Desktop</td><td>' + (cd.device_breakdown.desktop || 0).toLocaleString() + '</td><td>' + (m.opens > 0 ? ((cd.device_breakdown.desktop / m.opens) * 100).toFixed(1) : 0) + '%</td></tr>';
+        html += '<tr><td>Mobile</td><td>' + (cd.device_breakdown.mobile || 0).toLocaleString() + '</td><td>' + (m.opens > 0 ? ((cd.device_breakdown.mobile / m.opens) * 100).toFixed(1) : 0) + '%</td></tr>';
+        html += '<tr><td>Tablet</td><td>' + (cd.device_breakdown.tablet || 0).toLocaleString() + '</td><td>' + (m.opens > 0 ? ((cd.device_breakdown.tablet / m.opens) * 100).toFixed(1) : 0) + '%</td></tr>';
+        html += '</tbody></table></div>';
+      }
+      html += '</div>';
+
+      // By OS
+      html += '<div><div class="rpt-sub-title">By OS</div><div class="card"><div class="card-body"><canvas id="drpt-os-chart" style="max-height:200px;width:100%"></canvas></div></div>';
+      if (rpt.os_breakdown && rpt.os_breakdown.length > 0) {
+        html += '<div class="rpt-mini-table"><table><tbody>';
+        rpt.os_breakdown.forEach(function(o) { html += '<tr><td>' + o.os + '</td><td>' + o.count.toLocaleString() + '</td><td>' + o.pct + '%</td></tr>'; });
+        html += '</tbody></table></div>';
+      }
+      html += '</div>';
+
+      // By Browser
+      html += '<div><div class="rpt-sub-title">By Browser</div><div class="card"><div class="card-body"><canvas id="drpt-browser-chart" style="max-height:200px;width:100%"></canvas></div></div>';
+      if (rpt.browser_breakdown && rpt.browser_breakdown.length > 0) {
+        html += '<div class="rpt-mini-table"><table><tbody>';
+        rpt.browser_breakdown.forEach(function(b) { html += '<tr><td>' + b.browser + '</td><td>' + b.count.toLocaleString() + '</td><td>' + b.pct + '%</td></tr>'; });
+        html += '</tbody></table></div>';
+      }
+      html += '</div>';
+      html += '</div>'; // end rpt-grid-3
+
+      // Mail Client
       html += '<div class="rpt-section-title">Mail Client</div><div class="rpt-stats-table"><table><thead><tr><th>Client</th><th>Share</th></tr></thead><tbody>';
       (cd.mail_clients || []).forEach(function(c) { html += '<tr><td>' + c.client + '</td><td><div class="rpt-bar-row"><div class="rpt-bar" style="width:' + c.pct + '%"></div><span>' + c.pct + '%</span></div></td></tr>'; });
-      html += '</tbody></table></div></div></div>';
+      html += '</tbody></table></div>';
 
       // Geo
       html += '<div class="rpt-section-title">Geographic Performance</div><div class="rpt-stats-table"><table><thead><tr><th>Country</th><th>Opens</th><th>Clicks</th></tr></thead><tbody>';
@@ -2811,38 +4022,91 @@ async function showDeliveryReport(id) {
     html += '</tbody></table></div></div>';
     html += '</div>'; // end tracking tab
 
-    // ═══════ TAB: URLs & Click Streams (email only) ═══════
+    // ═══════ TAB: URLs & Click Streams (email only – Adobe Campaign v8) ═══════
     if (ch === 'email') {
       html += '<div class="rpt-tab-content" id="rpt-tab-urls" style="display:none">';
-      html += '<div class="rpt-section-title">Top Visited Links</div>';
+
+      // Reactivity KPIs
+      const uniqueClicks = cd.unique_clicks || Math.round(m.clicks * 0.68);
+      const reactivity = (cd.unique_opens || m.opens) > 0 ? ((uniqueClicks / (cd.unique_opens || m.opens)) * 100).toFixed(2) : '0.00';
+      html += '<div class="rpt-kpi-grid rpt-kpi-sm">';
+      html += _rptKpi('Reactivity', reactivity + '%', 'Clicks / Opens', '<circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/>');
+      html += _rptKpi('Distinct Clicks', uniqueClicks.toLocaleString(), '', '<path d="m3 3 7.07 16.97 2.51-7.39 7.39-2.51L3 3z"/><path d="m13 13 6 6"/>');
+      html += _rptKpi('Clicks', m.clicks.toLocaleString(), 'Total cumulated', '<path d="m3 3 7.07 16.97 2.51-7.39 7.39-2.51L3 3z"/><path d="m13 13 6 6"/>');
+      html += '</div>';
+
+      // Top 10 Most Visited Links
+      html += '<div class="rpt-section-title">Top 10 Most Visited Links</div>';
       if (cd.top_links && cd.top_links.length > 0) {
-        cd.top_links.forEach(function(lk) {
-          html += '<div class="rpt-link-item"><div class="rpt-link-header"><span class="rpt-link-url">' + lk.url + '</span><span class="rpt-link-clicks">' + lk.clicks.toLocaleString() + ' clicks</span></div><div class="rpt-link-bar-bg"><div class="rpt-link-bar" style="width:' + lk.percentage + '%"></div></div></div>';
+        html += '<div class="rpt-stats-table"><table><thead><tr><th>Link</th><th>Clicks</th><th>Percentage</th></tr></thead><tbody>';
+        cd.top_links.forEach(function(lk, idx) {
+          html += '<tr><td><span class="rpt-link-rank">' + (idx + 1) + '</span> ' + lk.url + '</td><td>' + lk.clicks.toLocaleString() + '</td><td><div class="rpt-bar-row"><div class="rpt-bar" style="width:' + lk.percentage + '%"></div><span>' + lk.percentage + '%</span></div></td></tr>';
         });
+        html += '</tbody></table></div>';
       } else {
         html += '<div style="text-align:center;padding:2rem;color:#94a3b8">No link data available</div>';
       }
+
+      // Breakdown of clicks over time
+      html += '<div class="rpt-section-title">Breakdown of Clicks Over Time</div>';
+      html += '<div class="card"><div class="card-body"><canvas id="drpt-clicks-over-time-chart" style="max-height:240px;width:100%"></canvas></div></div>';
+      html += '</div>'; // end urls tab
+    }
+
+    // ═══════ TAB: User Activities (email only – Adobe Campaign v8) ═══════
+    if (ch === 'email') {
+      html += '<div class="rpt-tab-content" id="rpt-tab-user-activities" style="display:none">';
+      html += '<div class="rpt-section-title">User Activities</div>';
+      html += '<div class="rpt-time-selector">';
+      html += '<button class="rpt-time-btn active" onclick="switchUserActivityPeriod(this,\'24h\')">Last 24 hours</button>';
+      html += '<button class="rpt-time-btn" onclick="switchUserActivityPeriod(this,\'6h\')">Last 6 hours</button>';
+      html += '<button class="rpt-time-btn" onclick="switchUserActivityPeriod(this,\'1h\')">Last hour</button>';
       html += '</div>';
+      html += '<div class="card"><div class="card-body"><canvas id="drpt-user-activities-chart" style="max-height:300px;width:100%"></canvas></div></div>';
+      html += '<div class="rpt-grid-2" style="margin-top:16px">';
+      html += '<div class="rpt-kpi-grid rpt-kpi-sm">';
+      html += _rptKpi('Total Opens', m.opens.toLocaleString(), '', '<path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/>');
+      html += _rptKpi('Total Clicks', m.clicks.toLocaleString(), '', '<path d="m3 3 7.07 16.97 2.51-7.39 7.39-2.51L3 3z"/><path d="m13 13 6 6"/>');
+      html += '</div></div>';
+      html += '</div>'; // end user activities tab
     }
 
-    // ═══════ TAB: Exclusions ═══════
-    html += '<div class="rpt-tab-content" id="rpt-tab-exclusions" style="display:none">';
-    html += '<div class="rpt-section-title">Causes of Exclusion</div>';
-    if (rpt.exclusions && rpt.exclusions.length > 0) {
-      html += '<div class="rpt-stats-table"><table><thead><tr><th>Reason</th><th>Count</th><th>Percentage</th></tr></thead><tbody>';
-      rpt.exclusions.forEach(function(e) { html += '<tr><td>' + e.reason + '</td><td>' + e.count.toLocaleString() + '</td><td>' + e.pct + '%</td></tr>'; });
-      html += '</tbody></table></div>';
+    // ═══════ TAB: Non-deliverables (Adobe Campaign v8) ═══════
+    html += '<div class="rpt-tab-content" id="rpt-tab-non-deliverables" style="display:none">';
+
+    // Breakdown of errors per type
+    html += '<div class="rpt-section-title">Breakdown of Errors per Type</div>';
+    if (rpt.non_deliverables && rpt.non_deliverables.errors_by_type && rpt.non_deliverables.errors_by_type.length > 0) {
+      html += '<div class="rpt-grid-2"><div class="card"><div class="card-body"><canvas id="drpt-errors-type-chart" style="max-height:240px;width:100%"></canvas></div></div>';
+      html += '<div class="rpt-stats-table"><table><thead><tr><th>Error Type</th><th>Count</th><th>Percentage</th></tr></thead><tbody>';
+      rpt.non_deliverables.errors_by_type.forEach(function(e) {
+        html += '<tr><td>' + e.type + '</td><td>' + e.count.toLocaleString() + '</td><td>' + e.pct + '%</td></tr>';
+      });
+      html += '</tbody></table></div></div>';
     } else {
-      html += '<div style="text-align:center;padding:2rem;color:#94a3b8">No exclusions</div>';
+      html += '<div style="text-align:center;padding:2rem;color:#94a3b8">No delivery errors</div>';
     }
 
-    // Error categories (SMS & Push)
+    // Breakdown of errors per domain
+    html += '<div class="rpt-section-title">Breakdown of Errors per Domain</div>';
+    if (rpt.non_deliverables && rpt.non_deliverables.errors_by_domain && rpt.non_deliverables.errors_by_domain.length > 0) {
+      html += '<div class="rpt-grid-2"><div class="card"><div class="card-body"><canvas id="drpt-errors-domain-chart" style="max-height:240px;width:100%"></canvas></div></div>';
+      html += '<div class="rpt-stats-table rpt-compact-table"><table><thead><tr><th>Domain</th><th title="User Unknown">Unknown</th><th title="Invalid Domain">Invalid</th><th title="Mailbox Full">Full</th><th>Refused</th><th title="Unreachable">Unreach.</th><th>Total</th></tr></thead><tbody>';
+      rpt.non_deliverables.errors_by_domain.forEach(function(e) {
+        html += '<tr><td><strong>' + e.domain + '</strong></td><td>' + e.user_unknown + '</td><td>' + e.invalid_domain + '</td><td>' + e.mailbox_full + '</td><td>' + e.refused + '</td><td>' + e.unreachable + '</td><td><strong>' + e.total + '</strong></td></tr>';
+      });
+      html += '</tbody></table></div></div>';
+    } else {
+      html += '<div style="text-align:center;padding:2rem;color:#94a3b8">No domain-level error data</div>';
+    }
+
+    // Error categories for SMS & Push
     if ((ch === 'sms' || ch === 'push') && cd.error_categories && cd.error_categories.length > 0) {
       html += '<div class="rpt-section-title">Error Breakdown</div><div class="rpt-stats-table"><table><thead><tr><th>Error Type</th><th>Count</th><th>Share</th></tr></thead><tbody>';
       cd.error_categories.forEach(function(e) { html += '<tr><td>' + e.reason + '</td><td>' + e.count.toLocaleString() + '</td><td>' + e.pct + '%</td></tr>'; });
       html += '</tbody></table></div>';
     }
-    html += '</div>'; // end exclusions tab
+    html += '</div>'; // end non-deliverables tab
 
     // ═══════ TAB: Throughput ═══════
     html += '<div class="rpt-tab-content" id="rpt-tab-throughput" style="display:none">';
@@ -2854,11 +4118,14 @@ async function showDeliveryReport(id) {
 
     document.getElementById('content').innerHTML = html;
 
-    // Draw charts after DOM ready
+    // Store report data globally for deferred chart rendering and user activities period switching
+    window._drptData = rpt;
+    window._drptChannel = ch;
+    window._drptChartsDrawn = {};
+
+    // Draw only the summary tab charts immediately (visible tab)
     setTimeout(function() {
-      _drawDrptEngagementChart(rpt.engagement_timeline, ch);
-      _drawDrptThroughputChart(rpt.throughput);
-      if (ch === 'email' && cd.device_breakdown) _drawDrptDeviceChart(cd.device_breakdown);
+      _drawDrptSummaryCharts();
     }, 100);
 
   } catch (error) {
@@ -2879,6 +4146,57 @@ function switchDeliveryReportTab(btn, tab) {
   document.querySelectorAll('.rpt-tab-content').forEach(function(c) { c.style.display = 'none'; });
   var el = document.getElementById('rpt-tab-' + tab);
   if (el) el.style.display = 'block';
+  // Deferred chart rendering – draw charts when tab becomes visible
+  setTimeout(function() { _drawDrptTabCharts(tab); }, 50);
+}
+
+function _drawDrptSummaryCharts() {
+  var rpt = window._drptData;
+  var ch = window._drptChannel;
+  if (!rpt) return;
+  _drawDrptEngagementChart(rpt.engagement_timeline, ch);
+  if (rpt.exclusions && rpt.exclusions.length > 0) _drawDrptExclusionChart(rpt.exclusions);
+  window._drptChartsDrawn.summary = true;
+}
+
+function _drawDrptTabCharts(tab) {
+  var rpt = window._drptData;
+  var ch = window._drptChannel;
+  if (!rpt || !window._drptChartsDrawn) return;
+  if (window._drptChartsDrawn[tab]) return;
+
+  if (tab === 'summary' && !window._drptChartsDrawn.summary) {
+    _drawDrptSummaryCharts();
+  }
+  if (tab === 'tracking') {
+    _drawDrptTrackingStatsChart(rpt.engagement_timeline, ch);
+    var cd = rpt.channel_data || {};
+    if (ch === 'email') {
+      if (cd.device_breakdown) _drawDrptDeviceChart(cd.device_breakdown);
+      if (rpt.os_breakdown) _drawDrptDonutChart('drpt-os-chart', rpt.os_breakdown.map(function(o) { return o.os; }), rpt.os_breakdown.map(function(o) { return o.count; }));
+      if (rpt.browser_breakdown) _drawDrptDonutChart('drpt-browser-chart', rpt.browser_breakdown.map(function(b) { return b.browser; }), rpt.browser_breakdown.map(function(b) { return b.count; }));
+    }
+    window._drptChartsDrawn.tracking = true;
+  }
+  if (tab === 'urls') {
+    if (rpt.clicks_over_time) _drawDrptClicksOverTimeChart(rpt.clicks_over_time);
+    window._drptChartsDrawn.urls = true;
+  }
+  if (tab === 'user-activities') {
+    if (rpt.user_activities) _drawDrptUserActivitiesChart(rpt.user_activities, '24h');
+    window._drptChartsDrawn['user-activities'] = true;
+  }
+  if (tab === 'non-deliverables') {
+    if (rpt.non_deliverables) {
+      if (rpt.non_deliverables.errors_by_type && rpt.non_deliverables.errors_by_type.length > 0) _drawDrptErrorsTypeChart(rpt.non_deliverables.errors_by_type);
+      if (rpt.non_deliverables.errors_by_domain && rpt.non_deliverables.errors_by_domain.length > 0) _drawDrptErrorsDomainChart(rpt.non_deliverables.errors_by_domain);
+    }
+    window._drptChartsDrawn['non-deliverables'] = true;
+  }
+  if (tab === 'throughput') {
+    _drawDrptThroughputChart(rpt.throughput);
+    window._drptChartsDrawn.throughput = true;
+  }
 }
 
 function switchDrptRecipTab(btn, tab) {
@@ -2891,6 +4209,378 @@ function switchDrptRecipTab(btn, tab) {
 
 function exportDeliveryCSV(id) {
   showToast('CSV export not yet implemented', 'info');
+}
+
+/* ══════════════════════════════════════════════════════
+   DELIVERY HEATMAP PAGE
+   ══════════════════════════════════════════════════════ */
+
+async function showDeliveryHeatmap(id, fromWorkflowId) {
+  const content = document.getElementById('content');
+  showLoading();
+  try {
+    const [hm, del] = await Promise.all([
+      fetch(`/api/deliveries/${id}/heatmap`).then(r => r.json()),
+      fetch(`/api/deliveries/${id}`).then(r => r.json())
+    ]);
+    const ch = (hm.channel || 'email').toLowerCase();
+    const channelIcon = ch === 'email'
+      ? _afIco('<rect width="20" height="16" x="2" y="4" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/>')
+      : ch === 'sms'
+      ? _afIco('<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>')
+      : _afIco('<path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/>');
+
+    const hmBackArgs = fromWorkflowId ? `${id}, ${fromWorkflowId}` : `${id}`;
+    content.innerHTML = `
+      <div style="margin-bottom:12px;display:flex;gap:8px">
+        <button class="btn btn-secondary btn-sm" onclick="showDeliveryReport(${hmBackArgs})" style="display:inline-flex;align-items:center;gap:4px">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg>
+          Back to Delivery Report
+        </button>
+        ${fromWorkflowId ? `<button class="btn btn-secondary btn-sm" onclick="showWorkflowReport(${fromWorkflowId})" style="display:inline-flex;align-items:center;gap:4px"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg> Workflow Report</button>` : ''}
+      </div>
+
+      <div class="hm-page-header">
+        <div class="hm-page-title">${channelIcon} ${hm.delivery_name} — Heatmap Analytics</div>
+        <div style="display:flex;gap:8px;font-size:12px;color:var(--text-secondary)">
+          <span class="badge badge-info">${hm.total_sent?.toLocaleString()} sent</span>
+          <span class="badge badge-success">${hm.total_opens?.toLocaleString()} opens</span>
+          <span class="badge badge-primary">${hm.total_clicks?.toLocaleString()} clicks</span>
+        </div>
+      </div>
+
+      <div class="hm-page-tabs">
+        <button class="hm-page-tab active" onclick="switchDeliveryHmTab(this,'engagement')">Engagement Heatmap</button>
+        ${ch === 'email' ? '<button class="hm-page-tab" onclick="switchDeliveryHmTab(this,\'clicks\')">Click Map</button>' : ''}
+        <button class="hm-page-tab" onclick="switchDeliveryHmTab(this,'devices')">Devices & Geo</button>
+        <button class="hm-page-tab" onclick="switchDeliveryHmTab(this,'ai')">AI Insights</button>
+      </div>
+
+      <!-- Engagement Heatmap Tab -->
+      <div id="dhm-tab-engagement" class="dhm-tab-content">
+        <div class="hm-section">
+          <div id="dhm-engagement-grid" style="position:relative"></div>
+        </div>
+        <div class="hm-grid-2col">
+          <div class="hm-section">
+            <div id="dhm-hour-bars"></div>
+          </div>
+          <div class="hm-section">
+            <div id="dhm-day-bars"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Click Map Tab -->
+      <div id="dhm-tab-clicks" class="dhm-tab-content" style="display:none">
+        <div class="hm-section">
+          <div id="dhm-click-zones"></div>
+        </div>
+      </div>
+
+      <!-- Devices & Geo Tab -->
+      <div id="dhm-tab-devices" class="dhm-tab-content" style="display:none">
+        <div class="hm-grid-2col">
+          <div class="hm-section">
+            <div id="dhm-devices"></div>
+          </div>
+          <div class="hm-section">
+            <div id="dhm-geo"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- AI Insights Tab -->
+      <div id="dhm-tab-ai" class="dhm-tab-content" style="display:none">
+        <div class="hm-section" style="background:transparent;border:none;padding:0">
+          <div id="dhm-ai-recs"></div>
+        </div>
+      </div>
+    `;
+
+    // Render components
+    const HC = window.HeatmapComponent;
+    if (HC) {
+      HC.renderHeatmapGrid('dhm-engagement-grid', hm.engagement_heatmap.grid, {
+        title: 'Opens by Hour & Day of Week',
+        palette: 'blue',
+        valueKey: 'opens',
+        maxVal: hm.engagement_heatmap.max,
+        days: hm.engagement_heatmap.days,
+        hours: hm.engagement_heatmap.hours
+      });
+      HC.renderBarSpark('dhm-hour-bars',
+        hm.engagement_heatmap.hours.map(h => h + ':00'),
+        hm.hour_totals,
+        { title: 'Hourly Distribution', palette: 'purple' }
+      );
+      HC.renderBarSpark('dhm-day-bars',
+        hm.engagement_heatmap.days,
+        hm.day_totals,
+        { title: 'Daily Distribution', palette: 'green' }
+      );
+      if (ch === 'email') {
+        HC.renderClickZones('dhm-click-zones', hm.click_zones);
+      }
+      HC.renderDeviceHeatmap('dhm-devices', hm.device_heatmap);
+      HC.renderGeoHeatmap('dhm-geo', hm.geo_heatmap);
+      HC.renderAIRecommendations('dhm-ai-recs', hm.ai_recommendations);
+    }
+  } catch (e) {
+    showToast('Failed to load heatmap: ' + e.message, 'error');
+  } finally {
+    hideLoading();
+  }
+}
+
+function switchDeliveryHmTab(btn, tab) {
+  document.querySelectorAll('.hm-page-tab').forEach(t => t.classList.remove('active'));
+  btn.classList.add('active');
+  document.querySelectorAll('.dhm-tab-content').forEach(c => c.style.display = 'none');
+  const el = document.getElementById('dhm-tab-' + tab);
+  if (el) el.style.display = 'block';
+}
+
+// ══════════════════════════════════════════════════════
+// AGGREGATE DELIVERY HEATMAP — Cross-delivery analytics
+// ══════════════════════════════════════════════════════
+
+// Store current aggregate heatmap filters
+let _aggHmSource = 'all';
+
+async function showAggregateDeliveryHeatmap(channel, source) {
+  const content = document.getElementById('content');
+  showLoading();
+  const ch = channel || 'all';
+  const src = source || _aggHmSource || 'all';
+  _aggHmSource = src;
+  try {
+    const resp = await fetch('/api/deliveries/heatmap/aggregate?channel=' + ch + '&source=' + src);
+    const data = await resp.json();
+
+    const srcCounts = data.source_counts || { all: 0, standalone: 0, workflow: 0 };
+
+    if (data.deliveries_count === 0) {
+      const sourceLabel = src === 'standalone' ? 'standalone' : src === 'workflow' ? 'workflow-linked' : '';
+      content.innerHTML = `<div class="card" style="padding:40px;text-align:center">
+        <h3>No ${sourceLabel} deliveries found${ch !== 'all' ? ' for channel: ' + ch : ''}</h3>
+        <p style="color:#6b7280;margin:12px 0">${src !== 'all' ? 'Try switching the source filter.' : 'Create some deliveries first to see aggregate heatmap data.'}</p>
+        <div style="display:flex;gap:8px;justify-content:center;margin-top:12px">
+          ${src !== 'all' ? '<button class="btn btn-primary btn-sm" onclick="showAggregateDeliveryHeatmap(\'' + ch + '\', \'all\')">Show All</button>' : ''}
+          <button class="btn btn-secondary btn-sm" onclick="loadDeliveries()">Back to Deliveries</button>
+        </div>
+      </div>`;
+      return;
+    }
+
+    const HC = window.HeatmapComponent;
+
+    // Channel tabs
+    const channels = ['all', 'email', 'sms', 'push'];
+    const channelLabels = { all: 'All Channels', email: 'Email', sms: 'SMS', push: 'Push' };
+    const channelTabs = channels.map(c =>
+      `<button class="hm-page-tab ${c === ch ? 'active' : ''}" onclick="showAggregateDeliveryHeatmap('${c}', '${src}')">${channelLabels[c]}</button>`
+    ).join('');
+
+    // Source filter tabs
+    const sourceLabels = {
+      all: 'All (' + srcCounts.all + ')',
+      standalone: 'Standalone (' + srcCounts.standalone + ')',
+      workflow: 'Workflow-linked (' + srcCounts.workflow + ')'
+    };
+    const sourceTabs = ['all', 'standalone', 'workflow'].map(s =>
+      `<button class="hm-page-tab ${s === src ? 'active' : ''}" onclick="showAggregateDeliveryHeatmap('${ch}', '${s}')" style="font-size:12px">${s === 'standalone' ? '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-1px;margin-right:3px"><path d="m22 2-7 20-4-9-9-4Z"/><path d="m22 2-11 11"/></svg>' : s === 'workflow' ? '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-1px;margin-right:3px"><rect x="3" y="3" width="6" height="6" rx="1"/><rect x="15" y="3" width="6" height="6" rx="1"/><rect x="9" y="15" width="6" height="6" rx="1"/><path d="M6 9v3a1 1 0 0 0 1 1h3"/><path d="M18 9v3a1 1 0 0 1-1 1h-3"/></svg>' : ''}${sourceLabels[s]}</button>`
+    ).join('');
+
+    // Channel summary cards
+    const byChannel = data.by_channel || {};
+    const channelCards = Object.entries(byChannel).map(([name, stats]) => `
+      <div class="agg-channel-card">
+        <div class="agg-channel-icon">${name === 'Email' ? '&#9993;' : name === 'SMS' ? '&#128172;' : '&#128276;'}</div>
+        <div class="agg-channel-name">${name}</div>
+        <div class="agg-channel-stats">
+          <span>${stats.count} deliveries</span>
+          <span>${(stats.sent || 0).toLocaleString()} sent</span>
+          <span>${stats.sent ? ((stats.opens / stats.sent) * 100).toFixed(1) : 0}% open rate</span>
+        </div>
+      </div>
+    `).join('');
+
+    // Performance table
+    const perfRows = (data.delivery_performance || []).slice(0, 20).map((d, i) => {
+      const orClass = parseFloat(d.open_rate) > 25 ? 'agg-perf-high' : parseFloat(d.open_rate) < 10 ? 'agg-perf-low' : '';
+      const srcBadge = d.is_workflow_linked
+        ? '<span style="display:inline-flex;align-items:center;gap:3px;font-size:10px;padding:2px 7px;border-radius:10px;background:#ede9fe;color:#6d28d9;white-space:nowrap"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="6" height="6" rx="1"/><rect x="15" y="3" width="6" height="6" rx="1"/><rect x="9" y="15" width="6" height="6" rx="1"/><path d="M6 9v3a1 1 0 0 0 1 1h3"/><path d="M18 9v3a1 1 0 0 1-1 1h-3"/></svg>Workflow</span>'
+        : '<span style="font-size:10px;padding:2px 7px;border-radius:10px;background:#f0fdf4;color:#15803d;white-space:nowrap">Standalone</span>';
+      return `<tr class="${orClass}">
+        <td>${i + 1}</td>
+        <td><a href="#" onclick="showDeliveryHeatmap(${d.id});return false" style="color:#4f46e5;text-decoration:none;font-weight:500">${d.name}</a></td>
+        <td>${d.channel}</td>
+        <td>${srcBadge}</td>
+        <td>${d.status}</td>
+        <td>${d.sent.toLocaleString()}</td>
+        <td>${d.opens.toLocaleString()}</td>
+        <td><strong>${d.open_rate}%</strong></td>
+        <td><strong>${d.click_rate}%</strong></td>
+      </tr>`;
+    }).join('');
+
+    content.innerHTML = `
+      <div class="hm-page-header">
+        <div>
+          <button class="btn btn-secondary btn-sm" onclick="loadDeliveries()" style="margin-bottom:8px">&larr; Back to Deliveries</button>
+          <h2 style="margin:0;font-size:20px;font-weight:700">Cross-Delivery Engagement Heatmap</h2>
+          <p style="margin:4px 0 0;color:#6b7280;font-size:13px">Aggregate analytics across ${data.deliveries_count} ${src !== 'all' ? (src === 'standalone' ? 'standalone' : 'workflow-linked') + ' ' : ''}deliveries &bull; ${data.total_sent.toLocaleString()} total sent</p>
+        </div>
+      </div>
+
+      <!-- Channel filter tabs -->
+      <div class="hm-page-tabs" style="margin-bottom:8px">${channelTabs}</div>
+
+      <!-- Source filter tabs -->
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:16px">
+        <span style="font-size:12px;color:#6b7280;font-weight:500">Source:</span>
+        <div class="hm-page-tabs" style="margin:0">${sourceTabs}</div>
+      </div>
+
+      <!-- KPI summary -->
+      <div class="agg-kpi-row">
+        <div class="agg-kpi-card">
+          <div class="agg-kpi-value">${data.deliveries_count}</div>
+          <div class="agg-kpi-label">Deliveries</div>
+        </div>
+        <div class="agg-kpi-card">
+          <div class="agg-kpi-value">${data.total_sent.toLocaleString()}</div>
+          <div class="agg-kpi-label">Total Sent</div>
+        </div>
+        <div class="agg-kpi-card">
+          <div class="agg-kpi-value">${data.total_opens.toLocaleString()}</div>
+          <div class="agg-kpi-label">Total Opens</div>
+        </div>
+        <div class="agg-kpi-card">
+          <div class="agg-kpi-value">${data.avg_open_rate}%</div>
+          <div class="agg-kpi-label">Avg Open Rate</div>
+        </div>
+        <div class="agg-kpi-card">
+          <div class="agg-kpi-value">${data.avg_click_rate}%</div>
+          <div class="agg-kpi-label">Avg CTOR</div>
+        </div>
+      </div>
+
+      ${Object.keys(byChannel).length > 1 ? `
+      <!-- Channel breakdown -->
+      <div class="agg-channel-row">${channelCards}</div>
+      ` : ''}
+
+      <!-- Content tabs -->
+      <div class="hm-page-tabs" style="margin:20px 0 0">
+        <button class="hm-page-tab active" onclick="switchAggHmTab(this, 'engagement')">Engagement Heatmap</button>
+        <button class="hm-page-tab" onclick="switchAggHmTab(this, 'devices')">Devices & Geo</button>
+        <button class="hm-page-tab" onclick="switchAggHmTab(this, 'performance')">Delivery Comparison</button>
+        <button class="hm-page-tab" onclick="switchAggHmTab(this, 'ai')">AI Insights</button>
+      </div>
+
+      <!-- Tab: Engagement -->
+      <div id="agg-tab-engagement" class="agg-tab-content" style="display:block">
+        <div class="card" style="padding:20px;margin-top:12px">
+          <h4 style="margin:0 0 4px;font-size:15px;font-weight:600">Engagement by Hour & Day of Week</h4>
+          <p style="margin:0 0 16px;color:#6b7280;font-size:12px">Aggregated opens across all ${data.deliveries_count} deliveries. Darker cells = higher engagement.</p>
+          <div id="agg-eng-grid"></div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:12px">
+          <div class="card" style="padding:20px">
+            <h4 style="margin:0 0 12px;font-size:14px;font-weight:600">Opens by Hour</h4>
+            <div id="agg-hour-bars"></div>
+          </div>
+          <div class="card" style="padding:20px">
+            <h4 style="margin:0 0 12px;font-size:14px;font-weight:600">Opens by Day</h4>
+            <div id="agg-day-bars"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Tab: Devices & Geo -->
+      <div id="agg-tab-devices" class="agg-tab-content" style="display:none">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:12px">
+          <div class="card" style="padding:20px">
+            <h4 style="margin:0 0 12px;font-size:14px;font-weight:600">Device Breakdown</h4>
+            <div id="agg-device-grid"></div>
+          </div>
+          <div class="card" style="padding:20px">
+            <h4 style="margin:0 0 12px;font-size:14px;font-weight:600">Geographic Distribution</h4>
+            <div id="agg-geo-table"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Tab: Delivery Comparison -->
+      <div id="agg-tab-performance" class="agg-tab-content" style="display:none">
+        <div class="card" style="padding:20px;margin-top:12px">
+          <h4 style="margin:0 0 4px;font-size:15px;font-weight:600">Delivery Performance Ranking</h4>
+          <p style="margin:0 0 16px;color:#6b7280;font-size:12px">Sorted by open rate. Click a delivery name to view its individual heatmap.</p>
+          <div style="overflow-x:auto">
+            <table class="data-table" style="width:100%;font-size:13px">
+              <thead><tr>
+                <th>#</th><th>Delivery</th><th>Channel</th><th>Source</th><th>Status</th>
+                <th>Sent</th><th>Opens</th><th>Open Rate</th><th>CTOR</th>
+              </tr></thead>
+              <tbody>${perfRows}</tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- Tab: AI Insights -->
+      <div id="agg-tab-ai" class="agg-tab-content" style="display:none">
+        <div class="card" style="padding:20px;margin-top:12px">
+          <h4 style="margin:0 0 4px;font-size:15px;font-weight:600">AI Recommendations</h4>
+          <p style="margin:0 0 16px;color:#6b7280;font-size:12px">Cross-delivery insights powered by aggregated engagement data.</p>
+          <div id="agg-ai-recs"></div>
+        </div>
+      </div>
+    `;
+
+    // Render visualizations
+    if (HC) {
+      HC.renderHeatmapGrid('agg-eng-grid', data.engagement_heatmap.grid, {
+        title: 'Opens by Hour & Day of Week',
+        palette: 'blue',
+        valueKey: 'opens',
+        maxVal: data.engagement_heatmap.max,
+        days: data.engagement_heatmap.days,
+        hours: data.engagement_heatmap.hours
+      });
+      HC.renderBarSpark('agg-hour-bars',
+        data.engagement_heatmap.hours.map(h => h + ':00'),
+        data.hour_totals,
+        { title: 'Hourly Distribution', palette: 'purple' }
+      );
+      HC.renderBarSpark('agg-day-bars',
+        data.engagement_heatmap.days,
+        data.day_totals,
+        { title: 'Daily Distribution', palette: 'green' }
+      );
+      HC.renderDeviceHeatmap('agg-device-grid', data.device_heatmap);
+      HC.renderGeoHeatmap('agg-geo-table', data.geo_heatmap);
+      HC.renderAIRecommendations('agg-ai-recs', data.ai_recommendations);
+    }
+  } catch (err) {
+    content.innerHTML = `<div class="card" style="padding:40px;text-align:center">
+      <h3>Error loading aggregate heatmap</h3>
+      <p style="color:#ef4444;margin:12px 0">${err.message}</p>
+      <button class="btn btn-secondary" onclick="loadDeliveries()">Back to Deliveries</button>
+    </div>`;
+  } finally {
+    hideLoading();
+  }
+}
+
+function switchAggHmTab(btn, tab) {
+  document.querySelectorAll('.hm-page-tab').forEach(t => t.classList.remove('active'));
+  btn.classList.add('active');
+  document.querySelectorAll('.agg-tab-content').forEach(c => c.style.display = 'none');
+  const el = document.getElementById('agg-tab-' + tab);
+  if (el) el.style.display = 'block';
 }
 
 // ── Chart drawing functions ──
@@ -3029,6 +4719,255 @@ function _drawDrptDeviceChart(breakdown) {
     ctx.fillStyle = dv.color; ctx.fillRect(lx, ly, 10, 10);
     ctx.fillStyle = '#1e293b'; ctx.font = '11px system-ui'; ctx.textAlign = 'left';
     ctx.fillText(dv.label + ': ' + dv.value.toLocaleString(), lx + 16, ly + 9);
+  });
+}
+
+// ── Rounded rect helper (cross-browser) ──
+function _fillRoundRect(ctx, x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.lineTo(x + w - r, y);
+  ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+  ctx.lineTo(x + w, y + h - r);
+  ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+  ctx.lineTo(x + r, y + h);
+  ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+  ctx.lineTo(x, y + r);
+  ctx.quadraticCurveTo(x, y, x + r, y);
+  ctx.closePath();
+  ctx.fill();
+}
+
+// ── Generic donut chart (for OS and Browser breakdowns) ──
+function _drawDrptDonutChart(canvasId, labels, values) {
+  var canvas = document.getElementById(canvasId);
+  if (!canvas) return;
+  var ctx = canvas.getContext('2d');
+  var w = canvas.parentElement.clientWidth; var h = 200;
+  canvas.width = w; canvas.height = h;
+  var cx = w / 2, cy = h / 2 - 5, outerRad = Math.min(w, h) / 3, innerRad = outerRad * 0.55;
+  var colors = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4', '#94a3b8'];
+  var total = values.reduce(function(s, v) { return s + v; }, 0);
+  if (total === 0) { ctx.fillStyle = '#94a3b8'; ctx.font = '13px system-ui'; ctx.textAlign = 'center'; ctx.fillText('No data', cx, cy); return; }
+  var start = -Math.PI / 2;
+  values.forEach(function(val, i) {
+    var slice = (val / total) * Math.PI * 2;
+    ctx.fillStyle = colors[i % colors.length];
+    ctx.beginPath(); ctx.moveTo(cx + Math.cos(start) * innerRad, cy + Math.sin(start) * innerRad);
+    ctx.arc(cx, cy, outerRad, start, start + slice);
+    ctx.arc(cx, cy, innerRad, start + slice, start, true);
+    ctx.closePath(); ctx.fill();
+    if (val > 0 && slice > 0.25) {
+      var mid = start + slice / 2;
+      ctx.fillStyle = '#fff'; ctx.font = 'bold 11px system-ui'; ctx.textAlign = 'center';
+      ctx.fillText(Math.round((val / total) * 100) + '%', cx + Math.cos(mid) * (outerRad + innerRad) / 2, cy + Math.sin(mid) * (outerRad + innerRad) / 2 + 4);
+    }
+    start += slice;
+  });
+}
+
+// ── Tracking Statistics chart (opens + clicks over time) ──
+function _drawDrptTrackingStatsChart(timeline, channel) {
+  var canvas = document.getElementById('drpt-tracking-stats-chart');
+  if (!canvas || !timeline || timeline.length === 0) return;
+  var ctx = canvas.getContext('2d');
+  var w = canvas.parentElement.clientWidth; var h = 280;
+  canvas.width = w; canvas.height = h;
+  var pad = 50;
+  var cw = w - pad * 2, ch2 = h - pad * 2;
+  var maxV = Math.max(1, ...timeline.map(function(d) { return Math.max(d.opens || 0, d.clicks || 0); }));
+  var spacing = cw / (timeline.length - 1 || 1);
+
+  ctx.strokeStyle = '#e2e8f0'; ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(pad, pad); ctx.lineTo(pad, h - pad); ctx.lineTo(w - pad, h - pad); ctx.stroke();
+
+  // Bars – opens
+  var barW = Math.max(3, spacing * 0.3);
+  timeline.forEach(function(d, i) {
+    var x = pad + i * spacing - barW;
+    var barH = (d.opens / maxV) * ch2;
+    ctx.fillStyle = 'rgba(59,130,246,0.5)';
+    ctx.fillRect(x, h - pad - barH, barW, barH);
+  });
+  // Bars – clicks
+  timeline.forEach(function(d, i) {
+    var x = pad + i * spacing;
+    var barH = (d.clicks / maxV) * ch2;
+    ctx.fillStyle = 'rgba(16,185,129,0.5)';
+    ctx.fillRect(x, h - pad - barH, barW, barH);
+  });
+
+  ctx.fillStyle = '#94a3b8'; ctx.font = '11px system-ui'; ctx.textAlign = 'right';
+  for (var i = 0; i <= 5; i++) ctx.fillText(Math.round((maxV / 5) * i).toString(), pad - 8, h - pad - (ch2 / 5) * i + 4);
+  ctx.textAlign = 'center';
+  timeline.forEach(function(d, i) { if (i % 6 === 0) ctx.fillText(d.hour + 'h', pad + i * spacing, h - pad + 18); });
+  ctx.font = 'bold 11px system-ui'; ctx.textAlign = 'left';
+  ctx.fillStyle = '#3b82f6'; ctx.fillText('■ Opens', w - 160, 24);
+  ctx.fillStyle = '#10b981'; ctx.fillText('■ Clicks', w - 160, 42);
+}
+
+// ── Exclusion chart (horizontal bar) ──
+function _drawDrptExclusionChart(exclusions) {
+  var canvas = document.getElementById('drpt-exclusion-chart');
+  if (!canvas || !exclusions || exclusions.length === 0) return;
+  var ctx = canvas.getContext('2d');
+  var w = canvas.parentElement.clientWidth; var h = 240;
+  canvas.width = w; canvas.height = h;
+  var pad = {top: 20, right: 20, bottom: 20, left: 140};
+  var ch2 = h - pad.top - pad.bottom;
+  var maxV = Math.max(1, ...exclusions.map(function(e) { return e.count; }));
+  var barH = Math.min(24, ch2 / exclusions.length - 4);
+  var colors = ['#ef4444', '#f97316', '#f59e0b', '#eab308', '#84cc16', '#22c55e', '#06b6d4', '#94a3b8'];
+
+  exclusions.forEach(function(e, i) {
+    var y = pad.top + i * (ch2 / exclusions.length) + (ch2 / exclusions.length - barH) / 2;
+    var barW = (e.count / maxV) * (w - pad.left - pad.right);
+    ctx.fillStyle = colors[i % colors.length];
+    _fillRoundRect(ctx, pad.left, y, barW, barH, 3);
+    ctx.fillStyle = '#334155'; ctx.font = '11px system-ui'; ctx.textAlign = 'right';
+    ctx.fillText(e.reason, pad.left - 8, y + barH / 2 + 4);
+    ctx.fillStyle = '#1e293b'; ctx.font = 'bold 10px system-ui'; ctx.textAlign = 'left';
+    ctx.fillText(e.count.toLocaleString(), pad.left + barW + 6, y + barH / 2 + 4);
+  });
+}
+
+// ── Clicks over time chart ──
+function _drawDrptClicksOverTimeChart(clicksData) {
+  var canvas = document.getElementById('drpt-clicks-over-time-chart');
+  if (!canvas || !clicksData || clicksData.length === 0) return;
+  var ctx = canvas.getContext('2d');
+  var w = canvas.parentElement.clientWidth; var h = 240;
+  canvas.width = w; canvas.height = h;
+  var pad = 50;
+  var cw = w - pad * 2, ch2 = h - pad * 2;
+  var maxV = Math.max(1, ...clicksData.map(function(d) { return d.clicks; }));
+  var barW = Math.max(8, (cw / clicksData.length) - 4);
+
+  ctx.strokeStyle = '#e2e8f0'; ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(pad, pad); ctx.lineTo(pad, h - pad); ctx.lineTo(w - pad, h - pad); ctx.stroke();
+
+  clicksData.forEach(function(d, i) {
+    var x = pad + (i + 0.5) * (cw / clicksData.length) - barW / 2;
+    var barH2 = (d.clicks / maxV) * ch2;
+    var grad = ctx.createLinearGradient(x, h - pad - barH2, x, h - pad);
+    grad.addColorStop(0, '#10b981'); grad.addColorStop(1, '#6ee7b7');
+    ctx.fillStyle = grad;
+    _fillRoundRect(ctx, x, h - pad - barH2, barW, barH2, 3);
+    ctx.fillStyle = '#94a3b8'; ctx.font = '10px system-ui'; ctx.textAlign = 'center';
+    ctx.fillText(d.hour + 'h', x + barW / 2, h - pad + 16);
+  });
+  ctx.fillStyle = '#94a3b8'; ctx.font = '11px system-ui'; ctx.textAlign = 'right';
+  for (var i = 0; i <= 4; i++) ctx.fillText(Math.round((maxV / 4) * i).toString(), pad - 8, h - pad - (ch2 / 4) * i + 4);
+}
+
+// ── User Activities chart ──
+function _drawDrptUserActivitiesChart(activities, period) {
+  var canvas = document.getElementById('drpt-user-activities-chart');
+  if (!canvas || !activities || activities.length === 0) return;
+  var data = activities;
+  if (period === '6h') data = activities.slice(0, 6);
+  else if (period === '1h') data = activities.slice(0, 1).length > 0 ? [{hour:0,opens:activities[0].opens,clicks:activities[0].clicks}] : [];
+  if (data.length === 0) return;
+
+  var ctx = canvas.getContext('2d');
+  var w = canvas.parentElement.clientWidth; var h = 300;
+  canvas.width = w; canvas.height = h;
+  var pad = 50;
+  var cw = w - pad * 2, ch2 = h - pad * 2;
+  var maxV = Math.max(1, ...data.map(function(d) { return Math.max(d.opens, d.clicks); }));
+  var spacing = data.length > 1 ? cw / (data.length - 1) : cw;
+
+  ctx.strokeStyle = '#e2e8f0'; ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(pad, pad); ctx.lineTo(pad, h - pad); ctx.lineTo(w - pad, h - pad); ctx.stroke();
+
+  // Area – opens
+  ctx.fillStyle = 'rgba(59,130,246,0.1)';
+  ctx.beginPath(); ctx.moveTo(pad, h - pad);
+  data.forEach(function(d, i) { ctx.lineTo(pad + i * spacing, h - pad - (d.opens / maxV) * ch2); });
+  ctx.lineTo(pad + (data.length - 1) * spacing, h - pad);
+  ctx.closePath(); ctx.fill();
+
+  // Line – opens
+  ctx.strokeStyle = '#3b82f6'; ctx.lineWidth = 2.5;
+  ctx.beginPath();
+  data.forEach(function(d, i) { var x = pad + i * spacing, y = h - pad - (d.opens / maxV) * ch2; i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y); });
+  ctx.stroke();
+
+  // Area – clicks
+  ctx.fillStyle = 'rgba(16,185,129,0.1)';
+  ctx.beginPath(); ctx.moveTo(pad, h - pad);
+  data.forEach(function(d, i) { ctx.lineTo(pad + i * spacing, h - pad - (d.clicks / maxV) * ch2); });
+  ctx.lineTo(pad + (data.length - 1) * spacing, h - pad);
+  ctx.closePath(); ctx.fill();
+
+  // Line – clicks
+  ctx.strokeStyle = '#10b981'; ctx.lineWidth = 2.5;
+  ctx.beginPath();
+  data.forEach(function(d, i) { var x = pad + i * spacing, y = h - pad - (d.clicks / maxV) * ch2; i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y); });
+  ctx.stroke();
+
+  // Dots
+  data.forEach(function(d, i) {
+    var x = pad + i * spacing;
+    ctx.fillStyle = '#3b82f6';
+    ctx.beginPath(); ctx.arc(x, h - pad - (d.opens / maxV) * ch2, 3, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#10b981';
+    ctx.beginPath(); ctx.arc(x, h - pad - (d.clicks / maxV) * ch2, 3, 0, Math.PI * 2); ctx.fill();
+  });
+
+  ctx.fillStyle = '#94a3b8'; ctx.font = '11px system-ui'; ctx.textAlign = 'right';
+  for (var i = 0; i <= 5; i++) ctx.fillText(Math.round((maxV / 5) * i).toString(), pad - 8, h - pad - (ch2 / 5) * i + 4);
+  ctx.textAlign = 'center';
+  data.forEach(function(d, i) { if (data.length <= 6 || i % Math.ceil(data.length / 12) === 0) ctx.fillText(d.hour + 'h', pad + i * spacing, h - pad + 18); });
+  ctx.font = 'bold 11px system-ui'; ctx.textAlign = 'left';
+  ctx.fillStyle = '#3b82f6'; ctx.fillText('● Opens', w - 160, 24);
+  ctx.fillStyle = '#10b981'; ctx.fillText('● Clicks', w - 160, 42);
+}
+
+function switchUserActivityPeriod(btn, period) {
+  document.querySelectorAll('.rpt-time-btn').forEach(function(b) { b.classList.remove('active'); });
+  btn.classList.add('active');
+  if (window._drptData && window._drptData.user_activities) {
+    _drawDrptUserActivitiesChart(window._drptData.user_activities, period);
+  }
+}
+
+// ── Errors by type chart (donut) ──
+function _drawDrptErrorsTypeChart(errorsByType) {
+  _drawDrptDonutChart('drpt-errors-type-chart',
+    errorsByType.map(function(e) { return e.type; }),
+    errorsByType.map(function(e) { return e.count; })
+  );
+}
+
+// ── Errors by domain chart (stacked horizontal bar) ──
+function _drawDrptErrorsDomainChart(errorsByDomain) {
+  var canvas = document.getElementById('drpt-errors-domain-chart');
+  if (!canvas || !errorsByDomain || errorsByDomain.length === 0) return;
+  var ctx = canvas.getContext('2d');
+  var w = canvas.parentElement.clientWidth; var h = 240;
+  canvas.width = w; canvas.height = h;
+  var pad = {top: 20, right: 20, bottom: 20, left: 120};
+  var ch2 = h - pad.top - pad.bottom;
+  var maxV = Math.max(1, ...errorsByDomain.map(function(e) { return e.total; }));
+  var barH = Math.min(28, ch2 / errorsByDomain.length - 4);
+  var errColors = {user_unknown: '#ef4444', invalid_domain: '#f97316', mailbox_full: '#f59e0b', refused: '#eab308', unreachable: '#94a3b8'};
+  var errKeys = ['user_unknown', 'invalid_domain', 'mailbox_full', 'refused', 'unreachable'];
+
+  errorsByDomain.forEach(function(e, i) {
+    var y = pad.top + i * (ch2 / errorsByDomain.length) + (ch2 / errorsByDomain.length - barH) / 2;
+    var xOff = pad.left;
+    errKeys.forEach(function(key) {
+      var val = e[key] || 0;
+      var segW = (val / maxV) * (w - pad.left - pad.right);
+      ctx.fillStyle = errColors[key];
+      ctx.fillRect(xOff, y, segW, barH);
+      xOff += segW;
+    });
+    ctx.fillStyle = '#334155'; ctx.font = '11px system-ui'; ctx.textAlign = 'right';
+    ctx.fillText(e.domain, pad.left - 8, y + barH / 2 + 4);
+    ctx.fillStyle = '#1e293b'; ctx.font = 'bold 10px system-ui'; ctx.textAlign = 'left';
+    ctx.fillText(e.total.toString(), xOff + 6, y + barH / 2 + 4);
   });
 }
 
@@ -3202,17 +5141,52 @@ const _ctCategoryColors = {
   custom: '#6B7280'
 };
 
+window._contentListViewMode = window._contentListViewMode || {};
+
+function setContentViewMode(viewKey, mode) {
+  window._contentListViewMode[viewKey] = mode;
+  if (viewKey === 'content-templates') _renderContentTemplatesPage();
+  else if (viewKey === 'landing-pages') loadLandingPages();
+  else if (viewKey === 'fragments') loadFragments();
+  else if (viewKey === 'assets') loadAssets();
+  else if (viewKey === 'brands') loadBrands();
+  else if (viewKey === 'email-themes') loadEmailThemes();
+}
+
 let _ctState = {
   templates: [],
-  filter: 'all',        // 'all', 'sample', 'saved'
+  filter: 'all',
   categoryFilter: '',
-  search: '',
-  view: 'list'          // 'grid' or 'list'
+  search: ''
 };
+
+function updateCtFilter(key, value) {
+  if (key === 'filter') _ctState.filter = value;
+  else if (key === 'category') _ctState.categoryFilter = value;
+  else if (key === 'search') _ctState.search = value;
+
+  if (key === 'search') {
+    if (typeof debounce === 'function') {
+      debounce('ctSearch', () => _renderContentTemplatesPage(), 300);
+    } else {
+      _renderContentTemplatesPage();
+    }
+  } else {
+    _renderContentTemplatesPage();
+  }
+}
+
+function clearCtFilters() {
+  _ctState.filter = 'all';
+  _ctState.categoryFilter = '';
+  _ctState.search = '';
+  _renderContentTemplatesPage();
+}
 
 async function loadContentTemplates() {
   showLoading();
   try {
+    if (typeof ensureAllFoldersLoaded === 'function') await ensureAllFoldersLoaded();
     const resp = await fetch(`${API_BASE}/email-templates`);
     const data = await resp.json();
     if (!resp.ok) throw new Error(data.error || 'Failed to load templates');
@@ -3228,7 +5202,6 @@ async function loadContentTemplates() {
 function _renderContentTemplatesPage() {
   let templates = _ctState.templates;
 
-  // Filters
   if (_ctState.filter === 'sample') templates = templates.filter(t => t.sample);
   if (_ctState.filter === 'saved') templates = templates.filter(t => !t.sample);
   if (_ctState.categoryFilter) templates = templates.filter(t => t.category === _ctState.categoryFilter);
@@ -3240,102 +5213,140 @@ function _renderContentTemplatesPage() {
     );
   }
 
-  // Category counts
+  if (typeof applyFolderFilter === 'function') {
+    templates = applyFolderFilter('content-templates', templates);
+  }
+
+  if (!currentTableSort.column) {
+    currentTableSort.column = 'updated_at';
+    currentTableSort.direction = 'desc';
+  }
+  templates = applySorting(templates, currentTableSort.column);
+
   const allCats = {};
   _ctState.templates.forEach(t => {
     const cat = t.category || 'custom';
     allCats[cat] = (allCats[cat] || 0) + 1;
   });
+  const categoryOptions = [
+    { value: '', label: 'All categories' },
+    ...Object.keys(allCats).map(cat => ({ value: cat, label: `${_ctCategoryLabels[cat] || cat} (${allCats[cat]})` }))
+  ];
 
-  const filterTabs = `
-    <div class="ct-filter-tabs">
-      <button class="ct-filter-tab ${_ctState.filter === 'all' ? 'active' : ''}" onclick="_ctSetFilter('all')">All templates <span class="ct-filter-count">${_ctState.templates.length}</span></button>
-      <button class="ct-filter-tab ${_ctState.filter === 'sample' ? 'active' : ''}" onclick="_ctSetFilter('sample')">Sample templates <span class="ct-filter-count">${_ctState.templates.filter(t => t.sample).length}</span></button>
-      <button class="ct-filter-tab ${_ctState.filter === 'saved' ? 'active' : ''}" onclick="_ctSetFilter('saved')">Saved templates <span class="ct-filter-count">${_ctState.templates.filter(t => !t.sample).length}</span></button>
-        </div>
-  `;
+  const ctViewMode = window._contentListViewMode['content-templates'] || 'list';
 
-  const categoryPills = Object.keys(allCats).length > 1 ? `
-    <div class="ct-category-pills">
-      <button class="ct-cat-pill ${!_ctState.categoryFilter ? 'active' : ''}" onclick="_ctSetCategory('')">All</button>
-      ${Object.entries(allCats).map(([cat, count]) => `
-        <button class="ct-cat-pill ${_ctState.categoryFilter === cat ? 'active' : ''}" onclick="_ctSetCategory('${cat}')">
-          <span class="ct-cat-dot" style="background:${_ctCategoryColors[cat] || '#6B7280'}"></span>
-          ${_ctCategoryLabels[cat] || cat} (${count})
-        </button>
-      `).join('')}
-    </div>
-  ` : '';
+  const filterTags = [];
+  if (_ctState.filter !== 'all') filterTags.push({ key: 'filter', label: 'Type', value: _ctState.filter === 'sample' ? 'Sample' : 'Saved' });
+  if (_ctState.categoryFilter) filterTags.push({ key: 'category', label: 'Category', value: _ctCategoryLabels[_ctState.categoryFilter] || _ctState.categoryFilter });
+  if (_ctState.search) filterTags.push({ key: 'search', label: 'Search', value: _ctState.search });
 
-  const toolbar = `
-    <div class="ct-toolbar">
-      <div class="ct-toolbar-left">
-        <input type="text" class="form-input ct-search" placeholder="Search templates..." value="${_ctState.search}" oninput="_ctSetSearch(this.value)">
-      </div>
-      <div class="ct-toolbar-right">
-        <button class="btn btn-icon ${_ctState.view === 'grid' ? 'active' : ''}" onclick="_ctSetView('grid')" title="Grid view">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
-        </button>
-        <button class="btn btn-icon ${_ctState.view === 'list' ? 'active' : ''}" onclick="_ctSetView('list')" title="List view">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
-        </button>
-        <button class="btn btn-primary" onclick="_ctCreateTemplate()">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-          Create template
-        </button>
-      </div>
-    </div>
-  `;
+  const columns = [
+    { id: 'name', label: 'Name' },
+    { id: 'category', label: 'Category' },
+    { id: 'subject', label: 'Subject' },
+    { id: 'status', label: 'Status' },
+    { id: 'updated_at', label: 'Modified' }
+  ];
 
-  let body = '';
-  if (templates.length === 0) {
-    body = `
-      <div class="ct-empty">
-        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#d1d5db" stroke-width="1.5"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M10 9H8"/><path d="M16 13H8"/><path d="M16 17H8"/></svg>
-        <h3>No templates found</h3>
-        <p>${_ctState.search || _ctState.categoryFilter ? 'Try adjusting your filters' : 'Create your first template to get started'}</p>
-        ${!_ctState.search && !_ctState.categoryFilter ? '<button class="btn btn-primary" onclick="_ctCreateTemplate()">Create template</button>' : ''}
-      </div>
+  const tableRows = templates.map(t => {
+    const catColor = _ctCategoryColors[t.category] || '#6B7280';
+    const catLabel = _ctCategoryLabels[t.category] || t.category || 'Custom';
+    const modified = t.updated_at ? new Date(t.updated_at).toLocaleDateString() : '—';
+    const sampleBadge = t.sample ? ' <span class="ct-badge-sample">Sample</span>' : '';
+
+    return `
+      <tr>
+        <td data-column-id="name">${createTableLink((t.name || 'Untitled') + sampleBadge, `_ctEditTemplate(${t.id})`)}<div class="table-subtext">${t.description || ''}</div></td>
+        <td data-column-id="category"><span class="ct-cat-badge" style="background:${catColor}15; color:${catColor}; border:1px solid ${catColor}30">${catLabel}</span></td>
+        <td data-column-id="subject">${t.subject || '—'}</td>
+        <td data-column-id="status">${createStatusIndicator(t.status || 'draft', t.status || 'draft')}</td>
+        <td data-column-id="updated_at">${modified}</td>
+        <td>${createActionMenu(t.id, [
+          { icon: _afIco('<path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/><path d="m15 5 4 4"/>', 14), label: 'Edit', onclick: `_ctEditTemplate(${t.id})` },
+          { icon: _afIco('<rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/>', 14), label: 'Duplicate', onclick: `_ctDuplicateTemplate(${t.id})` },
+          { divider: true },
+          { icon: _afIco('<path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/>', 14), label: 'Delete', onclick: `_ctDeleteTemplate(${t.id}, '${(t.name || '').replace(/'/g, "\\'")}')`, danger: true }
+        ])}</td>
+      </tr>
     `;
-  } else if (_ctState.view === 'grid') {
-    body = `<div class="ct-grid">${templates.map(t => _ctRenderCard(t)).join('')}</div>`;
-  } else {
-    body = `
-          <div class="table-container">
-        <table class="ct-table">
-              <thead>
-                <tr>
-                  <th>Name</th>
-              <th>Category</th>
-              <th>Subject</th>
-              <th>Status</th>
-              <th>Modified</th>
-                  <th>Actions</th>
-                </tr>
-              </thead>
-          <tbody>${templates.map(t => _ctRenderRow(t)).join('')}</tbody>
-            </table>
-          </div>
-    `;
-  }
+  }).join('');
 
-  document.getElementById('content').innerHTML = `
+  let content = `
     <div class="card">
-      <div class="card-header">
-        <h3 class="card-title">${_afIco('<path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M10 9H8"/><path d="M16 13H8"/><path d="M16 17H8"/>', 16)} Content Templates</h3>
-        <div class="card-subtitle">Design reusable email templates for consistent brand messaging</div>
-      </div>
-      <div class="card-body" style="padding: 0;">
-        ${filterTabs}
-        ${categoryPills}
-        ${toolbar}
-        <div class="ct-body">${body}</div>
+      <div class="card-header" style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:8px;">
+        <div>
+          <h3 class="card-title">${_afIco('<path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M10 9H8"/><path d="M16 13H8"/><path d="M16 17H8"/>', 16)} Content Templates</h3>
+          <div class="card-subtitle">Design reusable email templates for consistent brand messaging</div>
         </div>
+        ${typeof getFolderToggleButtonHtml === 'function' ? getFolderToggleButtonHtml('content-templates') : ''}
       </div>
-    `;
-
-  // Populate iframe previews after DOM is ready
-  requestAnimationFrame(() => _ctPopulateIframePreviews());
+      ${createTableToolbar({
+        resultCount: templates.length,
+        totalCount: _ctState.templates.length,
+        showColumnSelector: true,
+        showViewModeToggle: true,
+        viewMode: ctViewMode,
+        viewKeyForMode: 'content-templates',
+        columns,
+        viewKey: 'content-templates',
+        showSearch: true,
+        searchPlaceholder: 'Search templates...',
+        searchValue: _ctState.search || '',
+        onSearch: 'updateCtFilter("search", this.value)',
+        filterTags,
+        onClearTag: 'clearCtFilters',
+        filters: [
+          {
+            type: 'select',
+            label: 'Source',
+            value: _ctState.filter,
+            onChange: 'updateCtFilter("filter", this.value)',
+            options: [
+              { value: 'all', label: 'All templates' },
+              { value: 'sample', label: 'Sample templates' },
+              { value: 'saved', label: 'Saved templates' }
+            ]
+          },
+          {
+            type: 'select',
+            label: 'Category',
+            value: _ctState.categoryFilter,
+            onChange: 'updateCtFilter("category", this.value)',
+            options: categoryOptions
+          }
+        ]
+      })}
+      ${ctViewMode === 'grid'
+    ? `<div class="ct-grid" id="content-templates-grid">${templates.length ? templates.map(t => _ctRenderCard(t)).join('') : '<div class="empty-state" style="grid-column:1/-1;padding:3rem;text-align:center;color:#6B7280">No templates found</div>'}</div>`
+    : `<div class="data-table-container">
+        <table class="data-table" data-view="content-templates">
+          <thead>
+            <tr>
+              ${createSortableHeader('name', 'Name', currentTableSort)}
+              <th data-column-id="category">Category</th>
+              <th data-column-id="subject">Subject</th>
+              ${createSortableHeader('status', 'Status', currentTableSort)}
+              ${createSortableHeader('updated_at', 'Modified', currentTableSort)}
+              <th style="width: 50px;"></th>
+            </tr>
+          </thead>
+          <tbody>
+            ${tableRows || '<tr><td colspan="6" style="text-align:center; padding: 2rem; color: #6B7280;">No templates found</td></tr>'}
+          </tbody>
+        </table>
+      </div>`
+  }
+    </div>
+  `;
+  if (typeof wrapWithFolderSidebarHtml === 'function') {
+    content = wrapWithFolderSidebarHtml('content-templates', 'content_templates', content);
+  }
+  document.getElementById('content').innerHTML = content;
+  if (ctViewMode === 'grid') setTimeout(() => _ctPopulateIframePreviews(), 50);
+  applyColumnVisibility('content-templates');
+  if (typeof initListFolderTree === 'function') {
+    initListFolderTree('content-templates', 'content_templates', _renderContentTemplatesPage);
+  }
 }
 
 function _ctPopulateIframePreviews() {
@@ -3402,45 +5413,10 @@ function _ctRenderCard(t) {
   `;
 }
 
-function _ctRenderRow(t) {
-  const catColor = _ctCategoryColors[t.category] || '#6B7280';
-  const catLabel = _ctCategoryLabels[t.category] || t.category || 'Custom';
-  const modified = t.updated_at ? new Date(t.updated_at).toLocaleDateString() : '—';
-  const statusClass = t.status === 'published' ? 'ct-status-published' : 'ct-status-draft';
-  const sampleBadge = t.sample ? ' <span class="ct-badge-sample">Sample</span>' : '';
-
-  return `
-    <tr onclick="_ctEditTemplate(${t.id})" style="cursor:pointer;">
-      <td>
-        <div class="ct-row-name">${t.name || 'Untitled'}${sampleBadge}</div>
-        <div class="ct-row-desc">${t.description || ''}</div>
-      </td>
-      <td><span class="ct-cat-badge" style="background:${catColor}15; color:${catColor}; border:1px solid ${catColor}30">${catLabel}</span></td>
-      <td class="ct-row-subject">${t.subject || '—'}</td>
-      <td><span class="ct-status ${statusClass}">${t.status || 'draft'}</span></td>
-      <td>${modified}</td>
-      <td onclick="event.stopPropagation()">
-        <div class="ct-row-actions">
-          <button class="btn btn-icon btn-sm" onclick="_ctEditTemplate(${t.id})" title="Edit content">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
-          </button>
-          <button class="btn btn-icon btn-sm" onclick="_ctDuplicateTemplate(${t.id})" title="Duplicate">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
-          </button>
-          <button class="btn btn-icon btn-sm" onclick="_ctDeleteTemplate(${t.id}, '${(t.name || '').replace(/'/g, "\\'")}')" title="Delete">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg>
-          </button>
-        </div>
-      </td>
-    </tr>
-  `;
-}
-
-// Actions
-function _ctSetFilter(filter) { _ctState.filter = filter; _renderContentTemplatesPage(); }
-function _ctSetCategory(cat) { _ctState.categoryFilter = cat; _renderContentTemplatesPage(); }
-function _ctSetSearch(val) { _ctState.search = val; _renderContentTemplatesPage(); }
-function _ctSetView(view) { _ctState.view = view; _renderContentTemplatesPage(); }
+// Kept for backwards compat
+function _ctSetFilter(filter) { updateCtFilter('filter', filter); }
+function _ctSetCategory(cat) { updateCtFilter('category', cat); }
+function _ctSetSearch(val) { updateCtFilter('search', val); }
 
 function _ctCreateTemplate() {
   // Open a modal to get name, description, and category
@@ -3478,15 +5454,26 @@ function _ctCreateTemplate() {
           <label class="form-label">Start from</label>
           <div class="ct-start-options">
             <label class="ct-start-option">
-              <input type="radio" name="ct-start" value="scratch" checked>
+              <input type="radio" name="ct-start" value="scratch" checked onchange="_ctToggleImportField()">
               <span>Design from scratch</span>
             </label>
             <label class="ct-start-option">
-              <input type="radio" name="ct-start" value="existing">
+              <input type="radio" name="ct-start" value="existing" onchange="_ctToggleImportField()">
               <span>Use existing template</span>
+            </label>
+            <label class="ct-start-option">
+              <input type="radio" name="ct-start" value="import" onchange="_ctToggleImportField()">
+              <span>Import HTML (file or zip)</span>
             </label>
           </div>
         </div>
+        <div class="form-group" id="ct-import-field" style="display:none">
+          <label class="form-label form-label-required">Upload HTML or ZIP file</label>
+          <input type="file" class="form-input" id="ct-import-file" accept=".html,.htm,.zip">
+          <span class="form-helper">Upload a .html file or a .zip containing an HTML file and images folder.</span>
+          <div id="ct-import-status" style="display:none;margin-top:6px;padding:8px 12px;border-radius:6px;font-size:12px"></div>
+        </div>
+        <div id="ct-folder-picker-container"></div>
       </div>
       <div class="modal-footer">
         <button class="btn btn-secondary" onclick="document.getElementById('ct-create-modal').remove()">Cancel</button>
@@ -3496,6 +5483,21 @@ function _ctCreateTemplate() {
   `;
   document.body.appendChild(overlay);
   document.getElementById('ct-new-name').focus();
+  if (typeof ensureFolderPickerData === 'function' && typeof folderPickerHtml === 'function') {
+    ensureFolderPickerData('content_templates').then(() => {
+      const fpContainer = document.getElementById('ct-folder-picker-container');
+      if (fpContainer) {
+        const defaultFolder = typeof getDefaultFolderForEntity === 'function' ? getDefaultFolderForEntity('content_templates') : null;
+        fpContainer.innerHTML = folderPickerHtml('ct-folder-id', 'content_templates', defaultFolder);
+      }
+    });
+  }
+}
+
+function _ctToggleImportField() {
+  const startMode = document.querySelector('input[name="ct-start"]:checked')?.value || 'scratch';
+  const importField = document.getElementById('ct-import-field');
+  if (importField) importField.style.display = startMode === 'import' ? 'block' : 'none';
 }
 
 async function _ctDoCreate() {
@@ -3503,13 +5505,66 @@ async function _ctDoCreate() {
   if (!name) { showToast('Please enter a template name', 'warning'); return; }
   const description = document.getElementById('ct-new-desc').value.trim();
   const category = document.getElementById('ct-new-category').value;
+  const startMode = document.querySelector('input[name="ct-start"]:checked')?.value || 'scratch';
 
   try {
     showLoading();
+
+    let importedHtml = '';
+    let importedBlocks = [];
+
+    // If importing, process the file first
+    if (startMode === 'import') {
+      const fileInput = document.getElementById('ct-import-file');
+      const file = fileInput?.files?.[0];
+      if (!file) { showToast('Please select an HTML or ZIP file to import', 'warning'); hideLoading(); return; }
+
+      const statusDiv = document.getElementById('ct-import-status');
+      if (statusDiv) {
+        statusDiv.style.display = 'block';
+        statusDiv.style.background = '#eef2ff';
+        statusDiv.style.color = '#3730a3';
+        statusDiv.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="animation:spin 1s linear infinite;vertical-align:-2px;margin-right:6px"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>Processing file...';
+      }
+
+      const formData = new FormData();
+      formData.append('file', file);
+      const importResp = await fetch(`${API_BASE}/email-templates/import-html`, {
+        method: 'POST',
+        body: formData
+      });
+      const importData = await importResp.json();
+      if (!importResp.ok) throw new Error(importData.error || 'Failed to process uploaded file');
+
+      importedHtml = importData.html || '';
+      const assetCount = importData.asset_count || 0;
+
+      if (statusDiv) {
+        statusDiv.style.background = '#dcfce7';
+        statusDiv.style.color = '#166534';
+        statusDiv.innerHTML = '&#10003; File processed. HTML extracted' + (assetCount > 0 ? ' with ' + assetCount + ' images' : '') + '.';
+      }
+
+      // Wrap imported HTML as a single raw block
+      if (importedHtml) {
+        importedBlocks = [{ id: 'block-' + Date.now(), type: 'html', html: importedHtml }];
+      }
+    }
+
+    // Create the template
+    const ctFolderId = typeof getSelectedFolderId === 'function' ? getSelectedFolderId('ct-folder-id') : null;
     const resp = await fetch(`${API_BASE}/email-templates`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name, description, category, status: 'draft' })
+      body: JSON.stringify({
+        name,
+        description,
+        category,
+        status: 'draft',
+        html: importedHtml,
+        blocks: importedBlocks,
+        folder_id: ctFolderId || null
+      })
     });
     const data = await resp.json();
     if (!resp.ok) throw new Error(data.error || 'Failed to create template');
@@ -3517,6 +5572,13 @@ async function _ctDoCreate() {
     // Open the email editor for this template
     _ctEditTemplate(data.id);
   } catch (error) {
+    const statusDiv = document.getElementById('ct-import-status');
+    if (statusDiv) {
+      statusDiv.style.display = 'block';
+      statusDiv.style.background = '#fef2f2';
+      statusDiv.style.color = '#991b1b';
+      statusDiv.textContent = error.message;
+    }
     showToast(error.message, 'error');
   } finally {
     hideLoading();
@@ -3560,128 +5622,185 @@ async function _ctDeleteTemplate(id, name) {
 }
 
 // Landing Pages View
+let lpFilters = { search: '', status: 'all' };
+
+function updateLpFilter(key, value) {
+  lpFilters[key] = value;
+  if (key === 'search') {
+    if (typeof debounce === 'function') {
+      debounce('lpSearch', () => loadLandingPages(), 300);
+    } else {
+      loadLandingPages();
+    }
+  } else {
+    loadLandingPages();
+  }
+}
+
+function clearLpFilters() {
+  lpFilters = { search: '', status: 'all' };
+  loadLandingPages();
+}
+
 async function loadLandingPages() {
   showLoading();
   try {
+    if (typeof ensureAllFoldersLoaded === 'function') await ensureAllFoldersLoaded();
     const response = await fetch(`${API_BASE}/landing-pages`);
     const data = await response.json();
     if (!response.ok) throw new Error(data.error || 'Failed to load landing pages');
-    window.landingPagesCache = data.pages || [];
-    const content = `
+    const allPages = data.pages || [];
+    window.landingPagesCache = allPages;
+
+    let filtered = allPages.filter(page => {
+      if (lpFilters.status !== 'all' && page.status !== lpFilters.status) return false;
+      if (lpFilters.search) {
+        const s = lpFilters.search.toLowerCase();
+        if (!(page.name || '').toLowerCase().includes(s) && !(page.slug || '').toLowerCase().includes(s)) return false;
+      }
+      return true;
+    });
+
+    if (typeof applyFolderFilter === 'function') {
+      filtered = applyFolderFilter('landing-pages', filtered);
+    }
+
+    if (!currentTableSort.column) {
+      currentTableSort.column = 'updated_at';
+      currentTableSort.direction = 'desc';
+    }
+    filtered = applySorting(filtered, currentTableSort.column);
+
+    const lpViewMode = window._contentListViewMode['landing-pages'] || 'list';
+
+    const filterTags = [];
+    if (lpFilters.status !== 'all') filterTags.push({ key: 'status', label: 'Status', value: lpFilters.status });
+    if (lpFilters.search) filterTags.push({ key: 'search', label: 'Search', value: lpFilters.search });
+
+    const columns = [
+      { id: 'name', label: 'Name' },
+      { id: 'type', label: 'Type' },
+      { id: 'status', label: 'Status' },
+      { id: 'updated_at', label: 'Last Updated' },
+      { id: 'owner', label: 'Owner' },
+      { id: 'tags', label: 'Tags/Folder' }
+    ];
+
+    const lpCard = page => {
+      const updated = page.updated_at || page.created_at || '';
+      return `<div class="inventory-card" onclick="editLandingPage(${page.id})">
+        <div class="inventory-card-preview"><span class="inventory-card-icon">${_afIco('<circle cx="12" cy="12" r="10"/><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"/><path d="M2 12h20"/>', 32)}</span></div>
+        <div class="inventory-card-body">
+          <div class="inventory-card-name">${page.name || 'Untitled'}</div>
+          <div class="inventory-card-meta">${page.slug || '—'} · ${page.status || 'draft'}</div>
+          <div class="inventory-card-meta">${updated ? new Date(updated).toLocaleDateString() : '—'}</div>
+        </div>
+      </div>`;
+    };
+
+    const tableRows = filtered.map(page => {
+      const typeLabel = page.type || page.channel || page.page_type || 'Landing Page';
+      const tagLabel = Array.isArray(page.tags) && page.tags.length ? page.tags.join(', ') : '';
+      const folderLabel = page.folder || '';
+      const taxonomy = [folderLabel, tagLabel].filter(Boolean).join(' · ') || '—';
+      const updated = page.updated_at || page.created_at || '';
+      return `
+        <tr>
+          <td data-column-id="name">${createTableLink(page.name || 'Untitled', `editLandingPage(${page.id})`)}<div class="table-subtext">${page.slug || '—'}</div></td>
+          <td data-column-id="type">${typeLabel}</td>
+          <td data-column-id="status">${createStatusIndicator(page.status || 'draft', page.status || 'draft')}</td>
+          <td data-column-id="updated_at">${updated ? new Date(updated).toLocaleDateString() : '—'}</td>
+          <td data-column-id="owner">${page.updated_by || page.created_by || 'System'}</td>
+          <td data-column-id="tags">${taxonomy}</td>
+          <td>${createActionMenu(page.id, [
+            { icon: _afIco('<path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/><path d="m15 5 4 4"/>', 14), label: 'Edit', onclick: `editLandingPage(${page.id})` },
+            { icon: _afIco('<rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/>', 14), label: 'Duplicate', onclick: `duplicateLandingPage(${page.id})` },
+            { divider: true },
+            { icon: _afIco(page.status === 'published' ? '<path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/>' : '<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>', 14), label: page.status === 'published' ? 'Unpublish' : 'Publish', onclick: `toggleLandingPageStatus(${page.id})` },
+            { divider: true },
+            { icon: _afIco('<path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/>', 14), label: 'Delete', onclick: `deleteLandingPage(${page.id})`, danger: true }
+          ])}</td>
+        </tr>
+      `;
+    }).join('');
+
+    let content = `
       <div class="card">
-        <div class="card-header">
+        <div class="card-header" style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:8px;">
           <div>
             <h3 class="card-title">${_afIco('<circle cx="12" cy="12" r="10"/><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"/><path d="M2 12h20"/>', 16)} Landing Pages</h3>
             <div class="card-subtitle">Create and manage web landing pages</div>
           </div>
-          <button class="btn btn-primary" onclick="createLandingPage()">+ Create landing page</button>
-        </div>
-        <div class="card-body">
-          <div class="table-toolbar">
-            <input type="text" id="landing-page-search" class="form-input" placeholder="Search landing pages">
-            <select id="landing-page-status-filter" class="form-input">
-              <option value="all">All statuses</option>
-              <option value="draft">Draft</option>
-              <option value="published">Published</option>
-            </select>
-            <input type="text" id="landing-page-tag-filter" class="form-input" placeholder="Filter by tag">
-            <select id="landing-page-sort" class="form-input">
-              <option value="updated_desc">Last updated (newest)</option>
-              <option value="updated_asc">Last updated (oldest)</option>
-              <option value="name_asc">Name (A–Z)</option>
-              <option value="name_desc">Name (Z–A)</option>
-            </select>
-          </div>
-          <div class="table-container">
-            <table>
-              <thead>
-                <tr>
-                  <th>Name</th>
-                  <th>Type</th>
-                  <th>Status</th>
-                  <th>Last Updated</th>
-                  <th>Owner</th>
-                  <th>Tags/Folder</th>
-                  <th>Actions</th>
-                </tr>
-              </thead>
-              <tbody id="landing-pages-table-body"></tbody>
-            </table>
+          <div style="display:flex;gap:8px;align-items:center">
+            ${typeof getFolderToggleButtonHtml === 'function' ? getFolderToggleButtonHtml('landing-pages') : ''}
+            <button class="btn btn-primary" onclick="createLandingPage()">+ Create landing page</button>
           </div>
         </div>
+        ${createTableToolbar({
+          resultCount: filtered.length,
+          totalCount: allPages.length,
+          showColumnSelector: true,
+          showViewModeToggle: true,
+          viewMode: lpViewMode,
+          viewKeyForMode: 'landing-pages',
+          columns,
+          viewKey: 'landing-pages',
+          showSearch: true,
+          searchPlaceholder: 'Search landing pages...',
+          searchValue: lpFilters.search || '',
+          onSearch: 'updateLpFilter("search", this.value)',
+          filterTags,
+          onClearTag: 'clearLpFilters',
+          filters: [
+            {
+              type: 'select',
+              label: 'Status',
+              value: lpFilters.status,
+              onChange: 'updateLpFilter("status", this.value)',
+              options: [
+                { value: 'all', label: 'All statuses' },
+                { value: 'draft', label: 'Draft' },
+                { value: 'published', label: 'Published' }
+              ]
+            }
+          ]
+        })}
+        ${lpViewMode === 'grid'
+          ? `<div class="inventory-grid">${filtered.length ? filtered.map(lpCard).join('') : '<div class="empty-state" style="grid-column:1/-1;padding:3rem;text-align:center;color:#6B7280">No landing pages found</div>'}</div>`
+          : `<div class="data-table-container">
+          <table class="data-table" data-view="landing-pages">
+            <thead>
+              <tr>
+                ${createSortableHeader('name', 'Name', currentTableSort)}
+                ${createSortableHeader('type', 'Type', currentTableSort)}
+                ${createSortableHeader('status', 'Status', currentTableSort)}
+                ${createSortableHeader('updated_at', 'Last Updated', currentTableSort)}
+                <th data-column-id="owner">Owner</th>
+                <th data-column-id="tags">Tags/Folder</th>
+                <th style="width: 50px;"></th>
+              </tr>
+            </thead>
+            <tbody>
+              ${tableRows || '<tr><td colspan="7" style="text-align:center; padding: 2rem; color: #6B7280;">No landing pages found</td></tr>'}
+            </tbody>
+          </table>
+        </div>`
+        }
       </div>
     `;
+    if (typeof wrapWithFolderSidebarHtml === 'function') {
+      content = wrapWithFolderSidebarHtml('landing-pages', 'landing_pages', content);
+    }
     document.getElementById('content').innerHTML = content;
-    renderLandingPagesTable();
-    const search = document.getElementById('landing-page-search');
-    const statusFilter = document.getElementById('landing-page-status-filter');
-    const tagFilter = document.getElementById('landing-page-tag-filter');
-    const sort = document.getElementById('landing-page-sort');
-    [search, statusFilter, tagFilter, sort].forEach(el => {
-      if (!el) return;
-      el.addEventListener('input', renderLandingPagesTable);
-      el.addEventListener('change', renderLandingPagesTable);
-    });
+    applyColumnVisibility('landing-pages');
+    if (typeof initListFolderTree === 'function') {
+      initListFolderTree('landing-pages', 'landing_pages', loadLandingPages);
+    }
   } catch (error) {
     showError('Failed to load Landing Pages');
   } finally {
     hideLoading();
   }
-}
-
-function renderLandingPagesTable() {
-  const body = document.getElementById('landing-pages-table-body');
-  if (!body) return;
-  const pages = Array.isArray(window.landingPagesCache) ? window.landingPagesCache.slice() : [];
-  const search = (document.getElementById('landing-page-search')?.value || '').toLowerCase();
-  const status = document.getElementById('landing-page-status-filter')?.value || 'all';
-  const tag = (document.getElementById('landing-page-tag-filter')?.value || '').toLowerCase();
-  const sort = document.getElementById('landing-page-sort')?.value || 'updated_desc';
-  let filtered = pages.filter(page => {
-    const matchesSearch = !search || (page.name || '').toLowerCase().includes(search) || (page.slug || '').toLowerCase().includes(search);
-    const matchesStatus = status === 'all' || page.status === status;
-    const tagList = Array.isArray(page.tags) ? page.tags.join(' ') : '';
-    const matchesTag = !tag || tagList.toLowerCase().includes(tag) || (page.folder || '').toLowerCase().includes(tag);
-    return matchesSearch && matchesStatus && matchesTag;
-  });
-  filtered.sort((a, b) => {
-    if (sort === 'name_asc') return (a.name || '').localeCompare(b.name || '');
-    if (sort === 'name_desc') return (b.name || '').localeCompare(a.name || '');
-    if (sort === 'updated_asc') return new Date(a.updated_at || a.created_at || 0) - new Date(b.updated_at || b.created_at || 0);
-    return new Date(b.updated_at || b.created_at || 0) - new Date(a.updated_at || a.created_at || 0);
-  });
-  if (!filtered.length) {
-    body.innerHTML = `
-      <tr><td colspan="7" style="text-align:center; padding: var(--spacing-500);">
-        <div style="font-size: 2rem; margin-bottom: var(--spacing-200);">${_afIco('<circle cx="12" cy="12" r="10"/><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"/><path d="M2 12h20"/>', 32)}</div>
-        <strong>No landing pages</strong>
-        <div style="color: var(--text-secondary); margin-top: var(--spacing-100);">Create your first landing page to get started.</div>
-      </td></tr>
-    `;
-    return;
-  }
-  body.innerHTML = filtered.map(page => {
-    const typeLabel = page.type || page.channel || page.page_type || 'Landing Page';
-    const tagLabel = Array.isArray(page.tags) && page.tags.length ? `Tags: ${page.tags.join(', ')}` : '';
-    const folderLabel = page.folder ? `Folder: ${page.folder}` : '';
-    const taxonomy = [folderLabel, tagLabel].filter(Boolean).join(' · ') || '—';
-    const updated = page.updated_at || page.created_at || '';
-    return `
-      <tr>
-        <td><strong>${page.name || 'Untitled'}</strong><div class="table-subtext">${page.slug || '—'}</div></td>
-        <td>${typeLabel}</td>
-        <td>${page.status || 'draft'}</td>
-        <td>${updated ? new Date(updated).toLocaleDateString() : '—'}</td>
-        <td>${page.updated_by || page.created_by || 'System'}</td>
-        <td>${taxonomy}</td>
-        <td>
-          <button class="btn btn-sm btn-secondary" onclick="editLandingPage(${page.id})">Edit</button>
-          <button class="btn btn-sm btn-ghost" onclick="toggleLandingPageStatus(${page.id})">${page.status === 'published' ? 'Unpublish' : 'Publish'}</button>
-          <button class="btn btn-sm btn-ghost" onclick="duplicateLandingPage(${page.id})">Duplicate</button>
-        </td>
-      </tr>
-    `;
-  }).join('');
 }
 
 function createLandingPage() {
@@ -3733,7 +5852,7 @@ async function duplicateLandingPage(id) {
     const data = await response.json();
     if (!response.ok) throw new Error(data.error || 'Failed to duplicate landing page');
     window.landingPagesCache = [data, ...(window.landingPagesCache || [])];
-    renderLandingPagesTable();
+    loadLandingPages();
     showToast('Landing page duplicated', 'success');
   } catch (error) {
     showToast(error.message, 'error');
@@ -3756,7 +5875,7 @@ async function toggleLandingPageStatus(id) {
     const data = await response.json();
     if (!response.ok) throw new Error(data.error || 'Failed to update landing page');
     window.landingPagesCache = (window.landingPagesCache || []).map(p => p.id === id ? data : p);
-    renderLandingPagesTable();
+    loadLandingPages();
     showToast(`Landing page ${nextStatus}`, 'success');
   } catch (error) {
     showToast(error.message, 'error');
@@ -3772,134 +5891,212 @@ function openLandingPageEditor(pageId = null) {
   window.location.href = url;
 }
 
-// Fragments View
-async function loadFragments() {
-  showLoading();
+async function deleteLandingPage(id) {
+  const page = (window.landingPagesCache || []).find(p => String(p.id) === String(id));
+  if (!confirm(`Delete landing page "${page?.name || id}"? This cannot be undone.`)) return;
   try {
-    const response = await fetch(`${API_BASE}/fragments`);
+    showLoading();
+    const response = await fetch(`${API_BASE}/landing-pages/${id}`, { method: 'DELETE' });
     const data = await response.json();
-    if (!response.ok) throw new Error(data.error || 'Failed to load fragments');
-    window.fragmentsCache = data.fragments || data || [];
-    const content = `
-      <div class="card">
-        <div class="card-header">
-          <div>
-            <h3 class="card-title">${_afIco('<path d="M12 2 2 7l10 5 10-5-10-5Z"/><path d="m2 17 10 5 10-5"/><path d="m2 12 10 5 10-5"/>', 16)} Fragments</h3>
-            <div class="card-subtitle">Reusable content blocks (headers, footers, disclaimers)</div>
-          </div>
-          <button class="btn btn-primary" onclick="createFragment()">+ Create fragment</button>
-        </div>
-        <div class="card-body">
-          <div class="table-toolbar">
-            <input type="text" id="fragment-search" class="form-input" placeholder="Search fragments">
-            <select id="fragment-status-filter" class="form-input">
-              <option value="all">All statuses</option>
-              <option value="draft">Draft</option>
-              <option value="published">Published</option>
-            </select>
-            <select id="fragment-type-filter" class="form-input">
-              <option value="all">All types</option>
-              <option value="landing">Landing</option>
-              <option value="email">Email</option>
-            </select>
-            <input type="text" id="fragment-tag-filter" class="form-input" placeholder="Filter by tag">
-            <select id="fragment-sort" class="form-input">
-              <option value="updated_desc">Last updated (newest)</option>
-              <option value="updated_asc">Last updated (oldest)</option>
-              <option value="name_asc">Name (A–Z)</option>
-              <option value="name_desc">Name (Z–A)</option>
-            </select>
-          </div>
-          <div class="table-container">
-            <table>
-              <thead>
-                <tr>
-                  <th>Name</th>
-                  <th>Type</th>
-                  <th>Status</th>
-                  <th>Last Updated</th>
-                  <th>Owner</th>
-                  <th>Tags/Folder</th>
-                  <th>Actions</th>
-                </tr>
-              </thead>
-              <tbody id="fragments-table-body"></tbody>
-            </table>
-          </div>
-        </div>
-      </div>
-    `;
-    document.getElementById('content').innerHTML = content;
-    renderFragmentsTable();
-    const search = document.getElementById('fragment-search');
-    const statusFilter = document.getElementById('fragment-status-filter');
-    const typeFilter = document.getElementById('fragment-type-filter');
-    const tagFilter = document.getElementById('fragment-tag-filter');
-    const sort = document.getElementById('fragment-sort');
-    [search, statusFilter, typeFilter, tagFilter, sort].forEach(el => {
-      if (!el) return;
-      el.addEventListener('input', renderFragmentsTable);
-      el.addEventListener('change', renderFragmentsTable);
-    });
+    if (!response.ok) throw new Error(data.error || 'Failed to delete landing page');
+    showToast('Landing page deleted', 'success');
+    loadLandingPages();
   } catch (error) {
-    showError('Failed to load Fragments');
+    showToast(error.message, 'error');
   } finally {
     hideLoading();
   }
 }
 
-function renderFragmentsTable() {
-  const body = document.getElementById('fragments-table-body');
-  if (!body) return;
-  const fragments = Array.isArray(window.fragmentsCache) ? window.fragmentsCache.slice() : [];
-  const search = (document.getElementById('fragment-search')?.value || '').toLowerCase();
-  const status = document.getElementById('fragment-status-filter')?.value || 'all';
-  const type = document.getElementById('fragment-type-filter')?.value || 'all';
-  const tag = (document.getElementById('fragment-tag-filter')?.value || '').toLowerCase();
-  const sort = document.getElementById('fragment-sort')?.value || 'updated_desc';
-  let filtered = fragments.filter(fragment => {
-    const matchesSearch = !search || (fragment.name || '').toLowerCase().includes(search);
-    const matchesStatus = status === 'all' || fragment.status === status;
-    const matchesType = type === 'all' || fragment.type === type;
-    const tagList = Array.isArray(fragment.tags) ? fragment.tags.join(' ') : '';
-    const matchesTag = !tag || tagList.toLowerCase().includes(tag) || (fragment.folder || '').toLowerCase().includes(tag);
-    return matchesSearch && matchesStatus && matchesType && matchesTag;
-  });
-  filtered.sort((a, b) => {
-    if (sort === 'name_asc') return (a.name || '').localeCompare(b.name || '');
-    if (sort === 'name_desc') return (b.name || '').localeCompare(a.name || '');
-    if (sort === 'updated_asc') return new Date(a.updated_at || a.created_at || 0) - new Date(b.updated_at || b.created_at || 0);
-    return new Date(b.updated_at || b.created_at || 0) - new Date(a.updated_at || a.created_at || 0);
-  });
-  if (!filtered.length) {
-    body.innerHTML = `
-      <tr><td colspan="7" style="text-align: center; padding: var(--spacing-500);">
-        <div style="font-size: 2rem; margin-bottom: var(--spacing-200);">${_afIco('<path d="M12 2 2 7l10 5 10-5-10-5Z"/><path d="m2 17 10 5 10-5"/><path d="m2 12 10 5 10-5"/>', 32)}</div>
-        <strong>No fragments</strong>
-        <div style="color: var(--text-secondary); margin-top: var(--spacing-100);">Create a reusable fragment to get started.</div>
-      </td></tr>
-    `;
-    return;
+// Fragments View
+let fragFilters = { search: '', status: 'all', type: 'all' };
+
+function updateFragFilter(key, value) {
+  fragFilters[key] = value;
+  if (key === 'search') {
+    if (typeof debounce === 'function') {
+      debounce('fragSearch', () => loadFragments(), 300);
+    } else {
+      loadFragments();
+    }
+  } else {
+    loadFragments();
   }
-  body.innerHTML = filtered.map(fragment => {
-    const updated = fragment.updated_at || fragment.created_at || '';
-    const tagLabel = Array.isArray(fragment.tags) && fragment.tags.length ? `Tags: ${fragment.tags.join(', ')}` : '';
-    const folderLabel = fragment.folder ? `Folder: ${fragment.folder}` : '';
-    const taxonomy = [folderLabel, tagLabel].filter(Boolean).join(' · ') || '—';
-    return `
-      <tr>
-        <td><strong>${fragment.name || 'Untitled'}</strong></td>
-        <td>${(fragment.type || 'email')}</td>
-        <td>${fragment.status || 'draft'}</td>
-        <td>${updated ? new Date(updated).toLocaleDateString() : '—'}</td>
-        <td>${fragment.updated_by || fragment.created_by || 'System'}</td>
-        <td>${taxonomy}</td>
-        <td>
-          <button class="btn btn-sm btn-secondary" onclick="editFragment(${fragment.id}, '${fragment.type || 'email'}')">Edit</button>
-        </td>
-      </tr>
+}
+
+function clearFragFilters() {
+  fragFilters = { search: '', status: 'all', type: 'all' };
+  loadFragments();
+}
+
+async function loadFragments() {
+  showLoading();
+  try {
+    if (typeof ensureAllFoldersLoaded === 'function') await ensureAllFoldersLoaded();
+    const response = await fetch(`${API_BASE}/fragments`);
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || 'Failed to load fragments');
+    const allFragments = data.fragments || data || [];
+    window.fragmentsCache = allFragments;
+
+    let filtered = allFragments.filter(fragment => {
+      if (fragFilters.status !== 'all' && fragment.status !== fragFilters.status) return false;
+      if (fragFilters.type !== 'all' && fragment.type !== fragFilters.type) return false;
+      if (fragFilters.search) {
+        const s = fragFilters.search.toLowerCase();
+        if (!(fragment.name || '').toLowerCase().includes(s)) return false;
+      }
+      return true;
+    });
+
+    if (typeof applyFolderFilter === 'function') {
+      filtered = applyFolderFilter('fragments', filtered);
+    }
+
+    if (!currentTableSort.column) {
+      currentTableSort.column = 'updated_at';
+      currentTableSort.direction = 'desc';
+    }
+    filtered = applySorting(filtered, currentTableSort.column);
+
+    const fragViewMode = window._contentListViewMode['fragments'] || 'list';
+
+    const filterTags = [];
+    if (fragFilters.status !== 'all') filterTags.push({ key: 'status', label: 'Status', value: fragFilters.status });
+    if (fragFilters.type !== 'all') filterTags.push({ key: 'type', label: 'Type', value: fragFilters.type });
+    if (fragFilters.search) filterTags.push({ key: 'search', label: 'Search', value: fragFilters.search });
+
+    const columns = [
+      { id: 'name', label: 'Name' },
+      { id: 'type', label: 'Type' },
+      { id: 'status', label: 'Status' },
+      { id: 'updated_at', label: 'Last Updated' },
+      { id: 'owner', label: 'Owner' },
+      { id: 'tags', label: 'Tags/Folder' }
+    ];
+
+    const fragCard = f => {
+      const updated = f.updated_at || f.created_at || '';
+      return `<div class="inventory-card" onclick="editFragment(${f.id}, '${f.type || 'email'}')">
+        <div class="inventory-card-preview"><span class="inventory-card-icon">${_afIco('<path d="M12 2 2 7l10 5 10-5-10-5Z"/><path d="m2 17 10 5 10-5"/><path d="m2 12 10 5 10-5"/>', 32)}</span></div>
+        <div class="inventory-card-body">
+          <div class="inventory-card-name">${f.name || 'Untitled'}</div>
+          <div class="inventory-card-meta">${f.type || 'email'} · ${f.status || 'draft'}</div>
+          <div class="inventory-card-meta">${updated ? new Date(updated).toLocaleDateString() : '—'}</div>
+        </div>
+      </div>`;
+    };
+
+    const tableRows = filtered.map(fragment => {
+      const updated = fragment.updated_at || fragment.created_at || '';
+      const tagLabel = Array.isArray(fragment.tags) && fragment.tags.length ? fragment.tags.join(', ') : '';
+      const folderLabel = fragment.folder || '';
+      const taxonomy = [folderLabel, tagLabel].filter(Boolean).join(' · ') || '—';
+      return `
+        <tr>
+          <td data-column-id="name">${createTableLink(fragment.name || 'Untitled', `editFragment(${fragment.id}, '${fragment.type || 'email'}')`)}</td>
+          <td data-column-id="type">${fragment.type || 'email'}</td>
+          <td data-column-id="status">${createStatusIndicator(fragment.status || 'draft', fragment.status || 'draft')}</td>
+          <td data-column-id="updated_at">${updated ? new Date(updated).toLocaleDateString() : '—'}</td>
+          <td data-column-id="owner">${fragment.updated_by || fragment.created_by || 'System'}</td>
+          <td data-column-id="tags">${taxonomy}</td>
+          <td>${createActionMenu(fragment.id, [
+            { icon: _afIco('<path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/><path d="m15 5 4 4"/>', 14), label: 'Edit', onclick: `editFragment(${fragment.id}, '${fragment.type || 'email'}')` },
+            { divider: true },
+            { icon: _afIco('<path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/>', 14), label: 'Delete', onclick: `deleteFragment(${fragment.id})`, danger: true }
+          ])}</td>
+        </tr>
+      `;
+    }).join('');
+
+    let content = `
+      <div class="card">
+        <div class="card-header" style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:8px;">
+          <div>
+            <h3 class="card-title">${_afIco('<path d="M12 2 2 7l10 5 10-5-10-5Z"/><path d="m2 17 10 5 10-5"/><path d="m2 12 10 5 10-5"/>', 16)} Fragments</h3>
+            <div class="card-subtitle">Reusable content blocks (headers, footers, disclaimers)</div>
+          </div>
+          <div style="display:flex;gap:8px;align-items:center">
+            ${typeof getFolderToggleButtonHtml === 'function' ? getFolderToggleButtonHtml('fragments') : ''}
+            <button class="btn btn-primary" onclick="createFragment()">+ Create fragment</button>
+          </div>
+        </div>
+        ${createTableToolbar({
+          resultCount: filtered.length,
+          totalCount: allFragments.length,
+          showColumnSelector: true,
+          showViewModeToggle: true,
+          viewMode: fragViewMode,
+          viewKeyForMode: 'fragments',
+          columns,
+          viewKey: 'fragments',
+          showSearch: true,
+          searchPlaceholder: 'Search fragments...',
+          searchValue: fragFilters.search || '',
+          onSearch: 'updateFragFilter("search", this.value)',
+          filterTags,
+          onClearTag: 'clearFragFilters',
+          filters: [
+            {
+              type: 'select',
+              label: 'Status',
+              value: fragFilters.status,
+              onChange: 'updateFragFilter("status", this.value)',
+              options: [
+                { value: 'all', label: 'All statuses' },
+                { value: 'draft', label: 'Draft' },
+                { value: 'published', label: 'Published' }
+              ]
+            },
+            {
+              type: 'select',
+              label: 'Type',
+              value: fragFilters.type,
+              onChange: 'updateFragFilter("type", this.value)',
+              options: [
+                { value: 'all', label: 'All types' },
+                { value: 'landing', label: 'Landing' },
+                { value: 'email', label: 'Email' }
+              ]
+            }
+          ]
+        })}
+        ${fragViewMode === 'grid'
+          ? `<div class="inventory-grid">${filtered.length ? filtered.map(fragCard).join('') : '<div class="empty-state" style="grid-column:1/-1;padding:3rem;text-align:center;color:#6B7280">No fragments found</div>'}</div>`
+          : `<div class="data-table-container">
+          <table class="data-table" data-view="fragments">
+            <thead>
+              <tr>
+                ${createSortableHeader('name', 'Name', currentTableSort)}
+                ${createSortableHeader('type', 'Type', currentTableSort)}
+                ${createSortableHeader('status', 'Status', currentTableSort)}
+                ${createSortableHeader('updated_at', 'Last Updated', currentTableSort)}
+                <th data-column-id="owner">Owner</th>
+                <th data-column-id="tags">Tags/Folder</th>
+                <th style="width: 50px;"></th>
+              </tr>
+            </thead>
+            <tbody>
+              ${tableRows || '<tr><td colspan="7" style="text-align:center; padding: 2rem; color: #6B7280;">No fragments found</td></tr>'}
+            </tbody>
+          </table>
+        </div>`
+        }
+      </div>
     `;
-  }).join('');
+    if (typeof wrapWithFolderSidebarHtml === 'function') {
+      content = wrapWithFolderSidebarHtml('fragments', 'fragments', content);
+    }
+    document.getElementById('content').innerHTML = content;
+    applyColumnVisibility('fragments');
+    if (typeof initListFolderTree === 'function') {
+      initListFolderTree('fragments', 'fragments', loadFragments);
+    }
+  } catch (error) {
+    showError('Failed to load Fragments');
+  } finally {
+    hideLoading();
+  }
 }
 
 function createFragment() {
@@ -3917,37 +6114,175 @@ function openFragmentEditor(fragmentId = null, fragmentType = 'landing') {
   window.location.href = `/email-designer.html?${params.toString()}`;
 }
 
+async function deleteFragment(id) {
+  const frag = (window.fragmentsCache || []).find(f => String(f.id) === String(id));
+  if (!confirm(`Delete fragment "${frag?.name || id}"? This cannot be undone.`)) return;
+  try {
+    showLoading();
+    const response = await fetch(`${API_BASE}/fragments/${id}`, { method: 'DELETE' });
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || 'Failed to delete fragment');
+    showToast('Fragment deleted', 'success');
+    loadFragments();
+  } catch (error) {
+    showToast(error.message, 'error');
+  } finally {
+    hideLoading();
+  }
+}
+
 // Brands View
 async function loadBrands() {
   showLoading();
   try {
+    if (typeof ensureAllFoldersLoaded === 'function') await ensureAllFoldersLoaded();
+    const brandsResp = await fetch('/api/brands');
+    const brandsData = await brandsResp.json();
+    let brands = brandsData.brands || [];
+    if (typeof applyFolderFilter === 'function') brands = applyFolderFilter('brands', brands);
+
+    const brandsViewMode = window._contentListViewMode['brands'] || 'list';
+
+    const columns = [
+      { id: 'id', label: 'ID' },
+      { id: 'name', label: 'Brand Name' },
+      { id: 'sender', label: 'Sender' },
+      { id: 'website', label: 'Website' },
+      { id: 'default', label: 'Default' },
+      { id: 'status', label: 'Status' }
+    ];
+
+    const brandCard = b => {
+      const email = b.email || {};
+      const sender = email.from_name ? `${email.from_name}` : (email.from_email || '—');
+      return `<div class="inventory-card" onclick="editBrand(${b.id})">
+        <div class="inventory-card-preview" style="background:${(b.colors && b.colors.primary) || '#6366f1'};color:#fff;display:flex;align-items:center;justify-content:center;">
+          <span class="inventory-card-icon" style="color:#fff;opacity:0.9">${_afIco('<path d="M12 2H2v10l9.29 9.29c.94.94 2.48.94 3.42 0l6.58-6.58c.94-.94.94-2.48 0-3.42L12 2Z"/><path d="M7 7h.01"/>', 40)}</span>
+        </div>
+        <div class="inventory-card-body">
+          <div class="inventory-card-name">${b.name || 'Untitled'}</div>
+          <div class="inventory-card-meta">${sender}</div>
+          <div class="inventory-card-meta">${b.status || 'active'}${b.is_default ? ' · Default' : ''}</div>
+        </div>
+      </div>`;
+    };
+
+    const tableRows = brands.map(b => {
+      const email = b.email || {};
+      const senderInfo = email.from_name ? `${email.from_name} &lt;${email.from_email || ''}&gt;` : (email.from_email || '—');
+      const defaultBadge = b.is_default ? '<span class="status-badge" style="background:#dbeafe;color:#1d4ed8;font-size:11px">Default</span>' : '';
+      return `<tr>
+        <td data-column-id="id">${b.id}</td>
+        <td data-column-id="name">${createTableLink(b.name || 'Untitled', `editBrand(${b.id})`)}</td>
+        <td data-column-id="sender" style="font-size:13px">${senderInfo}</td>
+        <td data-column-id="website"><a href="${b.website_url || '#'}" target="_blank" style="color:var(--primary-color);text-decoration:none">${b.website_url || '—'}</a></td>
+        <td data-column-id="default">${defaultBadge}</td>
+        <td data-column-id="status">${createStatusIndicator(b.status || 'active', b.status || 'active')}</td>
+        <td>${createActionMenu(b.id, [
+          { icon: _afIco('<path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/><path d="m15 5 4 4"/>', 14), label: 'Edit', onclick: `editBrand(${b.id})` },
+          { divider: true },
+          { icon: _afIco('<path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/>', 14), label: 'Delete', onclick: `deleteBrand(${b.id})`, danger: true }
+        ])}</td>
+      </tr>`;
+    }).join('');
+
+    let content = `
+      <div class="card">
+        <div class="card-header" style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:8px;">
+          <div>
+            <h3 class="card-title">${_afIco('<path d="M12 2H2v10l9.29 9.29c.94.94 2.48.94 3.42 0l6.58-6.58c.94-.94.94-2.48 0-3.42L12 2Z"/><path d="M7 7h.01"/>', 20)} Brands</h3>
+            <div class="card-subtitle">Manage brand identities and configurations</div>
+          </div>
+          ${typeof getFolderToggleButtonHtml === 'function' ? getFolderToggleButtonHtml('brands') : ''}
+        </div>
+        ${createTableToolbar({
+          resultCount: brands.length,
+          totalCount: brands.length,
+          showColumnSelector: true,
+          showViewModeToggle: true,
+          viewMode: brandsViewMode,
+          viewKeyForMode: 'brands',
+          columns,
+          viewKey: 'brands',
+          showSearch: true,
+          searchPlaceholder: 'Search brands...'
+        })}
+        ${brandsViewMode === 'grid'
+          ? `<div class="inventory-grid">${brands.length ? brands.map(brandCard).join('') : '<div class="empty-state" style="grid-column:1/-1;padding:3rem;text-align:center;color:#6B7280">No brands configured</div>'}</div>`
+          : `<div class="data-table-container">
+          <table class="data-table" data-view="brands">
+            <thead>
+              <tr>
+                ${createSortableHeader('id', 'ID', currentTableSort)}
+                ${createSortableHeader('name', 'Brand Name', currentTableSort)}
+                <th data-column-id="sender">Sender</th>
+                <th data-column-id="website">Website</th>
+                <th data-column-id="default">Default</th>
+                ${createSortableHeader('status', 'Status', currentTableSort)}
+                <th style="width: 50px;"></th>
+              </tr>
+            </thead>
+            <tbody>
+              ${tableRows || '<tr><td colspan="7" style="text-align:center; padding: 2rem; color: #6B7280;">No brands configured. Set up brand configurations for multi-brand campaigns.</td></tr>'}
+            </tbody>
+          </table>
+        </div>`
+        }
+      </div>
+    `;
+    if (typeof wrapWithFolderSidebarHtml === 'function') {
+      content = wrapWithFolderSidebarHtml('brands', 'brands', content);
+    }
+    document.getElementById('content').innerHTML = content;
+    applyColumnVisibility('brands');
+    if (typeof initListFolderTree === 'function') {
+      initListFolderTree('brands', 'brands', loadBrands);
+    }
+  } catch (error) {
+    showError('Failed to load Brands');
+  } finally {
+    hideLoading();
+  }
+}
+
+// ── Email themes (Adobe Journey Optimizer–style apply-themes-to-email) ──
+async function loadEmailThemes() {
+  showLoading();
+  try {
+    const resp = await fetch(`${API_BASE}/email-themes`);
+    const data = await resp.json();
+    const themes = data.themes || [];
+    const rows = themes.map(t => `
+      <tr>
+        <td>${_escapeHtml(t.name || 'Untitled theme')}</td>
+        <td style="max-width:200px;color:#6B7280;font-size:13px">${_escapeHtml((t.description || '').slice(0, 80))}${(t.description || '').length > 80 ? '…' : ''}</td>
+        <td>${t.updated_at ? new Date(t.updated_at).toLocaleDateString() : '—'}</td>
+        <td>
+          ${createActionMenu(t.id, [
+            { icon: _afIco('<path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/><path d="m15 5 4 4"/>', 14), label: 'Edit', onclick: `openThemeModal(${t.id})` },
+            { divider: true },
+            { icon: _afIco('<path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/>', 14), label: 'Delete', onclick: `deleteEmailTheme(${t.id}, '${(t.name || '').replace(/'/g, "\\'")}')`, danger: true }
+          ])}
+        </td>
+      </tr>
+    `).join('');
     const content = `
       <div class="card">
-        <div class="card-header">
-          <h3 class="card-title">${_afIco('<path d="M12 2H2v10l9.29 9.29c.94.94 2.48.94 3.42 0l6.58-6.58c.94-.94.94-2.48 0-3.42L12 2Z"/><path d="M7 7h.01"/>', 20)} Brands</h3>
-          <div class="card-subtitle">Manage brand identities and configurations</div>
+        <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
+          <div>
+            <h3 class="card-title">${_afIco('<circle cx="13.5" cy="6.5" r="2.5"/><path d="M17 2H7a5 5 0 00-5 5v10a5 5 0 005 5h10a5 5 0 005-5V7a5 5 0 00-5-5z"/>', 20)} Email themes</h3>
+            <div class="card-subtitle">Reusable styling for email content. Apply themes in the Email Designer to keep brand consistency.</div>
+          </div>
+          <button class="btn btn-primary" onclick="openThemeModal(null)">+ Create theme</button>
         </div>
         <div class="card-body">
           <div class="table-container">
-            <table>
+            <table class="data-table">
               <thead>
-                <tr>
-                  <th>ID</th>
-                  <th>Brand Name</th>
-                  <th>Domain</th>
-                  <th>From Email</th>
-                  <th>Reply-To</th>
-                  <th>Status</th>
-                  <th>Actions</th>
-                </tr>
+                <tr><th>Name</th><th>Description</th><th>Updated</th><th style="width:80px"></th></tr>
               </thead>
               <tbody>
-                <tr><td colspan="7" style="text-align: center; padding: var(--spacing-700);">
-                  <div style="font-size: 3rem; margin-bottom: var(--spacing-300);">${_afIco('<path d="M12 2H2v10l9.29 9.29c.94.94 2.48.94 3.42 0l6.58-6.58c.94-.94.94-2.48 0-3.42L12 2Z"/><path d="M7 7h.01"/>', 20)}</div>
-                  <h3>No brands configured</h3>
-                  <p style="color: var(--text-secondary); margin-bottom: var(--spacing-400);">Set up brand configurations for multi-brand campaigns</p>
-                  <button class="btn btn-primary" onclick="showToast('Brand manager coming soon!', 'info')">${_afIco('<path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/>', 14)} Create Brand</button>
-                </td></tr>
+                ${themes.length ? rows : '<tr><td colspan="4" style="text-align:center;padding:2rem;color:#6B7280">No themes yet. Create one to apply to email templates and deliveries.</td></tr>'}
               </tbody>
             </table>
           </div>
@@ -3956,9 +6291,561 @@ async function loadBrands() {
     `;
     document.getElementById('content').innerHTML = content;
   } catch (error) {
-    showError('Failed to load Brands');
+    showError('Failed to load email themes');
   } finally {
     hideLoading();
+  }
+}
+
+function _escapeHtml(s) {
+  if (s == null) return '';
+  const div = document.createElement('div');
+  div.textContent = s;
+  return div.innerHTML;
+}
+
+function openThemeModal(themeId) {
+  const modal = document.getElementById('email-theme-modal');
+  if (!modal) {
+    const m = document.createElement('div');
+    m.id = 'email-theme-modal';
+    m.className = 'modal-overlay hidden';
+    m.innerHTML = '<div class="modal email-theme-modal-inner"><div class="modal-header"><h3 id="email-theme-modal-title">Theme</h3><button type="button" class="modal-close" onclick="closeThemeModal()">&times;</button></div><div class="modal-body" id="email-theme-modal-body"></div><div class="modal-footer"><button type="button" class="btn btn-secondary" onclick="closeThemeModal()">Cancel</button><button type="button" class="btn btn-primary" onclick="saveEmailTheme()">Save</button></div></div>';
+    document.body.appendChild(m);
+    m.addEventListener('click', e => { if (e.target === m) closeThemeModal(); });
+  }
+  const titleEl = document.getElementById('email-theme-modal-title');
+  const bodyEl = document.getElementById('email-theme-modal-body');
+  if (titleEl) titleEl.textContent = themeId ? 'Edit theme' : 'Create theme';
+  if (bodyEl) bodyEl.innerHTML = '<div style="padding:1rem;color:#6B7280">Loading…</div>';
+  document.getElementById('email-theme-modal').classList.remove('hidden');
+  window._editingThemeId = themeId;
+  if (themeId) {
+    fetch(`${API_BASE}/email-themes/${themeId}`)
+      .then(r => r.json())
+      .then(theme => { _renderThemeForm(bodyEl, theme); })
+      .catch(() => { bodyEl.innerHTML = '<p style="color:#dc2626">Failed to load theme.</p>'; });
+  } else {
+    _renderThemeForm(bodyEl, { name: '', description: '', body: {}, colors: {}, typography: {}, components: {} });
+  }
+}
+
+const THEME_PRESET_KEYS = ['default', 'ocean', 'forest', 'sunset', 'plum', 'slate'];
+
+function _renderThemeForm(container, theme) {
+  const b = theme.body || {};
+  const c = theme.colors || {};
+  const comp = theme.components || {};
+  const btn = comp.button || {};
+  const div = comp.divider || {};
+  const txt = comp.text || {};
+  const ty = theme.typography || {};
+  const h1 = ty.heading1 || {};
+  const h2 = ty.heading2 || {};
+  const h3 = ty.heading3 || {};
+  const variants = Array.isArray(theme.variants) ? theme.variants : [];
+  const variantsHtml = variants.map((v, i) => `
+    <div class="form-group" style="display:flex;align-items:center;gap:8px;">
+      <span style="flex:1;font-size:12px;">${_escapeHtml(v.name || 'Variant ' + (i + 1))}</span>
+      <button type="button" class="btn btn-sm btn-ghost" onclick="removeThemeVariant(${i})">Remove</button>
+    </div>
+  `).join('');
+  container.innerHTML = `
+    <div class="form-section compact-form" style="max-height:60vh;overflow-y:auto">
+      <div class="form-group">
+        <label class="form-label">Name</label>
+        <input type="text" class="form-input" id="theme-name" value="${_escapeHtml(theme.name || '')}" placeholder="e.g. Brand Primary">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Description</label>
+        <input type="text" class="form-input" id="theme-desc" value="${_escapeHtml(theme.description || '')}" placeholder="Optional">
+      </div>
+      <details class="inspector-section" open><summary>Preset</summary>
+        <div class="inspector-fields">
+          <div class="form-group">
+            <label class="form-label">Apply preset</label>
+            <select class="form-input" id="theme-preset-select" onchange="applyThemePreset(this.value)">
+              <option value="">— None —</option>
+              ${THEME_PRESET_KEYS.map(k => `<option value="${k}">${k.charAt(0).toUpperCase() + k.slice(1)}</option>`).join('')}
+            </select>
+          </div>
+        </div>
+      </details>
+      <details class="inspector-section" open><summary>Body</summary>
+        <div class="form-group"><label class="form-label">Background</label><div class="color-input-row"><input type="color" class="form-input form-color" id="theme-body-bg" value="${b.backgroundColor || '#ffffff'}"><input type="text" class="form-input form-color-hex" value="${b.backgroundColor || '#ffffff'}" maxlength="7" oninput="document.getElementById('theme-body-bg').value=this.value"></div></div>
+        <div class="form-group"><label class="form-label">Viewport color</label><div class="color-input-row"><input type="color" class="form-input form-color" id="theme-viewport" value="${b.viewportColor || '#f0f0f0'}"><input type="text" class="form-input form-color-hex" value="${b.viewportColor || '#f0f0f0'}" maxlength="7" oninput="document.getElementById('theme-viewport').value=this.value"></div></div>
+        <div class="form-group"><label class="form-label">Max width</label><input type="number" class="form-input" id="theme-maxWidth" value="${parseInt(b.maxWidth || '640', 10)}"></div>
+        <div class="form-group"><label class="form-label">Font family</label><input type="text" class="form-input" id="theme-body-font" value="${_escapeHtml(b.fontFamily || 'Arial, sans-serif')}"></div>
+      </details>
+      <details class="inspector-section"><summary>Colors</summary>
+        <div class="form-group"><label class="form-label">Primary</label><div class="color-input-row"><input type="color" class="form-input form-color" id="theme-color-primary" value="${c.primary || '#1473E6'}"><input type="text" class="form-input form-color-hex" value="${c.primary || '#1473E6'}" maxlength="7" oninput="document.getElementById('theme-color-primary').value=this.value"></div></div>
+        <div class="form-group"><label class="form-label">Text</label><div class="color-input-row"><input type="color" class="form-input form-color" id="theme-color-text" value="${c.text || '#1f2933'}"><input type="text" class="form-input form-color-hex" value="${c.text || '#1f2933'}" maxlength="7" oninput="document.getElementById('theme-color-text').value=this.value"></div></div>
+        <div class="form-group"><label class="form-label">Text muted</label><div class="color-input-row"><input type="color" class="form-input form-color" id="theme-color-muted" value="${c.textMuted || '#6B7280'}"><input type="text" class="form-input form-color-hex" value="${c.textMuted || '#6B7280'}" maxlength="7" oninput="document.getElementById('theme-color-muted').value=this.value"></div></div>
+      </details>
+      <details class="inspector-section"><summary>Typography (headings)</summary>
+        <div class="form-group"><label class="form-label">H1 size</label><input type="text" class="form-input" id="theme-h1-size" value="${h1.fontSize || '28px'}"></div>
+        <div class="form-group"><label class="form-label">H2 size</label><input type="text" class="form-input" id="theme-h2-size" value="${h2.fontSize || '22px'}"></div>
+        <div class="form-group"><label class="form-label">H3 size</label><input type="text" class="form-input" id="theme-h3-size" value="${h3.fontSize || '18px'}"></div>
+      </details>
+      <details class="inspector-section"><summary>Button default</summary>
+        <div class="form-group"><label class="form-label">Background</label><div class="color-input-row"><input type="color" class="form-input form-color" id="theme-btn-bg" value="${btn.backgroundColor || '#1473E6'}"><input type="text" class="form-input form-color-hex" value="${btn.backgroundColor || '#1473E6'}" maxlength="7" oninput="document.getElementById('theme-btn-bg').value=this.value"></div></div>
+        <div class="form-group"><label class="form-label">Text color</label><div class="color-input-row"><input type="color" class="form-input form-color" id="theme-btn-color" value="${btn.color || '#ffffff'}"><input type="text" class="form-input form-color-hex" value="${btn.color || '#ffffff'}" maxlength="7" oninput="document.getElementById('theme-btn-color').value=this.value"></div></div>
+        <div class="form-group"><label class="form-label">Border radius</label><input type="text" class="form-input" id="theme-btn-radius" value="${btn.borderRadius || '6px'}"></div>
+        <div class="form-group"><label class="form-label">Padding</label><input type="text" class="form-input" id="theme-btn-padding" value="${btn.padding || '12px 24px'}"></div>
+      </details>
+      <details class="inspector-section"><summary>Divider / Text defaults</summary>
+        <div class="form-group"><label class="form-label">Divider color</label><div class="color-input-row"><input type="color" class="form-input form-color" id="theme-divider-color" value="${div.borderColor || '#E5E7EB'}"><input type="text" class="form-input form-color-hex" value="${div.borderColor || '#E5E7EB'}" maxlength="7" oninput="document.getElementById('theme-divider-color').value=this.value"></div></div>
+        <div class="form-group"><label class="form-label">Text font size</label><input type="text" class="form-input" id="theme-text-size" value="${txt.fontSize || '14px'}"></div>
+      </details>
+      <details class="inspector-section"><summary>Color variants (e.g. Dark)</summary>
+        <div class="inspector-fields">
+          ${variantsHtml}
+          <button type="button" class="btn btn-secondary btn-sm" onclick="addThemeDarkVariant()">Add Dark variant</button>
+        </div>
+      </details>
+    </div>
+  `;
+  window._themeFormVariants = variants;
+}
+
+function applyThemePreset(key) {
+  if (!key) return;
+  fetch(`${API_BASE}/email-themes/presets/list`)
+    .then(r => r.json())
+    .then(data => {
+      const preset = data.presets && data.presets[key];
+      if (!preset) return;
+      const setColor = (id, val) => { const el = document.getElementById(id); if (el) el.value = val; const hex = el && el.nextElementSibling; if (hex && val) hex.value = val; };
+      const setVal = (id, val) => { const el = document.getElementById(id); if (el) el.value = val; };
+      if (preset.body) {
+        setColor('theme-body-bg', preset.body.backgroundColor);
+        setColor('theme-viewport', preset.body.viewportColor);
+      }
+      if (preset.colors) {
+        setColor('theme-color-primary', preset.colors.primary);
+        setColor('theme-color-text', preset.colors.text);
+        setColor('theme-color-muted', preset.colors.textMuted || '#6B7280');
+      }
+      if (preset.button) {
+        setColor('theme-btn-bg', preset.button.backgroundColor);
+        setColor('theme-btn-color', preset.button.color);
+      }
+      if (preset.divider) setColor('theme-divider-color', preset.divider.borderColor);
+    })
+    .catch(() => {});
+}
+
+function addThemeDarkVariant() {
+  const variants = (window._themeFormVariants || []).slice();
+  const dark = {
+    name: 'Dark',
+    body: { backgroundColor: '#1e293b', viewportColor: '#0f172a' },
+    colors: { primary: '#38bdf8', secondary: '#94a3b8', text: '#f1f5f9', textMuted: '#94a3b8' },
+    components: { button: { backgroundColor: '#38bdf8', color: '#0f172a' }, divider: { borderColor: '#475569' }, text: { color: '#f1f5f9' } }
+  };
+  variants.push(dark);
+  window._themeFormVariants = variants;
+  const bodyEl = document.getElementById('email-theme-modal-body');
+  const current = collectThemeFormData();
+  if (bodyEl) _renderThemeForm(bodyEl, { ...current, variants });
+}
+
+function removeThemeVariant(index) {
+  const variants = (window._themeFormVariants || []).slice();
+  variants.splice(index, 1);
+  window._themeFormVariants = variants;
+  const bodyEl = document.getElementById('email-theme-modal-body');
+  const current = collectThemeFormData();
+  if (bodyEl) _renderThemeForm(bodyEl, { ...current, variants });
+}
+
+function closeThemeModal() {
+  const m = document.getElementById('email-theme-modal');
+  if (m) m.classList.add('hidden');
+  window._editingThemeId = null;
+}
+
+function collectThemeFormData() {
+  const hex = (id) => (document.getElementById(id) && document.getElementById(id).value) || '';
+  const val = (id) => (document.getElementById(id) && document.getElementById(id).value) || '';
+  return {
+    name: val('theme-name') || 'Untitled theme',
+    description: val('theme-desc') || '',
+    body: {
+      backgroundColor: hex('theme-body-bg') || document.querySelector('#theme-body-bg')?.value || '#ffffff',
+      viewportColor: hex('theme-viewport') || document.querySelector('#theme-viewport')?.value || '#f0f0f0',
+      padding: '24px',
+      maxWidth: String(val('theme-maxWidth') || 640),
+      widthUnit: 'px',
+      align: 'center',
+      fontFamily: val('theme-body-font') || 'Arial, sans-serif'
+    },
+    colors: {
+      primary: hex('theme-color-primary') || document.querySelector('#theme-color-primary')?.value || '#1473E6',
+      secondary: '#6B7280',
+      text: hex('theme-color-text') || document.querySelector('#theme-color-text')?.value || '#1f2933',
+      textMuted: hex('theme-color-muted') || document.querySelector('#theme-color-muted')?.value || '#6B7280'
+    },
+    typography: {
+      fontFamily: 'Arial, sans-serif',
+      fontSizeBase: '14px',
+      heading1: { fontSize: val('theme-h1-size') || '28px', fontFamily: 'Arial, sans-serif', fontWeight: 'bold' },
+      heading2: { fontSize: val('theme-h2-size') || '22px', fontFamily: 'Arial, sans-serif', fontWeight: 'bold' },
+      heading3: { fontSize: val('theme-h3-size') || '18px', fontFamily: 'Arial, sans-serif', fontWeight: '600' }
+    },
+    components: {
+      button: {
+        backgroundColor: hex('theme-btn-bg') || document.querySelector('#theme-btn-bg')?.value || '#1473E6',
+        color: hex('theme-btn-color') || document.querySelector('#theme-btn-color')?.value || '#ffffff',
+        borderRadius: val('theme-btn-radius') || '6px',
+        padding: val('theme-btn-padding') || '12px 24px',
+        fontFamily: 'Arial, sans-serif'
+      },
+      divider: { borderColor: hex('theme-divider-color') || document.querySelector('#theme-divider-color')?.value || '#E5E7EB', thickness: 1 },
+      text: { color: '#1f2933', fontFamily: 'Arial, sans-serif', fontSize: val('theme-text-size') || '14px', lineHeight: '1.5' }
+    },
+    variants: window._themeFormVariants || []
+  };
+}
+
+async function saveEmailTheme() {
+  const id = window._editingThemeId;
+  const payload = collectThemeFormData();
+  try {
+    if (id) {
+      await fetch(`${API_BASE}/email-themes/${id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+      showToast('Theme updated');
+    } else {
+      await fetch(`${API_BASE}/email-themes`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+      showToast('Theme created');
+    }
+    closeThemeModal();
+    loadEmailThemes();
+  } catch (e) {
+    showToast('Failed to save theme', 'error');
+  }
+}
+
+async function deleteEmailTheme(id, name) {
+  if (!confirm(`Delete theme "${name || id}"?`)) return;
+  try {
+    await fetch(`${API_BASE}/email-themes/${id}`, { method: 'DELETE' });
+    showToast('Theme deleted');
+    loadEmailThemes();
+  } catch (e) {
+    showToast('Failed to delete theme', 'error');
+  }
+}
+
+async function editBrand(id) {
+  try {
+    const resp = await fetch(`/api/brands/${id}`);
+    const brand = await resp.json();
+    _renderBrandForm(brand, id);
+  } catch (error) {
+    showToast('Error loading brand', 'error');
+  }
+}
+
+function createBrand() {
+  _renderBrandForm({}, null);
+}
+
+function _v(obj, path) {
+  return path.split('.').reduce((o, k) => (o || {})[k], obj) || '';
+}
+
+function _renderBrandForm(b, id) {
+  const isEdit = id !== null;
+  const _s = (field, opts) => opts.map(o => `<option value="${o.value}" ${_v(b, field) === o.value ? 'selected' : ''}>${o.label}</option>`).join('');
+  const tagIcon = _afIco('<path d="M12 2H2v10l9.29 9.29c.94.94 2.48.94 3.42 0l6.58-6.58c.94-.94.94-2.48 0-3.42L12 2Z"/><path d="M7 7h.01"/>', 18);
+  const mailIcon = _afIco('<rect width="20" height="16" x="2" y="4" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/>', 18);
+  const globeIcon = _afIco('<circle cx="12" cy="12" r="10"/><path d="M2 12h20"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>', 18);
+  const shareIcon = _afIco('<circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" x2="15.42" y1="13.51" y2="17.49"/><line x1="15.41" x2="8.59" y1="6.51" y2="10.49"/>', 18);
+  const shieldIcon = _afIco('<path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/>', 18);
+  const paletteIcon = _afIco('<circle cx="13.5" cy="6.5" r=".5" fill="currentColor"/><circle cx="17.5" cy="10.5" r=".5" fill="currentColor"/><circle cx="8.5" cy="7.5" r=".5" fill="currentColor"/><circle cx="6.5" cy="12.5" r=".5" fill="currentColor"/><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.93 0 1.5-.75 1.5-1.5 0-.39-.15-.74-.39-1.04-.23-.29-.38-.63-.38-1.02 0-.83.67-1.5 1.5-1.5H16c3.31 0 6-2.69 6-6 0-5.17-4.49-9-10-9z"/>', 18);
+  const saveIcon = _afIco('<path d="M15.2 3a2 2 0 0 1 1.4.6l3.8 3.8a2 2 0 0 1 .6 1.4V19a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2Z"/><path d="M17 21v-7a1 1 0 0 0-1-1H8a1 1 0 0 0-1 1v7"/><path d="M7 3v4a1 1 0 0 0 1 1h7"/>', 14);
+  const colorInput = (id, label, val) => `<div class="form-group"><label class="form-label">${label}</label><div style="display:flex;gap:8px;align-items:center"><input type="color" id="${id}" value="${val || '#2563eb'}" style="width:40px;height:34px;padding:2px;border:1px solid var(--border-default);border-radius:var(--radius-sm);cursor:pointer"><input type="text" class="form-input" value="${val || ''}" placeholder="#hex" style="flex:1" oninput="document.getElementById('${id}').value=this.value" onchange="document.getElementById('${id}').value=this.value"></div></div>`;
+
+  const content = `
+    <div class="form-container">
+      <form id="brand-form" onsubmit="saveBrand(event, ${id})">
+
+        <div class="form-section">
+          <h3 class="form-section-title">${tagIcon} Brand Identity</h3>
+          <div class="form-grid">
+            <div class="form-group">
+              <label class="form-label form-label-required">Brand Name</label>
+              <input type="text" class="form-input" id="brand-name" value="${_v(b,'name')}" required>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Status</label>
+              <select class="form-input" id="brand-status">
+                ${_s('status', [{value:'active',label:'Active'},{value:'draft',label:'Draft'},{value:'archived',label:'Archived'}])}
+              </select>
+            </div>
+            <div class="form-group form-grid-full">
+              <label class="form-label">Description</label>
+              <textarea class="form-input" id="brand-description" rows="2" placeholder="Purpose and usage context for this brand">${_v(b,'description')}</textarea>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Website URL</label>
+              <input type="url" class="form-input" id="brand-website" value="${_v(b,'website_url')}" placeholder="https://www.example.com">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Logo URL</label>
+              <input type="text" class="form-input" id="brand-logo" value="${_v(b,'logo_url')}" placeholder="/uploads/logo.png">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Default Brand</label>
+              <label style="display:flex;align-items:center;gap:8px;cursor:pointer"><input type="checkbox" id="brand-is-default" ${b.is_default ? 'checked' : ''}> Use as default brand for new deliveries</label>
+            </div>
+          </div>
+        </div>
+
+        <div class="form-section">
+          <h3 class="form-section-title">${mailIcon} Email Configuration</h3>
+          <div class="form-grid">
+            <div class="form-group">
+              <label class="form-label">Sender Email</label>
+              <input type="email" class="form-input" id="brand-email-from" value="${_v(b,'email.from_email')}" placeholder="hello@brand.com">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Sender Name</label>
+              <input type="text" class="form-input" id="brand-email-from-name" value="${_v(b,'email.from_name')}" placeholder="Brand Name">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Reply-To Email</label>
+              <input type="email" class="form-input" id="brand-email-reply" value="${_v(b,'email.reply_to_email')}" placeholder="support@brand.com">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Reply-To Name</label>
+              <input type="text" class="form-input" id="brand-email-reply-name" value="${_v(b,'email.reply_to_name')}" placeholder="Support Team">
+            </div>
+            <div class="form-group form-grid-full">
+              <label class="form-label">BCC Email</label>
+              <input type="email" class="form-input" id="brand-email-bcc" value="${_v(b,'email.bcc_email')}" placeholder="archive@brand.com (optional, for compliance archiving)">
+            </div>
+            <div class="form-group form-grid-full">
+              <label class="form-label">Default Email Header HTML</label>
+              <textarea class="form-input" id="brand-email-header" rows="3" placeholder="<div>Header HTML for all emails using this brand</div>">${_v(b,'email.email_header')}</textarea>
+            </div>
+            <div class="form-group form-grid-full">
+              <label class="form-label">Default Email Footer HTML</label>
+              <textarea class="form-input" id="brand-email-footer" rows="3" placeholder="<div>Footer HTML — use {{unsubscribe_url}} for unsubscribe link</div>">${_v(b,'email.email_footer')}</textarea>
+            </div>
+          </div>
+        </div>
+
+        <div class="form-section">
+          <h3 class="form-section-title">${globeIcon} Landing Pages</h3>
+          <div class="form-grid">
+            <div class="form-group">
+              <label class="form-label">Default Landing Page URL</label>
+              <input type="url" class="form-input" id="brand-lp-default" value="${_v(b,'landing_pages.default_url')}" placeholder="https://www.brand.com">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Mirror Page URL</label>
+              <input type="url" class="form-input" id="brand-lp-mirror" value="${_v(b,'landing_pages.mirror_page_url')}" placeholder="https://mirror.brand.com">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Unsubscription Page URL</label>
+              <input type="url" class="form-input" id="brand-lp-unsub" value="${_v(b,'landing_pages.unsubscription_url')}" placeholder="https://www.brand.com/unsubscribe">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Favicon URL</label>
+              <input type="text" class="form-input" id="brand-lp-favicon" value="${_v(b,'landing_pages.favicon_url')}" placeholder="https://www.brand.com/favicon.ico">
+            </div>
+          </div>
+        </div>
+
+        <div class="form-section">
+          <h3 class="form-section-title">${shareIcon} Social Media Links</h3>
+          <div class="form-grid">
+            <div class="form-group">
+              <label class="form-label">Facebook</label>
+              <input type="url" class="form-input" id="brand-social-facebook" value="${_v(b,'social.facebook')}" placeholder="https://facebook.com/brand">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Instagram</label>
+              <input type="url" class="form-input" id="brand-social-instagram" value="${_v(b,'social.instagram')}" placeholder="https://instagram.com/brand">
+            </div>
+            <div class="form-group">
+              <label class="form-label">X (Twitter)</label>
+              <input type="url" class="form-input" id="brand-social-twitter" value="${_v(b,'social.twitter')}" placeholder="https://x.com/brand">
+            </div>
+            <div class="form-group">
+              <label class="form-label">LinkedIn</label>
+              <input type="url" class="form-input" id="brand-social-linkedin" value="${_v(b,'social.linkedin')}" placeholder="https://linkedin.com/company/brand">
+            </div>
+            <div class="form-group">
+              <label class="form-label">YouTube</label>
+              <input type="url" class="form-input" id="brand-social-youtube" value="${_v(b,'social.youtube')}" placeholder="https://youtube.com/@brand">
+            </div>
+            <div class="form-group">
+              <label class="form-label">TikTok</label>
+              <input type="url" class="form-input" id="brand-social-tiktok" value="${_v(b,'social.tiktok')}" placeholder="https://tiktok.com/@brand">
+            </div>
+          </div>
+        </div>
+
+        <div class="form-section">
+          <h3 class="form-section-title">${paletteIcon} Brand Colors &amp; Typography</h3>
+          <div class="form-grid">
+            ${colorInput('brand-color-primary', 'Primary Color', _v(b,'colors.primary'))}
+            ${colorInput('brand-color-secondary', 'Secondary Color', _v(b,'colors.secondary'))}
+            ${colorInput('brand-color-accent', 'Accent Color', _v(b,'colors.accent'))}
+            ${colorInput('brand-color-text', 'Text Color', _v(b,'colors.text'))}
+            ${colorInput('brand-color-bg', 'Background Color', _v(b,'colors.background'))}
+            <div class="form-group">
+              <label class="form-label">Heading Font</label>
+              <input type="text" class="form-input" id="brand-font-heading" value="${_v(b,'typography.heading_font')}" placeholder="Inter, sans-serif">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Body Font</label>
+              <input type="text" class="form-input" id="brand-font-body" value="${_v(b,'typography.body_font')}" placeholder="Inter, sans-serif">
+            </div>
+          </div>
+        </div>
+
+        <div class="form-section">
+          <h3 class="form-section-title">${shieldIcon} Legal &amp; Compliance</h3>
+          <div class="form-grid">
+            <div class="form-group">
+              <label class="form-label">Company Legal Name</label>
+              <input type="text" class="form-input" id="brand-legal-company" value="${_v(b,'legal.company_name')}" placeholder="Company Inc.">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Phone</label>
+              <input type="text" class="form-input" id="brand-legal-phone" value="${_v(b,'legal.phone')}" placeholder="+1 (555) 000-0000">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Address Line 1</label>
+              <input type="text" class="form-input" id="brand-legal-addr1" value="${_v(b,'legal.address_line1')}" placeholder="123 Main Street">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Address Line 2</label>
+              <input type="text" class="form-input" id="brand-legal-addr2" value="${_v(b,'legal.address_line2')}" placeholder="Suite 100">
+            </div>
+            <div class="form-group">
+              <label class="form-label">City</label>
+              <input type="text" class="form-input" id="brand-legal-city" value="${_v(b,'legal.city')}" placeholder="San Francisco">
+            </div>
+            <div class="form-group">
+              <label class="form-label">State / Region</label>
+              <input type="text" class="form-input" id="brand-legal-state" value="${_v(b,'legal.state')}" placeholder="CA">
+            </div>
+            <div class="form-group">
+              <label class="form-label">ZIP / Postal Code</label>
+              <input type="text" class="form-input" id="brand-legal-zip" value="${_v(b,'legal.zip')}" placeholder="94105">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Country</label>
+              <input type="text" class="form-input" id="brand-legal-country" value="${_v(b,'legal.country')}" placeholder="United States">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Privacy Policy URL</label>
+              <input type="url" class="form-input" id="brand-legal-privacy" value="${_v(b,'legal.privacy_policy_url')}" placeholder="https://brand.com/privacy">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Terms &amp; Conditions URL</label>
+              <input type="url" class="form-input" id="brand-legal-terms" value="${_v(b,'legal.terms_url')}" placeholder="https://brand.com/terms">
+            </div>
+            <div class="form-group form-grid-full">
+              <label class="form-label">Copyright Text</label>
+              <input type="text" class="form-input" id="brand-legal-copyright" value="${_v(b,'legal.copyright_text')}" placeholder="© 2026 Company Inc. All rights reserved.">
+            </div>
+          </div>
+        </div>
+
+        <div class="form-actions">
+          <button type="button" class="btn btn-secondary" onclick="loadBrands()">Cancel</button>
+          <button type="submit" class="btn btn-primary">${saveIcon} ${isEdit ? 'Save Brand' : 'Create Brand'}</button>
+        </div>
+      </form>
+    </div>`;
+  document.getElementById('content').innerHTML = content;
+}
+
+async function saveBrand(event, id = null) {
+  event.preventDefault();
+  const _val = (elId) => (document.getElementById(elId) || {}).value || '';
+  const data = {
+    name: _val('brand-name'),
+    description: _val('brand-description'),
+    website_url: _val('brand-website'),
+    logo_url: _val('brand-logo'),
+    status: _val('brand-status'),
+    is_default: document.getElementById('brand-is-default')?.checked || false,
+    email: {
+      from_email: _val('brand-email-from'),
+      from_name: _val('brand-email-from-name'),
+      reply_to_email: _val('brand-email-reply'),
+      reply_to_name: _val('brand-email-reply-name'),
+      bcc_email: _val('brand-email-bcc'),
+      email_header: _val('brand-email-header'),
+      email_footer: _val('brand-email-footer')
+    },
+    landing_pages: {
+      default_url: _val('brand-lp-default'),
+      mirror_page_url: _val('brand-lp-mirror'),
+      unsubscription_url: _val('brand-lp-unsub'),
+      favicon_url: _val('brand-lp-favicon')
+    },
+    social: {
+      facebook: _val('brand-social-facebook'),
+      instagram: _val('brand-social-instagram'),
+      twitter: _val('brand-social-twitter'),
+      linkedin: _val('brand-social-linkedin'),
+      youtube: _val('brand-social-youtube'),
+      tiktok: _val('brand-social-tiktok')
+    },
+    colors: {
+      primary: _val('brand-color-primary'),
+      secondary: _val('brand-color-secondary'),
+      accent: _val('brand-color-accent'),
+      text: _val('brand-color-text'),
+      background: _val('brand-color-bg')
+    },
+    typography: {
+      heading_font: _val('brand-font-heading'),
+      body_font: _val('brand-font-body')
+    },
+    legal: {
+      company_name: _val('brand-legal-company'),
+      phone: _val('brand-legal-phone'),
+      address_line1: _val('brand-legal-addr1'),
+      address_line2: _val('brand-legal-addr2'),
+      city: _val('brand-legal-city'),
+      state: _val('brand-legal-state'),
+      zip: _val('brand-legal-zip'),
+      country: _val('brand-legal-country'),
+      privacy_policy_url: _val('brand-legal-privacy'),
+      terms_url: _val('brand-legal-terms'),
+      copyright_text: _val('brand-legal-copyright')
+    }
+  };
+  try {
+    const url = id ? `/api/brands/${id}` : '/api/brands';
+    const method = id ? 'PUT' : 'POST';
+    const resp = await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) });
+    if (!resp.ok) throw new Error((await resp.json()).error || 'Failed to save');
+    showToast(`Brand ${id ? 'updated' : 'created'} successfully`, 'success');
+    loadBrands();
+  } catch (error) {
+    showToast(`Error: ${error.message}`, 'error');
+  }
+}
+
+async function deleteBrand(id) {
+  if (!confirm('Delete this brand?')) return;
+  try {
+    const resp = await fetch(`/api/brands/${id}`, { method: 'DELETE' });
+    if (!resp.ok) throw new Error('Failed to delete');
+    showToast('Brand deleted', 'success');
+    loadBrands();
+  } catch (error) {
+    showToast('Error deleting brand', 'error');
   }
 }
 
@@ -4101,12 +6988,17 @@ function updateAssetsType(value) {
 async function loadAssets() {
   showLoading();
   try {
+    if (typeof ensureAllFoldersLoaded === 'function') await ensureAllFoldersLoaded();
     const query = new URLSearchParams();
     if (assetsType !== 'all') query.set('type', assetsType);
     if (assetsSearch) query.set('search', assetsSearch);
     const response = await fetch(`/api/assets?${query.toString()}`);
     const data = await response.json();
-    const assets = data.assets || [];
+    let assets = data.assets || [];
+
+    if (typeof applyFolderFilter === 'function') {
+      assets = applyFolderFilter('assets', assets);
+    }
     const deliveriesResp = await fetch('/api/deliveries');
     const deliveriesData = await deliveriesResp.json();
     const deliveries = deliveriesData.deliveries || deliveriesData || [];
@@ -4141,18 +7033,41 @@ async function loadAssets() {
       });
     });
     
+    const assetsViewMode = window._contentListViewMode['assets'] || 'list';
+
+    const assetCard = a => {
+      const isImg = a.type === 'image' && a.url;
+      const imgAlt = (a.name || '').replace(/"/g, '&quot;');
+      const imgUrl = (a.url || '').replace(/"/g, '&quot;');
+      const docIcon = `<span class="inventory-card-icon">${_afIco('<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M16 13H8"/><path d="M16 17H8"/><path d="M10 9H8"/>', 32)}</span>`;
+      const preview = isImg
+        ? `<img src="${imgUrl}" alt="${imgAlt}" loading="lazy" style="width:100%;height:100%;object-fit:cover;" onerror="this.style.display='none';this.nextElementSibling.style.display='flex';" /><span class="inventory-card-icon inventory-card-img-fallback" style="display:none;width:100%;height:100%;align-items:center;justify-content:center;background:var(--bg-secondary,#f1f5f9);">${_afIco('<rect width="18" height="18" x="3" y="3" rx="2" ry="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/>', 32)}</span>`
+        : docIcon;
+      const urlEsc = (a.url || '').replace(/'/g, "&#39;");
+      return `<div class="inventory-card" onclick="copyAssetUrl('${urlEsc}'); showToast('URL copied', 'success')">
+        <div class="inventory-card-preview inventory-card-preview-asset">${preview}</div>
+        <div class="inventory-card-body">
+          <div class="inventory-card-name">${a.name}</div>
+          <div class="inventory-card-meta">${a.type || 'file'} · ${(a.size / 1024).toFixed(1)} KB</div>
+        </div>
+      </div>`;
+    };
+
     const rows = assets.map(a => {
       const usage = assetUsage.get(a.id) || { deliveries: [] };
       const usedInItems = [
         ...usage.deliveries.map(d => ({ label: `Delivery: ${d.name}`, onclick: `editDelivery(${d.id})` }))
       ];
+      const previewCell = a.type === 'image' && a.url
+        ? `<td data-column-id="preview"><img src="${(a.url || '').replace(/"/g, '&quot;')}" alt="${(a.name || '').replace(/"/g, '&quot;')}" style="width:40px;height:40px;object-fit:cover;border-radius:4px;" onerror="this.onerror=null;this.src='';this.style.background='var(--bg-secondary,#f1f5f9)';this.alt=''"></td>`
+        : `<td data-column-id="preview"><span class="inventory-card-icon" style="display:inline-flex;width:40px;height:40px;align-items:center;justify-content:center;background:var(--bg-secondary,#f1f5f9);border-radius:4px;">${_afIco('<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M16 13H8"/><path d="M16 17H8"/><path d="M10 9H8"/>', 20)}</span></td>`;
       return `
         <tr>
-          <td data-column-id="preview"><img src="${a.url}" alt="${a.name}" style="width:40px;height:40px;object-fit:cover;border-radius:4px;"></td>
+          ${previewCell}
           <td data-column-id="name">${a.name}</td>
           <td data-column-id="type">${a.type}</td>
           <td data-column-id="size">${(a.size / 1024).toFixed(1)} KB</td>
-          <td data-column-id="tags">${(a.tags || []).join(', ') || '-'}</td>
+          <td data-column-id="tags">${Array.isArray(a.tags) ? a.tags.join(', ') : (a.tags || '-')}</td>
           <td data-column-id="used_in">${renderUsedInList(usedInItems)}</td>
           <td data-column-id="created_at">${new Date(a.created_at || Date.now()).toLocaleString()}</td>
           <td>${createActionMenu(a.id, [
@@ -4174,19 +7089,25 @@ async function loadAssets() {
       { id: 'created_at', label: 'Created at' }
     ];
     
-    const content = `
+    let content = `
       <div class="card">
-        <div class="card-header">
+        <div class="card-header" style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:8px;">
           <h3 class="card-title">${_afIco('<rect width="18" height="18" x="3" y="3" rx="2" ry="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/>')} Asset Library</h3>
-          <label class="btn btn-primary" style="cursor:pointer;">
-            + Upload
-            <input type="file" id="asset-upload-input" style="display:none;" onchange="uploadAsset(this.files)">
-          </label>
+          <div style="display:flex;gap:8px;align-items:center">
+            ${typeof getFolderToggleButtonHtml === 'function' ? getFolderToggleButtonHtml('assets') : ''}
+            <label class="btn btn-primary" style="cursor:pointer;">
+              + Upload
+              <input type="file" id="asset-upload-input" style="display:none;" onchange="uploadAsset(this.files)">
+            </label>
+          </div>
         </div>
         ${createTableToolbar({
           resultCount: assets.length,
           totalCount: assets.length,
           showColumnSelector: true,
+          showViewModeToggle: true,
+          viewMode: assetsViewMode,
+          viewKeyForMode: 'assets',
           columns,
           viewKey: 'assets',
           showSearch: true,
@@ -4209,7 +7130,9 @@ async function loadAssets() {
             }
           ]
         })}
-        <div class="data-table-container">
+        ${assetsViewMode === 'grid'
+          ? `<div class="inventory-grid">${assets.length ? assets.map(assetCard).join('') : '<div class="empty-state" style="grid-column:1/-1;padding:3rem;text-align:center;color:#6B7280">No assets found</div>'}</div>`
+          : `<div class="data-table-container">
           <table class="data-table" data-view="assets">
             <thead>
               <tr>
@@ -4227,11 +7150,18 @@ async function loadAssets() {
               ${rows || '<tr><td colspan="8" style="text-align:center;padding:2rem;color:#6B7280;">No assets found</td></tr>'}
             </tbody>
           </table>
-        </div>
+        </div>`
+        }
       </div>
     `;
+    if (typeof wrapWithFolderSidebarHtml === 'function') {
+      content = wrapWithFolderSidebarHtml('assets', 'assets', content);
+    }
     document.getElementById('content').innerHTML = content;
     applyColumnVisibility('assets');
+    if (typeof initListFolderTree === 'function') {
+      initListFolderTree('assets', 'assets', loadAssets);
+    }
   } catch (error) {
     showError('Failed to load assets');
   } finally {
@@ -4254,6 +7184,8 @@ async function uploadAsset(files) {
   const file = files[0];
   const form = new FormData();
   form.append('file', file);
+  const currentFolderId = window['_folderFilter_assets'];
+  if (currentFolderId) form.append('folder_id', currentFolderId);
   try {
     showLoading();
     const response = await fetch('/api/assets', { method: 'POST', body: form });

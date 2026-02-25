@@ -82,18 +82,36 @@ document.addEventListener('DOMContentLoaded', async () => {
   segmentId = params.get('id');
   const returnView = params.get('return');
   const deliveryId = params.get('deliveryId');
+  const defaultName = params.get('defaultName') || '';
   if (returnView === 'deliveries' && deliveryId) {
     const returnBtn = document.getElementById('return-to-delivery');
     if (returnBtn) returnBtn.style.display = 'inline-flex';
   }
-  
+
   // Load custom objects first
   await loadCustomObjects();
-  
-  if (segmentId) {
-    loadSegment(segmentId);
+
+  // Initialize folder picker
+  if (typeof ensureFolderPickerData === 'function') {
+    await ensureFolderPickerData('segments');
   }
-  
+
+  if (segmentId) {
+    await loadSegment(segmentId);
+  } else if (defaultName) {
+    const nameEl = document.getElementById('segment-name');
+    const displayEl = document.getElementById('segment-name-display');
+    if (nameEl) nameEl.value = defaultName;
+    if (displayEl) displayEl.textContent = defaultName;
+  }
+
+  // Render folder picker with current value
+  const fpContainer = document.getElementById('segment-folder-picker-container');
+  if (fpContainer && typeof folderPickerHtml === 'function') {
+    const segFolderId = window._segmentFolderId || (typeof getDefaultFolderForEntity === 'function' ? getDefaultFolderForEntity('segments') : null);
+    fpContainer.innerHTML = folderPickerHtml('segment-folder-id', 'segments', segFolderId);
+  }
+
   setupEventListeners();
 });
 
@@ -259,6 +277,7 @@ async function loadSegment(id) {
     document.getElementById('segment-description').value = segment.description || '';
     document.getElementById('segment-type').value = segment.segment_type || 'dynamic';
     document.getElementById('segment-name-display').textContent = segment.name;
+    window._segmentFolderId = segment.folder_id || null;
     
     // Determine conditions - handle both new and legacy formats
     let conditions = segment.conditions;
@@ -286,7 +305,8 @@ async function loadSegment(id) {
           type: r.type || meta.type,
           operator: r.operator || getDefaultOperator(meta.type),
           value: r.value != null ? r.value : '',
-          caseSensitive: r.case_sensitive === true
+          caseSensitive: r.case_sensitive === true,
+          nextOperator: r.nextOperator || undefined
         };
       });
 
@@ -383,7 +403,8 @@ function buildCurrentConditions() {
       attribute: r.attribute,
       operator: r.operator,
       value: r.value,
-      case_sensitive: !!r.caseSensitive
+      case_sensitive: !!r.caseSensitive,
+      nextOperator: r.nextOperator || undefined
     }))
   };
 }
@@ -1038,20 +1059,27 @@ async function updatePreview() {
         entity: r.entity,
         attribute: r.attribute,
         operator: r.operator,
-        value: r.value
+        value: r.value,
+        nextOperator: r.nextOperator || undefined
       }))
     };
     
     const response = await fetch(`${API_BASE}/segments/preview`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ conditions })
+      body: JSON.stringify({ conditions, segment_id: segmentId || undefined })
     });
     
     const data = await response.json();
     
     // Update count
     document.getElementById('preview-count').textContent = data.count.toLocaleString();
+    const labelEl = document.getElementById('preview-count-label');
+    if (labelEl) {
+      labelEl.textContent = data.fromSavedSegment
+        ? 'Matching customers (saved segment — matches workflow)'
+        : 'Matching customers';
+    }
     
     // Update samples
     if (data.samples.length > 0) {
@@ -1239,11 +1267,13 @@ async function saveSegment(activate = false) {
         label: r.label,
         type: r.type,
         operator: r.operator,
-        value: r.value
+        value: r.value,
+        nextOperator: r.nextOperator || undefined
       }))
     },
     status: activate ? 'active' : 'draft',
-    is_active: activate
+    is_active: activate,
+    folder_id: typeof getSelectedFolderId === 'function' ? getSelectedFolderId('segment-folder-id') : null
   };
   
   const url = segmentId ? `${API_BASE}/segments/${segmentId}` : `${API_BASE}/segments`;
@@ -1398,7 +1428,7 @@ function generateSQL() {
         condition = `(${tableName}.${columnName} IS NULL OR ${tableName}.${columnName} = '')`;
         break;
       case 'is_not_empty':
-        condition = `(${tableName}.${columnName} IS NOT NULL AND ${tableName}.${columnName} != '')`;
+        condition = `${tableName}.${columnName} IS NOT NULL AND ${tableName}.${columnName} != ''`;
         break;
       case 'in_last':
         condition = `${tableName}.${columnName} >= DATE_SUB(NOW(), INTERVAL ${value} DAY)`;
@@ -1491,6 +1521,7 @@ function setRuleOperator(ruleIndex, operator) {
     rules[ruleIndex].nextOperator = operator;
     renderRules();
     updateSQLPreview();
+    updatePreview();
   }
 }
 
