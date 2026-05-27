@@ -213,7 +213,12 @@ function renderCurrentPage() {
     'item-catalog': 'Item Catalog',
     'ranking-formulas': 'Ranking Formulas',
     'ai-models': 'AI Models',
-    'context-schema': 'Context Data'
+    'context-schema': 'Context Data',
+    'agent-skills': 'Skills',
+    agents: 'Agents',
+    'agent-tools': 'Tools',
+    'agent-ops': 'Agent Operations',
+    'agent-automations': 'Agent Automations'
   };
   
   const pageTitleEl = document.getElementById('page-title');
@@ -424,6 +429,28 @@ function showListPage(view) {
     case 'context-schema':
       callViewLoader(window.loadContextSchema, 'Context Data');
       break;
+    case 'agent-skills':
+      callViewLoader(window.loadAgentSkills, 'Skills');
+      break;
+    case 'agents':
+      callViewLoader(window.loadAgents, 'Agents');
+      break;
+    case 'agent-tools':
+      callViewLoader(window.loadAgentTools, 'Tools');
+      break;
+    case 'agent-ops':
+      callViewLoader(window.loadAgentOps, 'Agent Operations');
+      break;
+    case 'agent-automations':
+      (function() {
+        var content = document.getElementById('content');
+        if (content && typeof window.renderAgentAutomations === 'function') {
+          window.renderAgentAutomations(content);
+        } else {
+          renderMissingView('Agent Automations');
+        }
+      })();
+      break;
     default:
       renderMissingView(view);
       break;
@@ -476,7 +503,7 @@ async function showEditPage(view, id) {
   showLoading();
   
   try {
-    const endpoint = view === 'custom-objects' ? 'custom-objects' : view === 'strategies' ? 'decisions/strategies' : view;
+    const endpoint = view === 'custom-objects' ? 'custom-objects' : view === 'strategies' ? 'decisions/strategies' : view === 'agent-skills' ? 'agent-skills' : view === 'agent-tools' ? 'agent-tools' : view;
     const response = await fetch(`${API_BASE}/${endpoint}/${id}`);
     const data = await response.json();
     
@@ -507,6 +534,15 @@ async function showEditPage(view, id) {
         break;
       case 'decisions':
         window.renderDecisionForm(data);
+        break;
+      case 'agent-skills':
+        window.renderSkillEditForm(data);
+        break;
+      case 'agents':
+        window.renderAgentEditForm(data);
+        break;
+      case 'agent-tools':
+        window.renderToolEditForm(data);
         break;
     }
     
@@ -2490,6 +2526,7 @@ async function loadWorkflows() {
           <h3 class="card-title">${ICONS.workflow} Workflows</h3>
           <div style="display:flex;gap:8px;align-items:center">
             ${typeof getFolderToggleButtonHtml === 'function' ? getFolderToggleButtonHtml('workflows') : ''}
+            <a class="btn btn-secondary" href="workflow-json-viewer.html">Preview from JSON</a>
             <button class="btn btn-primary" onclick="navigateTo('workflows', 'create')">+ Create Workflow</button>
           </div>
         </div>

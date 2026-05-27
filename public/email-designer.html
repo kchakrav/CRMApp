@@ -608,6 +608,26 @@
     </div>
   </div>
 
+  <div id="conditional-conditions-modal" class="email-modal hidden">
+    <div class="email-modal-content">
+      <div class="email-modal-header">
+        <h3>Variant conditions</h3>
+        <button class="email-modal-close" onclick="closeConditionalConditionsModal()"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></button>
+      </div>
+      <div class="email-modal-body">
+        <div class="form-group">
+          <label class="form-label">Variant name</label>
+          <input type="text" id="conditional-variant-name-input" class="form-input" placeholder="e.g. VIP">
+        </div>
+        <div id="conditional-conditions-rules"></div>
+      </div>
+      <div class="email-modal-footer">
+        <button class="btn btn-secondary" onclick="closeConditionalConditionsModal()">Cancel</button>
+        <button class="btn btn-primary" onclick="saveConditionalConditions()">Save</button>
+      </div>
+    </div>
+  </div>
+
   <div id="loading" class="loading hidden">
     <div class="spinner"></div>
   </div>

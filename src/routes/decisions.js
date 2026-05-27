@@ -1052,6 +1052,24 @@ router.post('/experiments/:expId/stop', (req, res) => {
   }
 });
 
+router.post('/experiments/:expId/scale-winner', (req, res) => {
+  try {
+    const expId = parseInt(req.params.expId);
+    const exp = query.get('experiments', expId);
+    if (!exp) return res.status(404).json({ error: 'Experiment not found' });
+    if (!exp.winner_treatment_id) return res.status(400).json({ error: 'No winner determined yet' });
+
+    const treatments = (exp.treatments || []).map(t => ({
+      ...t,
+      traffic_pct: t.id === exp.winner_treatment_id ? 100 : 0
+    }));
+    query.update('experiments', expId, { treatments, scaled_at: new Date().toISOString() });
+    res.json(query.get('experiments', expId));
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 router.delete('/experiments/:expId', (req, res) => {
   try {
     const expId = parseInt(req.params.expId);

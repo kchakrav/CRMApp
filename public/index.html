@@ -6,8 +6,20 @@
   <title>B2C Marketing Automation Platform</title>
   <link rel="stylesheet" href="style.css">
   <link rel="stylesheet" href="table-enhancements.css">
+  <script>
+    (function () {
+      try {
+        var k = 'app-theme';
+        var v = localStorage.getItem(k);
+        if (v === 'dark' || (v !== 'light' && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+          document.documentElement.setAttribute('data-theme', 'dark');
+        }
+      } catch (e) {}
+    })();
+  </script>
 </head>
 <body>
+  <a href="#main-content" class="skip-link">Skip to main content</a>
   <div class="app-container">
     <!-- Left Sidebar Navigation (Adobe-style) -->
     <aside class="sidebar">
@@ -37,6 +49,15 @@
             </a>
             <a href="#" class="nav-item" data-view="deliveries">
               <span class="icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m22 2-7 20-4-9-9-4Z"/><path d="m22 2-11 11"/></svg></span> Deliveries
+            </a>
+            <a href="#" class="nav-item" data-view="agent-skills">
+              <span class="icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a1 1 0 000 1.4l1.6 1.6a1 1 0 001.4 0l3.77-3.77a6 6 0 01-7.94 7.94l-6.91 6.91a2.12 2.12 0 01-3-3l6.91-6.91a6 6 0 017.94-7.94l-3.76 3.76z"/></svg></span> Skills
+            </a>
+            <a href="#" class="nav-item" data-view="agents">
+              <span class="icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a4 4 0 014 4v1h1a3 3 0 013 3v4a3 3 0 01-3 3h-1v1a4 4 0 01-8 0v-1H7a3 3 0 01-3-3v-4a3 3 0 013-3h1V6a4 4 0 014-4z"/><circle cx="9" cy="12" r="1"/><circle cx="15" cy="12" r="1"/></svg></span> Agents
+            </a>
+            <a href="#" class="nav-item" data-view="agent-automations">
+              <span class="icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></span> Automations
             </a>
           </div>
         </div>
@@ -183,6 +204,12 @@
             <a href="#" class="nav-item" data-view="ai">
               <span class="icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/><path d="M5 3v4"/><path d="M19 17v4"/><path d="M3 5h4"/><path d="M17 19h4"/></svg></span> AI Features
             </a>
+            <a href="#" class="nav-item" data-view="agent-tools">
+              <span class="icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg></span> Tools
+            </a>
+            <a href="#" class="nav-item" data-view="agent-ops">
+              <span class="icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg></span> Operations
+            </a>
             <a href="#" class="nav-item" data-view="api-docs">
               <span class="icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg></span> API Documentation
             </a>
@@ -192,7 +219,7 @@
     </aside>
 
     <!-- Main Content Area -->
-    <main class="main-content">
+    <main id="main-content" class="main-content" role="main">
       <!-- Top Header Bar (Adobe-style) -->
       <header class="header">
         <div class="header-left">
@@ -210,6 +237,14 @@
           <button class="ai-agent-trigger" id="ai-agent-btn" onclick="toggleAIAgent()" title="AI Assistant">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3L12 3Z"/></svg>
             <span>AI Agent</span>
+          </button>
+          <button type="button" class="btn btn-secondary" id="qr-btn" onclick="toggleQRPanel()" title="Scan QR to open on mobile" style="display:inline-flex;align-items:center;gap:6px;padding:0 12px;height:36px;font-size:13px;">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="5" height="5" x="3" y="3" rx="1"/><rect width="5" height="5" x="16" y="3" rx="1"/><rect width="5" height="5" x="3" y="16" rx="1"/><path d="M21 16h-3a2 2 0 0 0-2 2v3"/><path d="M21 21v.01"/><path d="M12 7v3a2 2 0 0 1-2 2H7"/><path d="M3 12h.01"/><path d="M12 3h.01"/><path d="M12 16v.01"/><path d="M16 12h1"/><path d="M21 12v.01"/><path d="M12 21v-1"/></svg>
+            Mobile
+          </button>
+          <button type="button" class="theme-toggle" id="theme-toggle" onclick="toggleAppTheme()" title="Toggle color theme" aria-label="Toggle dark mode" aria-pressed="false">
+            <span class="theme-toggle-icon theme-toggle-moon" aria-hidden="true"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/></svg></span>
+            <span class="theme-toggle-icon theme-toggle-sun" aria-hidden="true"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/></svg></span>
           </button>
         </div>
       </header>
@@ -229,7 +264,7 @@
   </div>
 
   <!-- Generic Create / Edit Modal -->
-  <div id="modal" class="modal hidden" onclick="if(event.target===this)closeModal()">
+  <div id="modal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="modal-title" onclick="if(event.target===this)closeModal()">
     <div class="modal-content">
       <div class="modal-header">
         <h2 id="modal-title" class="modal-title">Create</h2>
@@ -244,10 +279,10 @@
   </div>
 
   <!-- Delete Confirmation Modal (Adobe Spectrum Dialog) -->
-  <div id="confirm-modal" class="modal-overlay hidden" onclick="if(event.target === this) closeConfirmModal()">
+  <div id="confirm-modal" class="modal-overlay hidden" role="alertdialog" aria-modal="true" aria-labelledby="confirm-modal-title" onclick="if(event.target === this) closeConfirmModal()">
     <div class="modal">
       <div class="modal-header">
-        <h2 class="modal-title">Confirm Action</h2>
+        <h2 id="confirm-modal-title" class="modal-title">Confirm Action</h2>
         <span class="modal-close" onclick="closeConfirmModal()"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></span>
       </div>
       <div class="modal-body">
@@ -276,8 +311,31 @@
   <!-- Toast Notifications Container (Adobe-style) -->
   <div id="toast-container"></div>
 
+  <script>
+    window.toggleAppTheme = function () {
+      var r = document.documentElement;
+      var isDark = r.getAttribute('data-theme') === 'dark';
+      var next = isDark ? 'light' : 'dark';
+      if (next === 'dark') r.setAttribute('data-theme', 'dark');
+      else r.removeAttribute('data-theme');
+      try {
+        localStorage.setItem('app-theme', next);
+      } catch (e) {}
+      var btn = document.getElementById('theme-toggle');
+      if (btn) {
+        btn.setAttribute('aria-pressed', next === 'dark');
+        btn.title = next === 'dark' ? 'Switch to light mode' : 'Switch to dark mode';
+        btn.setAttribute('aria-label', next === 'dark' ? 'Switch to light mode' : 'Switch to dark mode');
+      }
+    };
+    document.addEventListener('DOMContentLoaded', function () {
+      var btn = document.getElementById('theme-toggle');
+      if (btn) btn.setAttribute('aria-pressed', document.documentElement.getAttribute('data-theme') === 'dark');
+    });
+  </script>
   <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
+  <script src="agents-skills-page.js"></script>
   <script src="app.js"></script>
   <script src="adobe-features.js"></script>
   <script src="transactional.js"></script>
@@ -359,7 +417,58 @@
   </div>
   <div id="copilot-overlay" class="copilot-overlay" onclick="toggleProductCopilot()"></div>
 
+  <!-- QR Mobile Panel -->
+  <div id="qr-panel" style="display:none;position:fixed;top:60px;right:16px;width:280px;background:var(--bg-layer-1);border:1px solid var(--border-default);border-radius:12px;box-shadow:var(--shadow-xl);z-index:5000;padding:20px;">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
+      <div>
+        <div style="font-size:14px;font-weight:700;color:var(--text-primary);">Open on Mobile</div>
+        <div style="font-size:11px;color:var(--text-secondary);">Scan with your phone camera</div>
+      </div>
+      <button onclick="toggleQRPanel()" style="background:none;border:none;cursor:pointer;color:var(--text-secondary);padding:4px;border-radius:4px;display:flex;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></button>
+    </div>
+    <div id="qr-img-wrap" style="text-align:center;padding:12px 0;">
+      <div style="font-size:12px;color:var(--text-secondary);">Generating QR code…</div>
+    </div>
+    <div id="qr-url" style="font-size:10px;color:var(--text-secondary);word-break:break-all;text-align:center;margin-top:8px;"></div>
+    <div style="font-size:11px;color:var(--text-secondary);text-align:center;margin-top:8px;">Link valid for 24 hours</div>
+  </div>
+  <div id="qr-overlay" style="display:none;position:fixed;inset:0;z-index:4999;" onclick="toggleQRPanel()"></div>
+
   <script src="ai-agent.js"></script>
   <script src="product-copilot.js"></script>
+  <script src="js/agent-automations.js"></script>
+  <script src="js/floating-chat.js"></script>
+  <script>
+    // ── QR Panel ────────────────────────────────────────────────────────────
+    var _qrOpen = false;
+    var _qrLoaded = false;
+    window.toggleQRPanel = function() {
+      _qrOpen = !_qrOpen;
+      var panel = document.getElementById('qr-panel');
+      var overlay = document.getElementById('qr-overlay');
+      if (panel) panel.style.display = _qrOpen ? 'block' : 'none';
+      if (overlay) overlay.style.display = _qrOpen ? 'block' : 'none';
+      if (_qrOpen && !_qrLoaded) loadQR();
+    };
+    function loadQR() {
+      fetch('/api/mobile/token', { method: 'POST', headers: { 'Content-Type': 'application/json' } })
+        .then(function(r) { return r.json(); })
+        .then(function(d) {
+          _qrLoaded = true;
+          var wrap = document.getElementById('qr-img-wrap');
+          var urlEl = document.getElementById('qr-url');
+          if (!wrap) return;
+          var url = d.mobile_url || '';
+          var qrSrc = '/api/mobile/qr?url=' + encodeURIComponent(url);
+          wrap.innerHTML = '<img src="' + qrSrc + '" alt="QR Code" style="width:200px;height:200px;border-radius:8px;border:4px solid #fff;">';
+          if (urlEl) urlEl.textContent = url;
+        })
+        .catch(function() {
+          var wrap = document.getElementById('qr-img-wrap');
+          if (wrap) wrap.innerHTML = '<div style="font-size:12px;color:var(--spectrum-red,#D7373F);">Failed to generate QR code.<br>Is the server running?</div>';
+        });
+    }
+
+  </script>
 </body>
 </html>

@@ -1,0 +1,563 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <title>CRM — Mobile</title>
+  <style>
+    /* ── Reset & base ── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { height: 100%; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; -webkit-font-smoothing: antialiased; }
+    body { background: #111; color: #f0f0f0; overflow: hidden; }
+
+    /* ── App shell ── */
+    #m-app { display: flex; flex-direction: column; height: 100vh; }
+
+    /* ── Top bar ── */
+    .m-top { display: flex; align-items: center; justify-content: space-between; padding: 12px 16px 10px; background: #1a1a1a; border-bottom: 1px solid #2a2a2a; flex-shrink: 0; padding-top: max(12px, env(safe-area-inset-top)); }
+    .m-logo { font-size: 17px; font-weight: 800; color: #1473E6; letter-spacing: -.3px; }
+    .m-user-name { font-size: 12px; font-weight: 600; color: #c0c0c0; text-align: right; }
+    .m-user-role { font-size: 10px; color: #6e6e6e; text-align: right; }
+
+    /* ── Tab body ── */
+    .m-body { flex: 1; overflow-y: auto; overflow-x: hidden; -webkit-overflow-scrolling: touch; padding-bottom: 70px; }
+    .m-tab { display: none; padding: 16px; }
+    .m-tab.active { display: block; }
+
+    /* ── Bottom nav ── */
+    .m-nav { position: fixed; bottom: 0; left: 0; right: 0; background: #161616; border-top: 1px solid #2a2a2a; display: flex; z-index: 100; padding-bottom: env(safe-area-inset-bottom); }
+    .m-nav-btn { flex: 1; padding: 10px 4px 8px; background: none; border: none; color: #6e6e6e; font-size: 10px; font-weight: 600; letter-spacing: .02em; cursor: pointer; display: flex; flex-direction: column; align-items: center; gap: 3px; transition: color .15s; }
+    .m-nav-btn svg { width: 20px; height: 20px; stroke: currentColor; fill: none; stroke-width: 2; }
+    .m-nav-btn.active { color: #1473E6; }
+    .m-nav-dot { width: 6px; height: 6px; background: #D7373F; border-radius: 50%; position: absolute; top: 7px; right: calc(50% - 14px); }
+
+    /* ── Section labels ── */
+    .m-section-label { font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: .07em; color: #6e6e6e; margin-bottom: 12px; }
+
+    /* ── Cards ── */
+    .m-card { background: #1e1e1e; border: 1px solid #2a2a2a; border-radius: 12px; padding: 14px 16px; margin-bottom: 10px; }
+    .m-card-title { font-size: 13px; font-weight: 600; color: #d0d0d0; margin-bottom: 2px; }
+    .m-card-meta { font-size: 11px; color: #6e6e6e; margin-bottom: 8px; }
+    .m-status { display: inline-block; font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 3px; }
+    .m-status.success { background: rgba(38,142,108,.2); color: #34d399; }
+    .m-status.error   { background: rgba(215,55,63,.2);  color: #f87171; }
+    .m-status.pending { background: rgba(230,134,25,.2);  color: #fbbf24; }
+    .m-status.running { background: rgba(20,115,230,.2);  color: #60a5fa; }
+
+    /* ── Run-now button ── */
+    .m-run-btn { background: rgba(20,115,230,.15); border: 1px solid rgba(20,115,230,.3); color: #60a5fa; font-size: 11px; font-weight: 700; padding: 5px 12px; border-radius: 6px; cursor: pointer; }
+    .m-run-btn:active { opacity: .7; }
+
+    /* ── Toggle switch ── */
+    .m-switch { width: 38px; height: 22px; background: #2a2a2a; border-radius: 11px; position: relative; cursor: pointer; transition: background .2s; flex-shrink: 0; border: none; }
+    .m-switch.on { background: #1473E6; }
+    .m-switch::after { content: ''; position: absolute; width: 16px; height: 16px; background: #fff; border-radius: 50%; top: 3px; left: 3px; transition: left .2s; }
+    .m-switch.on::after { left: 19px; }
+
+    /* ── Loading ── */
+    .m-loading { text-align: center; color: #6e6e6e; font-size: 12px; padding: 32px 0; }
+
+    /* ── Error screen ── */
+    #m-error { display: none; flex-direction: column; align-items: center; justify-content: center; height: 100vh; text-align: center; padding: 32px; gap: 12px; }
+    .m-error-icon { font-size: 40px; }
+    .m-error-title { font-size: 18px; font-weight: 700; color: #ebebeb; }
+    .m-error-msg { font-size: 13px; color: #8e8e8e; line-height: 1.6; max-width: 280px; }
+
+    /* ── Chat ── */
+    .m-chat-messages { flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch; display: flex; flex-direction: column; gap: 10px; padding: 4px 0 12px; min-height: 200px; max-height: calc(100vh - 240px); }
+    .m-chat-bubble-wrap { display: flex; gap: 8px; align-items: flex-end; }
+    .m-chat-bubble-wrap.user { flex-direction: row-reverse; }
+    .m-chat-bubble { max-width: 80%; padding: 9px 13px; border-radius: 16px; font-size: 13px; line-height: 1.5; }
+    .m-chat-bubble.bot { background: #252525; border: 1px solid #2e2e2e; border-radius: 4px 16px 16px 16px; color: #d0d0d0; }
+    .m-chat-bubble.user { background: #1473E6; color: #fff; border-radius: 16px 4px 16px 16px; }
+    .m-chat-input-row { display: flex; gap: 8px; align-items: flex-end; margin-top: 12px; }
+    .m-chat-input { flex: 1; background: #252525; border: 1px solid #3a3a3a; border-radius: 10px; color: #f0f0f0; font-size: 14px; padding: 10px 14px; outline: none; resize: none; font-family: inherit; min-height: 44px; max-height: 120px; overflow-y: auto; }
+    .m-chat-send { width: 44px; height: 44px; background: #1473E6; border: none; border-radius: 10px; color: #fff; font-size: 18px; cursor: pointer; flex-shrink: 0; display: flex; align-items: center; justify-content: center; }
+    .m-chat-send:active { opacity: .8; }
+    .m-agent-picker { width: 100%; background: #252525; border: 1px solid #3a3a3a; border-radius: 8px; color: #d0d0d0; font-size: 13px; padding: 9px 12px; outline: none; margin-bottom: 12px; }
+
+    /* ── Automation sheet ── */
+    .m-sheet-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.55); z-index: 199; display: none; }
+    .m-sheet-overlay.open { display: block; }
+    .m-sheet { position: fixed; bottom: 0; left: 0; right: 0; background: #1a1a1a; border-top: 1px solid #2e2e2e; border-radius: 16px 16px 0 0; padding: 20px 16px calc(28px + env(safe-area-inset-bottom)); z-index: 200; transform: translateY(100%); transition: transform .28s ease; max-height: 88vh; overflow-y: auto; }
+    .m-sheet.open { transform: translateY(0); }
+    .m-sheet-handle { width: 36px; height: 4px; background: #3a3a3a; border-radius: 2px; margin: 0 auto 12px; }
+    .m-sheet-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
+    .m-sheet-title { font-size: 14px; font-weight: 700; color: #ebebeb; }
+    .m-sheet-close { background: none; border: none; color: #6e6e6e; font-size: 22px; cursor: pointer; padding: 0 4px; line-height: 1; }
+    .m-preset-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 16px; }
+    .m-preset-card { background: #252525; border: 1px solid #3a3a3a; border-radius: 10px; padding: 12px; cursor: pointer; transition: border-color .15s; }
+    .m-preset-card.selected { border-color: #1473E6; background: rgba(20,115,230,.08); }
+    .m-preset-card:active { opacity: .8; }
+    .m-preset-icon { font-size: 20px; margin-bottom: 6px; }
+    .m-preset-name { font-size: 12px; font-weight: 600; color: #ebebeb; margin-bottom: 2px; }
+    .m-preset-sched { font-size: 10px; color: #1473E6; }
+    .m-nl-input { width: 100%; background: #252525; border: 1px solid #3a3a3a; border-radius: 8px; color: #f0f0f0; font-size: 13px; padding: 10px 12px; outline: none; box-sizing: border-box; margin-bottom: 6px; font-family: inherit; }
+    .m-cron-preview { font-size: 11px; color: #1473E6; min-height: 16px; margin-bottom: 12px; }
+    .m-agent-cb-list { max-height: 150px; overflow-y: auto; border: 1px solid #2e2e2e; border-radius: 8px; margin-bottom: 14px; }
+    .m-agent-cb-row { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-bottom: 1px solid #1e1e1e; }
+    .m-agent-cb-row:last-child { border-bottom: none; }
+    .m-agent-cb-row input { accent-color: #1473E6; width: 16px; height: 16px; cursor: pointer; }
+    .m-agent-cb-row label { font-size: 13px; color: #d0d0d0; cursor: pointer; }
+    .m-btn-primary { width: 100%; background: #1473E6; border: none; border-radius: 10px; color: #fff; font-size: 14px; font-weight: 700; padding: 13px; cursor: pointer; }
+    .m-btn-primary:active { opacity: .85; }
+
+    /* ── FAB ── */
+    .m-fab { position: fixed; bottom: calc(68px + env(safe-area-inset-bottom)); right: 18px; width: 48px; height: 48px; background: #1473E6; border: none; border-radius: 50%; color: #fff; font-size: 24px; cursor: pointer; box-shadow: 0 4px 16px rgba(20,115,230,.4); z-index: 150; display: none; align-items: center; justify-content: center; }
+    .m-fab.visible { display: flex; }
+  </style>
+</head>
+<body>
+
+<div id="m-error">
+  <div class="m-error-icon">🔒</div>
+  <div class="m-error-title">Access Expired</div>
+  <div class="m-error-msg">This mobile link has expired or is invalid. Open the CRM on your desktop and scan a fresh QR code from your profile.</div>
+</div>
+
+<div id="m-app">
+  <!-- Top bar -->
+  <div class="m-top">
+    <div>
+      <div class="m-logo">Marketing CRM</div>
+    </div>
+    <div>
+      <div class="m-user-name" id="m-user-name">Mobile View</div>
+      <div class="m-user-role" id="m-user-role">CRM Platform</div>
+    </div>
+  </div>
+
+  <!-- Tab body -->
+  <div class="m-body">
+
+    <!-- Activity tab -->
+    <div class="m-tab active" id="m-tab-activity">
+      <div class="m-section-label">Recent Agent Runs</div>
+      <div id="m-runs-list"><div class="m-loading">Loading activity…</div></div>
+    </div>
+
+    <!-- Agents tab -->
+    <div class="m-tab" id="m-tab-agents">
+      <div class="m-section-label">Your Agents</div>
+      <div id="m-agents-list"><div class="m-loading">Loading agents…</div></div>
+    </div>
+
+    <!-- Chat tab -->
+    <div class="m-tab" id="m-tab-chat">
+      <div class="m-section-label">Chat with AI Assistant</div>
+      <select class="m-agent-picker" id="m-agent-picker">
+        <option value="">General assistant</option>
+      </select>
+      <div class="m-chat-messages" id="m-chat-messages">
+        <div class="m-chat-bubble-wrap">
+          <div class="m-chat-bubble bot">Hi! I'm your AI assistant. Ask me about campaigns, contacts, or any CRM feature.</div>
+        </div>
+      </div>
+      <div class="m-chat-input-row">
+        <textarea class="m-chat-input" id="m-chat-input" rows="1" placeholder="Ask anything…" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendMobileChat();}"></textarea>
+        <button class="m-chat-send" onclick="sendMobileChat()">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m22 2-7 20-4-9-9-4Z"/><path d="m22 2-11 11"/></svg>
+        </button>
+      </div>
+    </div>
+
+    <!-- Schedules tab -->
+    <div class="m-tab" id="m-tab-schedules">
+      <div class="m-section-label">Scheduled Automations</div>
+      <div id="m-schedules-list"><div class="m-loading">Loading automations…</div></div>
+    </div>
+
+  </div>
+
+  <!-- Bottom nav -->
+  <nav class="m-nav">
+    <button class="m-nav-btn active" id="nav-activity" onclick="switchTab('activity')">
+      <svg viewBox="0 0 24 24"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+      Activity
+    </button>
+    <button class="m-nav-btn" id="nav-agents" onclick="switchTab('agents')">
+      <svg viewBox="0 0 24 24"><path d="M12 2a4 4 0 014 4v1h1a3 3 0 013 3v4a3 3 0 01-3 3h-1v1a4 4 0 01-8 0v-1H7a3 3 0 01-3-3v-4a3 3 0 013-3h1V6a4 4 0 014-4z"/><circle cx="9" cy="12" r="1"/><circle cx="15" cy="12" r="1"/></svg>
+      Agents
+    </button>
+    <button class="m-nav-btn" id="nav-schedules" onclick="switchTab('schedules')" style="position:relative;">
+      <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+      Schedule
+    </button>
+    <button class="m-nav-btn" id="nav-chat" onclick="switchTab('chat')">
+      <svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+      Chat
+    </button>
+  </nav>
+</div>
+
+<!-- FAB: create automation -->
+<button class="m-fab" id="m-fab" onclick="openAutoSheet()">+</button>
+
+<!-- Sheet overlay -->
+<div class="m-sheet-overlay" id="m-sheet-overlay" onclick="closeAutoSheet()"></div>
+
+<!-- New Automation sheet -->
+<div class="m-sheet" id="m-auto-sheet">
+  <div class="m-sheet-handle"></div>
+  <div class="m-sheet-header">
+    <div class="m-sheet-title">New Automation</div>
+    <button class="m-sheet-close" onclick="closeAutoSheet()">×</button>
+  </div>
+
+  <div style="font-size:11px;font-weight:700;color:#6e6e6e;text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px;">Pick a preset</div>
+  <div class="m-preset-grid" id="m-preset-grid"></div>
+
+  <div style="font-size:11px;font-weight:700;color:#6e6e6e;text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px;">Schedule</div>
+  <input class="m-nl-input" id="m-auto-nl" placeholder="e.g. every weekday at 9am" />
+  <div class="m-cron-preview" id="m-cron-preview"></div>
+
+  <div style="font-size:11px;font-weight:700;color:#6e6e6e;text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px;">Agents</div>
+  <div class="m-agent-cb-list" id="m-agent-cb-list"><div style="padding:12px;font-size:12px;color:#6e6e6e;">Loading agents…</div></div>
+
+  <button class="m-btn-primary" onclick="saveMobileAutomation()">Save Automation</button>
+</div>
+
+<script>
+(function () {
+  'use strict';
+
+  var BASE = '';
+  var currentTab = 'activity';
+  var chatSessionId = null;
+  var selectedPreset = null;
+
+  var PRESETS = [
+    { id: 'cart-recovery',   icon: '🛒', label: 'Cart Recovery',  cron: '0 9 * * 1-5' },
+    { id: 'daily-briefing',  icon: '📋', label: 'Daily Briefing', cron: '0 8 * * 1-5' },
+    { id: 'weekly-report',   icon: '📊', label: 'Weekly Report',  cron: '0 17 * * 5'  },
+    { id: 'anomaly-monitor', icon: '🔔', label: 'Monitor',        cron: '0 * * * *'   },
+    { id: 'segment-refresh', icon: '👥', label: 'Segments',       cron: '0 6 * * *'   },
+    { id: 'loyalty-check',   icon: '⭐', label: 'Loyalty',        cron: '0 10 * * 1'  },
+    { id: 'winback-scan',    icon: '🔄', label: 'Win-back',       cron: '0 9 * * 2'   },
+    { id: 'cost-audit',      icon: '💰', label: 'Cost Audit',     cron: '0 9 * * 1'   }
+  ];
+
+  function cronHuman(cron) {
+    var map = {
+      '0 9 * * 1-5': 'Weekdays 9am', '0 8 * * 1-5': 'Weekdays 8am',
+      '0 17 * * 5': 'Fridays 5pm', '0 * * * *': 'Every hour',
+      '0 6 * * *': 'Daily 6am', '0 10 * * 1': 'Mon 10am',
+      '0 9 * * 2': 'Tue 9am', '0 9 * * 1': 'Mon 9am', '0 9 * * *': 'Daily 9am'
+    };
+    return map[(cron || '').trim()] || (cron || '');
+  }
+
+  function esc(s) {
+    return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  }
+
+  function showError() {
+    document.getElementById('m-error').style.display = 'flex';
+    document.getElementById('m-app').style.display = 'none';
+  }
+
+  // ── Token validation ─────────────────────────────────────────────────────
+  var params = new URLSearchParams(window.location.search);
+  var token = params.get('token');
+  if (!token) {
+    // Allow no-token access for development
+    document.getElementById('m-app').style.display = 'flex';
+    init();
+  } else {
+    fetch(BASE + '/api/mobile/validate/' + token)
+      .then(function(r) { return r.json(); })
+      .then(function(d) {
+        if (!d.valid) { showError(); return; }
+        document.getElementById('m-app').style.display = 'flex';
+        init();
+      })
+      .catch(function() {
+        // If validate endpoint fails, allow access anyway (dev mode)
+        document.getElementById('m-app').style.display = 'flex';
+        init();
+      });
+  }
+
+  function init() {
+    loadActivity();
+    loadAgentsForPicker();
+  }
+
+  // ── Tab switching ─────────────────────────────────────────────────────────
+  window.switchTab = function(tab) {
+    currentTab = tab;
+    closeAutoSheet();
+    document.querySelectorAll('.m-tab').forEach(function(t) { t.classList.remove('active'); });
+    document.querySelectorAll('.m-nav-btn').forEach(function(b) { b.classList.remove('active'); });
+    document.getElementById('m-tab-' + tab).classList.add('active');
+    document.getElementById('nav-' + tab).classList.add('active');
+    var fab = document.getElementById('m-fab');
+    if (fab) fab.classList.toggle('visible', tab === 'schedules');
+    if (tab === 'activity') loadActivity();
+    if (tab === 'agents') loadAgents();
+    if (tab === 'schedules') loadSchedules();
+  };
+
+  // ── Activity tab ─────────────────────────────────────────────────────────
+  function loadActivity() {
+    var el = document.getElementById('m-runs-list');
+    fetch(BASE + '/api/mobile/runs')
+      .then(function(r) { return r.ok ? r.json() : []; })
+      .then(function(runs) {
+        if (!runs.length) { el.innerHTML = '<div class="m-loading">No recent agent runs.</div>'; return; }
+        el.innerHTML = runs.slice(0, 20).map(function(r) {
+          var st = r.status || 'unknown';
+          var ago = r.created_at ? relativeTime(r.created_at) : '';
+          return '<div class="m-card">' +
+            '<div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px;">' +
+              '<div>' +
+                '<div class="m-card-title">' + esc(r.agent_name || r.agent_id || 'Agent') + '</div>' +
+                '<div class="m-card-meta">' + esc(ago) + (r.duration_ms ? ' · ' + (r.duration_ms/1000).toFixed(1) + 's' : '') + '</div>' +
+              '</div>' +
+              '<span class="m-status ' + esc(st) + '">' + esc(st.toUpperCase()) + '</span>' +
+            '</div>' +
+            (r.output ? '<div style="font-size:12px;color:#8a8a8a;margin-top:6px;line-height:1.4;">' + esc(r.output) + '</div>' : '') +
+          '</div>';
+        }).join('');
+      })
+      .catch(function() { el.innerHTML = '<div class="m-loading">Failed to load activity.</div>'; });
+  }
+
+  // ── Agents tab ────────────────────────────────────────────────────────────
+  function loadAgents() {
+    var el = document.getElementById('m-agents-list');
+    fetch(BASE + '/api/mobile/agents')
+      .then(function(r) { return r.ok ? r.json() : []; })
+      .then(function(agents) {
+        if (!agents.length) { el.innerHTML = '<div class="m-loading">No agents found.</div>'; return; }
+        el.innerHTML = agents.map(function(a) {
+          return '<div class="m-card">' +
+            '<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;">' +
+              '<div style="flex:1;min-width:0;">' +
+                '<div class="m-card-title">' + esc(a.name) + '</div>' +
+                '<div class="m-card-meta">' + esc(a.type || 'agent') + (a.description ? ' · ' + esc(a.description.slice(0, 60)) : '') + '</div>' +
+              '</div>' +
+              '<button class="m-run-btn" onclick="runAgent(\'' + esc(String(a.id)) + '\')">▶ Run</button>' +
+            '</div>' +
+          '</div>';
+        }).join('');
+      })
+      .catch(function() { el.innerHTML = '<div class="m-loading">Failed to load agents.</div>'; });
+  }
+
+  window.runAgent = function(agentId) {
+    fetch(BASE + '/api/agent-schedules/' + encodeURIComponent(agentId) + '/run', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}'
+    })
+      .then(function(r) { return r.json(); })
+      .then(function() { alert('Agent triggered successfully!'); })
+      .catch(function() { alert('Failed to trigger agent.'); });
+  };
+
+  // ── Chat tab ──────────────────────────────────────────────────────────────
+  function loadAgentsForPicker() {
+    fetch(BASE + '/api/mobile/agents')
+      .then(function(r) { return r.ok ? r.json() : []; })
+      .then(function(agents) {
+        var sel = document.getElementById('m-agent-picker');
+        if (!sel) return;
+        agents.forEach(function(a) {
+          var opt = document.createElement('option');
+          opt.value = a.id;
+          opt.textContent = a.name;
+          sel.appendChild(opt);
+        });
+      });
+  }
+
+  function appendChatMsg(role, text) {
+    var msgs = document.getElementById('m-chat-messages');
+    if (!msgs) return;
+    var div = document.createElement('div');
+    div.className = 'm-chat-bubble-wrap' + (role === 'user' ? ' user' : '');
+    div.innerHTML = '<div class="m-chat-bubble ' + role + '">' + esc(text).replace(/\n/g, '<br>') + '</div>';
+    msgs.appendChild(div);
+    msgs.scrollTop = msgs.scrollHeight;
+  }
+
+  function doSend(msg) {
+    var sel = document.getElementById('m-agent-picker');
+    var agentId = sel ? sel.value : '';
+    var agentName = agentId && sel ? sel.options[sel.selectedIndex].text : '';
+    var content = agentId ? '[chat-agent:' + agentId + ':' + agentName + '] ' + msg : msg;
+
+    function sendToSession(sid) {
+      fetch(BASE + '/api/ai/agent-chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: content, sessionId: sid })
+      })
+        .then(function(r) { return r.json(); })
+        .then(function(d) {
+          var reply = d.response || d.message || d.reply || 'No response received.';
+          appendChatMsg('bot', reply);
+        })
+        .catch(function() { appendChatMsg('bot', 'Sorry, something went wrong. Please try again.'); });
+    }
+
+    sendToSession(chatSessionId || 'mobile-' + Date.now());
+  }
+
+  window.sendMobileChat = function() {
+    var inp = document.getElementById('m-chat-input');
+    var msg = inp && inp.value.trim();
+    if (!msg) return;
+    inp.value = '';
+    inp.style.height = '';
+    appendChatMsg('user', msg);
+    doSend(msg);
+  };
+
+  // ── Schedules tab ─────────────────────────────────────────────────────────
+  function loadSchedules() {
+    var el = document.getElementById('m-schedules-list');
+    if (!el) return;
+    fetch(BASE + '/api/mobile/schedules')
+      .then(function(r) { return r.ok ? r.json() : []; })
+      .then(function(scheds) {
+        if (!scheds.length) { el.innerHTML = '<div class="m-loading">No automations set up yet. Tap + to create one.</div>'; return; }
+        el.innerHTML = scheds.map(function(s) {
+          var enabled = !!s.enabled;
+          var label = s.agent_title || s.agent_id || 'Agent';
+          return '<div class="m-card">' +
+            '<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;">' +
+              '<div style="flex:1;min-width:0;">' +
+                '<div class="m-card-title">' + esc(label) + '</div>' +
+                '<div class="m-card-meta">' + esc(cronHuman(s.cron)) + '</div>' +
+              '</div>' +
+              '<div style="display:flex;align-items:center;gap:10px;">' +
+                '<button class="m-run-btn" onclick="mRunNow(\'' + esc(String(s.agent_id)) + '\')">▶ Run</button>' +
+                '<button class="m-switch' + (enabled ? ' on' : '') + '" onclick="mToggle(\'' + esc(String(s.agent_id)) + '\',' + (!enabled) + ',\'' + esc(s.cron || '') + '\')" title="' + (enabled ? 'Enabled' : 'Disabled') + '"></button>' +
+              '</div>' +
+            '</div>' +
+          '</div>';
+        }).join('');
+      })
+      .catch(function() { el.innerHTML = '<div class="m-loading">Failed to load automations.</div>'; });
+  }
+
+  window.mRunNow = function(agentId) {
+    fetch(BASE + '/api/agent-schedules/' + encodeURIComponent(agentId) + '/run', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' })
+      .then(function() { alert('Agent triggered!'); })
+      .catch(function() { alert('Failed.'); });
+  };
+
+  window.mToggle = function(agentId, enabled, cron) {
+    fetch(BASE + '/api/agent-schedules/' + encodeURIComponent(agentId), {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ cron: cron, enabled: enabled })
+    }).then(function() { loadSchedules(); });
+  };
+
+  // ── Automation sheet ──────────────────────────────────────────────────────
+  window.openAutoSheet = function() {
+    selectedPreset = null;
+    renderPresetGrid();
+    loadAgentCbList();
+    document.getElementById('m-auto-nl').value = '';
+    document.getElementById('m-cron-preview').textContent = '';
+    document.getElementById('m-auto-sheet').classList.add('open');
+    document.getElementById('m-sheet-overlay').classList.add('open');
+  };
+
+  window.closeAutoSheet = function() {
+    var sheet = document.getElementById('m-auto-sheet');
+    var overlay = document.getElementById('m-sheet-overlay');
+    if (sheet) sheet.classList.remove('open');
+    if (overlay) overlay.classList.remove('open');
+  };
+
+  function renderPresetGrid() {
+    var grid = document.getElementById('m-preset-grid');
+    if (!grid) return;
+    grid.innerHTML = PRESETS.map(function(p) {
+      return '<div class="m-preset-card" id="mpreset-' + p.id + '" onclick="selectPreset(\'' + p.id + '\')">' +
+        '<div class="m-preset-icon">' + p.icon + '</div>' +
+        '<div class="m-preset-name">' + p.label + '</div>' +
+        '<div class="m-preset-sched">' + cronHuman(p.cron) + '</div>' +
+      '</div>';
+    }).join('');
+  }
+
+  window.selectPreset = function(id) {
+    selectedPreset = PRESETS.filter(function(p) { return p.id === id; })[0] || null;
+    document.querySelectorAll('.m-preset-card').forEach(function(c) { c.classList.remove('selected'); });
+    if (document.getElementById('mpreset-' + id)) document.getElementById('mpreset-' + id).classList.add('selected');
+    if (selectedPreset) {
+      document.getElementById('m-auto-nl').value = cronHuman(selectedPreset.cron);
+      document.getElementById('m-cron-preview').textContent = selectedPreset.cron;
+    }
+  };
+
+  function loadAgentCbList() {
+    var el = document.getElementById('m-agent-cb-list');
+    if (!el) return;
+    fetch(BASE + '/api/mobile/agents')
+      .then(function(r) { return r.ok ? r.json() : []; })
+      .then(function(agents) {
+        el.innerHTML = agents.map(function(a) {
+          return '<div class="m-agent-cb-row">' +
+            '<input type="checkbox" id="mcb-' + esc(String(a.id)) + '" class="m-agent-cb" value="' + esc(String(a.id)) + '" />' +
+            '<label for="mcb-' + esc(String(a.id)) + '">' + esc(a.name) + '</label>' +
+          '</div>';
+        }).join('') || '<div style="padding:12px;font-size:12px;color:#6e6e6e;">No agents found</div>';
+      });
+  }
+
+  window.saveMobileAutomation = function() {
+    var checked = document.querySelectorAll('.m-agent-cb:checked');
+    if (!checked.length) { alert('Select at least one agent'); return; }
+    var cron = (selectedPreset && selectedPreset.cron) || '0 9 * * *';
+    var nlVal = (document.getElementById('m-auto-nl') || {}).value || '';
+    if (!selectedPreset && nlVal) {
+      fetch(BASE + '/api/agent-schedules/nl-to-cron', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ description: nlVal })
+      }).then(function(r) { return r.json(); })
+        .then(function(d) { doSaveSchedules(checked, d.cron || cron); });
+      return;
+    }
+    doSaveSchedules(checked, cron);
+  };
+
+  function doSaveSchedules(checked, cron) {
+    var saves = Array.prototype.map.call(checked, function(cb) {
+      return fetch(BASE + '/api/agent-schedules/' + encodeURIComponent(cb.value), {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ cron: cron, enabled: true })
+      });
+    });
+    Promise.all(saves).then(function() {
+      closeAutoSheet();
+      loadSchedules();
+    }).catch(function() { alert('Save failed. Please try again.'); });
+  }
+
+  // ── Helpers ──────────────────────────────────────────────────────────────
+  function relativeTime(iso) {
+    var diff = Date.now() - new Date(iso).getTime();
+    var s = Math.floor(diff / 1000);
+    if (s < 60) return 'just now';
+    if (s < 3600) return Math.floor(s / 60) + 'm ago';
+    if (s < 86400) return Math.floor(s / 3600) + 'h ago';
+    return Math.floor(s / 86400) + 'd ago';
+  }
+
+  // ── Polling ───────────────────────────────────────────────────────────────
+  setInterval(function() {
+    if (currentTab === 'activity') loadActivity();
+    if (currentTab === 'schedules') loadSchedules();
+  }, 30000);
+
+})();
+</script>
+</body>
+</html>

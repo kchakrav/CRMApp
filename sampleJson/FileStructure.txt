@@ -1,0 +1,38 @@
+Sample JSON files in this folder are Adobe Campaign Classic–style workflow exports (Neolane schema).
+
+Top-level fields (typical):
+  _customer          Optional tenant / instance label from export
+  slabel             Human-readable workflow name
+  sinternalname      Workflow internal name (used in ACC)
+  iworkflowid        Numeric workflow id in source system
+  mdata              String containing XML: root <workflow> with <activities> …
+                     Each activity is an XML element (query, schedule, fork, enrich,
+                     union, exclusion, dedup, extract, changeAxis, deliveryRecurring,
+                     readGroup, signal, jstest, writer, start, end, …) with attributes
+                     (name, label, …) and <transitions> to other activities by name.
+  mvisualstate       XML with per-activity execution stats (durations, temp worktables)
+  tscreated, tslastmodified, tslaststart, …   Timestamps from source system
+
+This app does not execute mdata XML directly. Use the orchestration canvas and the
+“Campaign Classic parity” palette activities to model the same intent:
+  read_group          ≈ readGroup (static list → audience)
+  script_condition    ≈ jstest (true/false; expression stored, branch stub on server)
+  data_writer         ≈ writer (record updates; stub until wired to persistence)
+  recurring_delivery  ≈ deliveryRecurring (channel + delivery link)
+
+For a full graph import, parse mdata XML and map activity tags to these node types.
+
+CLI (local DB):
+  npm run import-acc -- --file sampleJson/subway_mkt_prod1-WKF25094.json --dry-run
+  npm run import-acc -- --file sampleJson/<export>.json --create
+  npm run import-acc -- --file sampleJson/<export>.json --workflow-id 1 [--name "Override"]
+
+Web UI (same parsing as CLI, read-only canvas):
+  Open http://localhost:3000/workflow-json-viewer.html — upload JSON or paste, then “Open in canvas”.
+  From Workflows list, use “Preview from JSON”.
+
+On server start (and via `npm run seed-acc-samples`), draft workflows are added from `sampleJson/*.json` when missing.
+Names are prefixed `[ACC Sample]` and deduped by `orchestration.acc_import.seed_source_file`.
+
+Implementation: src/services/accWorkflowMdataImport.js (tag map + wiring), scripts/import-acc-workflow.js.
+Imported orchestration JSON includes acc_import metadata (warnings, source file, counts).

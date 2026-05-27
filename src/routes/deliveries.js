@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const { query } = require('../database');
 const emailService = require('../services/emailService');
+const { filterContactsByConditions } = require('./segments');
 
 // Aggregate opens/clicks from delivery_logs by hour and day (for STO and reports)
 function aggregateDeliveryLogsByTime(deliveryIds = null) {
@@ -48,6 +49,19 @@ function mergePersonalization(text, profile) {
     }
     return match; // Leave token as-is if no value found
   });
+}
+
+// ── Conditional content: resolve which variant a contact matches ──
+function resolveVariantForContact(contact, cc) {
+  if (!cc || !cc.enabled || !contact) return 'default';
+  const variants = cc.variants || [];
+  for (const v of variants) {
+    const conditions = v.conditions || {};
+    if (!conditions.rules || conditions.rules.length === 0) continue;
+    const filtered = filterContactsByConditions([contact], conditions);
+    if (filtered.length > 0) return v.id;
+  }
+  return 'default';
 }
 
 // ── Offer block resolution: replace OFFER_BLOCK markers with resolved offer content ──
@@ -350,7 +364,7 @@ router.get('/:id/workflow-schedule', (req, res) => {
     workflows.forEach(w => {
       const nodes = w.orchestration?.nodes || [];
       const matchingNodes = nodes.filter(n =>
-        ['email', 'sms', 'push'].includes(n.type) && parseInt(n.config?.delivery_id) === id
+        ['email', 'sms', 'push', 'recurring_delivery'].includes(n.type) && parseInt(n.config?.delivery_id) === id
       );
       if (matchingNodes.length > 0) {
         // Calculate delivery timing within the workflow
@@ -515,26 +529,48 @@ router.post('/:id/send', async (req, res) => {
         return res.status(400).json({ error: 'No recipients found. Assign a segment or audience to this delivery.' });
       }
 
-      // Build the HTML content
-      let htmlContent = delivery.html_output || delivery.content || '';
-      // If html_output is stored as JSON (object with variant keys), pick the first
-      if (typeof htmlContent === 'object' && htmlContent !== null) {
-        htmlContent = htmlContent.A || htmlContent.B || Object.values(htmlContent)[0] || '';
+      const draftState = delivery.draft_state || {};
+      const cc = draftState.conditional_content || {};
+      const htmlByVariant = cc.html_by_variant || {};
+      const useConditional = cc.enabled && htmlByVariant && Object.keys(htmlByVariant).length > 0;
+
+      let baseHtmlContent = delivery.html_output || delivery.content || '';
+      if (typeof baseHtmlContent === 'object' && baseHtmlContent !== null) {
+        baseHtmlContent = baseHtmlContent.A || baseHtmlContent.B || Object.values(baseHtmlContent)[0] || '';
       }
-      if (!htmlContent) {
+      if (!useConditional && !baseHtmlContent) {
         return res.status(400).json({ error: 'No email content found. Design the email before sending.' });
       }
+      if (useConditional && !htmlByVariant.default && !htmlByVariant.Default) {
+        return res.status(400).json({ error: 'Conditional content enabled but no default variant HTML. Save the delivery and try again.' });
+      }
 
-      // Apply basic personalization merge tags in subject
       const baseSubject = delivery.subject || delivery.name || '(no subject)';
-
-      // Mark as in-progress
       query.update('deliveries', id, { status: 'in-progress', sent_at: new Date().toISOString() });
 
-      // Resolve offer blocks per-contact if present
-      const htmlHasOffers = hasOfferBlocks(htmlContent);
+      const getHtmlForContact = (c) => {
+        let html = baseHtmlContent;
+        if (useConditional) {
+          const variantId = resolveVariantForContact(c, cc);
+          html = htmlByVariant[variantId] || htmlByVariant.default || htmlByVariant.Default || baseHtmlContent;
+          try {
+            const all = query.all('delivery_variant_assignments');
+            const existing = all.filter(a => a.delivery_id === id && a.contact_id === c.id);
+            if (existing.length === 0) {
+              query.insert('delivery_variant_assignments', {
+                delivery_id: id,
+                contact_id: c.id,
+                variant_id: variantId,
+                created_at: new Date().toISOString()
+              });
+            }
+          } catch (e) { /* table may not exist */ }
+        }
+        html = mergePersonalization(html, c);
+        if (hasOfferBlocks(html)) html = resolveOfferBlocksForContact(html, c.id, 'email');
+        return html;
+      };
 
-      // Send via Brevo
       const result = await emailService.sendBulk({
         recipients: recipients.map(c => ({
           email: c.email,
@@ -545,10 +581,10 @@ router.post('/:id/send', async (req, res) => {
             .replace(/\{\{first_name\}\}/gi, c.first_name || '')
             .replace(/\{\{last_name\}\}/gi, c.last_name || '')
             .replace(/\{\{email\}\}/gi, c.email || ''),
-          html: htmlHasOffers ? resolveOfferBlocksForContact(htmlContent, c.id, 'email') : undefined
+          html: getHtmlForContact(c)
         })),
         subject: baseSubject,
-        html: htmlContent,
+        html: useConditional ? '' : baseHtmlContent,
         preheader: delivery.preheader || ''
       });
 
@@ -572,13 +608,34 @@ router.post('/:id/send', async (req, res) => {
     }
 
     // ── Fallback: simulated send (non-email channels or Brevo not configured) ──
-    // Resolve offer blocks for a sample contact to validate and log propositions
+    const simRecipients = resolveDeliveryRecipients(delivery);
+    const draftState = delivery.draft_state || {};
+    const cc = draftState.conditional_content || {};
+    const useConditional = cc.enabled && cc.variants && cc.variants.length > 0;
+
+    if (useConditional && simRecipients.length > 0) {
+      try {
+        const existing = query.all('delivery_variant_assignments').filter(a => a.delivery_id === id);
+        const existingContactIds = new Set(existing.map(a => a.contact_id));
+        simRecipients.forEach(c => {
+          if (existingContactIds.has(c.id)) return;
+          const variantId = resolveVariantForContact(c, cc);
+          query.insert('delivery_variant_assignments', {
+            delivery_id: id,
+            contact_id: c.id,
+            variant_id: variantId,
+            created_at: new Date().toISOString()
+          });
+          existingContactIds.add(c.id);
+        });
+      } catch (e) { /* table may not exist */ }
+    }
+
     let contentForSim = delivery.html_output || delivery.content || '';
     if (typeof contentForSim === 'object' && contentForSim !== null) {
       contentForSim = contentForSim.A || contentForSim.B || Object.values(contentForSim)[0] || '';
     }
     if (hasOfferBlocks(contentForSim)) {
-      const simRecipients = resolveDeliveryRecipients(delivery);
       const sampleContacts = simRecipients.slice(0, Math.min(simRecipients.length, 5));
       for (const c of sampleContacts) {
         try {
@@ -986,6 +1043,42 @@ router.get('/:id/report', (req, res) => {
       bounce_type: Math.random() > 0.5 ? 'Hard bounce' : 'Soft bounce'
     }));
 
+    // ── By variant (conditional content) ──
+    let byVariant = [];
+    try {
+      const assignments = query.all('delivery_variant_assignments').filter(a => a.delivery_id === id);
+      const logs = query.all('delivery_logs').filter(l => l.delivery_id === id);
+      const contactToVariant = new Map(assignments.map(a => [a.contact_id, a.variant_id]));
+      const variantSent = new Map();
+      const variantOpens = new Map();
+      const variantClicks = new Map();
+      assignments.forEach(a => {
+        variantSent.set(a.variant_id, (variantSent.get(a.variant_id) || 0) + 1);
+      });
+      logs.forEach(l => {
+        const vid = contactToVariant.get(l.contact_id) || 'default';
+        if (l.event_type === 'open') variantOpens.set(vid, (variantOpens.get(vid) || 0) + 1);
+        else if (l.event_type === 'click') variantClicks.set(vid, (variantClicks.get(vid) || 0) + 1);
+      });
+      const cc = (delivery.draft_state || {}).conditional_content || {};
+      const variantNames = { default: 'Default', ...(cc.variants || []).reduce((acc, v) => { acc[v.id] = v.name || v.id; return acc; }, {}) };
+      const allVariantIds = [...new Set([...variantSent.keys(), 'default'])];
+      byVariant = allVariantIds.map(vid => {
+        const s = variantSent.get(vid) || 0;
+        const o = variantOpens.get(vid) || 0;
+        const c = variantClicks.get(vid) || 0;
+        return {
+          variant_id: vid,
+          variant_name: variantNames[vid] || vid,
+          sent: s,
+          opens: o,
+          clicks: c,
+          open_rate: s > 0 ? ((o / s) * 100).toFixed(2) : '0',
+          click_rate: s > 0 ? ((c / s) * 100).toFixed(2) : '0'
+        };
+      });
+    } catch (e) { /* delivery_variant_assignments may not exist */ }
+
     res.json({
       delivery: {
         id: delivery.id,
@@ -1031,7 +1124,8 @@ router.get('/:id/report', (req, res) => {
         top_engaged: topEngaged,
         non_engaged: nonEngaged,
         bounced: bouncedRecipients
-      }
+      },
+      by_variant: byVariant
     });
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -1262,7 +1356,7 @@ router.get('/heatmap/aggregate', (req, res) => {
     workflows.forEach(w => {
       const nodes = w.orchestration?.nodes || [];
       nodes.forEach(n => {
-        if (['email', 'sms', 'push'].includes(n.type) && n.config?.delivery_id) {
+        if (['email', 'sms', 'push', 'recurring_delivery'].includes(n.type) && n.config?.delivery_id) {
           workflowLinkedIds.add(parseInt(n.config.delivery_id));
         }
       });

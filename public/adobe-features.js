@@ -3843,6 +3843,17 @@ async function showDeliveryReport(id, fromWorkflowId) {
     html += '<div class="rpt-section-title">Delivery Statistics</div>';
     html += '<div class="card"><div class="card-body"><canvas id="drpt-engagement-chart" style="max-height:280px;width:100%"></canvas></div></div>';
 
+    // By variant (conditional content)
+    const byVariant = rpt.by_variant || [];
+    if (byVariant.length > 0) {
+      html += '<div class="rpt-section-title">Performance by Variant</div>';
+      html += '<div class="card"><div class="card-body"><table class="rpt-stats-table"><thead><tr><th>Variant</th><th>Sent</th><th>Opens</th><th>Clicks</th><th>Open Rate</th><th>Click Rate</th></tr></thead><tbody>';
+      byVariant.forEach(v => {
+        html += `<tr><td>${(v.variant_name || v.variant_id || '').replace(/</g, '&lt;')}</td><td>${(v.sent || 0).toLocaleString()}</td><td>${(v.opens || 0).toLocaleString()}</td><td>${(v.clicks || 0).toLocaleString()}</td><td>${(v.open_rate || '0')}%</td><td>${(v.click_rate || '0')}%</td></tr>`;
+      });
+      html += '</tbody></table></div></div>';
+    }
+
     // Targeted population (Adobe Campaign v8: Initial target population)
     html += `<div class="rpt-section-title">Initial Target Population</div>
       <div class="rpt-stats-table">
@@ -5151,6 +5162,10 @@ function setContentViewMode(viewKey, mode) {
   else if (viewKey === 'assets') loadAssets();
   else if (viewKey === 'brands') loadBrands();
   else if (viewKey === 'email-themes') loadEmailThemes();
+  else if (viewKey === 'agent-skills' && typeof window.loadAgentSkills === 'function') window.loadAgentSkills();
+  else if (viewKey === 'agents' && typeof window.loadAgents === 'function') window.loadAgents();
+  else if (viewKey === 'agent-tools' && typeof window.loadAgentTools === 'function') window.loadAgentTools();
+  else if (viewKey === 'agent-ops' && typeof window.loadAgentOps === 'function') window.loadAgentOps();
 }
 
 let _ctState = {

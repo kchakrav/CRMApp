@@ -50,10 +50,10 @@ function qualifierBadge(q) {
 }
 
 function metricCard(label, value, subtitle, color = '#1976D2') {
-  return `<div style="background:#fff;border:1px solid #e0e0e0;border-radius:8px;padding:16px;min-width:140px;flex:1">
-    <div style="font-size:12px;color:#666;margin-bottom:4px">${label}</div>
-    <div style="font-size:24px;font-weight:700;color:${color}">${value}</div>
-    ${subtitle ? `<div style="font-size:11px;color:#999;margin-top:2px">${subtitle}</div>` : ''}
+  return `<div class="od-metric-card" style="--od-metric-accent:${color}">
+    <div class="od-metric-card-label">${label}</div>
+    <div class="od-metric-card-value">${value}</div>
+    ${subtitle ? `<div class="od-metric-card-sub">${subtitle}</div>` : ''}
   </div>`;
 }
 
@@ -3355,9 +3355,9 @@ window.loadOfferAnalytics = async function() {
         <div class="card-header"><h3 class="card-title">Offers by Status</h3></div>
         <div class="card-body">
           ${Object.entries(data.offers_by_status || {}).map(([status, count]) => `
-            <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid #f0f0f0">
+            <div class="od-analytics-stat-row">
               ${statusBadge(status)}
-              <strong style="font-size:18px">${count}</strong>
+              <strong class="od-analytics-stat-count">${count}</strong>
             </div>
           `).join('')}
         </div>
@@ -3367,11 +3367,11 @@ window.loadOfferAnalytics = async function() {
       <div class="card">
         <div class="card-header"><h3 class="card-title">Top Offers by Propositions</h3></div>
         <div class="card-body" style="padding:0">
-          ${topOffers.length === 0 ? '<div style="padding:24px;text-align:center;color:#999">No data yet</div>' : `
+          ${topOffers.length === 0 ? '<div class="od-analytics-empty">No data yet</div>' : `
           <table class="data-table" style="width:100%">
             <thead><tr><th>Offer</th><th style="text-align:right">Propositions</th></tr></thead>
             <tbody>${topOffers.map((o, i) => `<tr>
-              <td><strong style="color:#1976D2">#${i + 1}</strong> ${o.name}</td>
+              <td><strong class="od-analytics-rank">#${i + 1}</strong> ${o.name}</td>
               <td style="text-align:right;font-weight:600">${o.propositions}</td>
             </tr>`).join('')}</tbody>
           </table>`}
@@ -3382,14 +3382,14 @@ window.loadOfferAnalytics = async function() {
     <!-- Offers by Type -->
     <div class="card" style="margin-top:16px">
       <div class="card-header"><h3 class="card-title">Offers by Type</h3></div>
-      <div class="card-body" style="display:flex;gap:24px">
-        <div style="text-align:center;flex:1">
-          <div style="font-size:36px;font-weight:700;color:#1976D2">${(data.offers_by_type || {}).personalized || 0}</div>
-          <div style="font-size:13px;color:#666">Personalized Offers</div>
+      <div class="card-body od-analytics-type-split">
+        <div class="od-analytics-type-col">
+          <div class="od-analytics-type-value od-analytics-type-value--personalized">${(data.offers_by_type || {}).personalized || 0}</div>
+          <div class="od-muted">Personalized Offers</div>
         </div>
-        <div style="text-align:center;flex:1">
-          <div style="font-size:36px;font-weight:700;color:#FF9800">${(data.offers_by_type || {}).fallback || 0}</div>
-          <div style="font-size:13px;color:#666">Fallback Offers</div>
+        <div class="od-analytics-type-col">
+          <div class="od-analytics-type-value od-analytics-type-value--fallback">${(data.offers_by_type || {}).fallback || 0}</div>
+          <div class="od-muted">Fallback Offers</div>
         </div>
       </div>
     </div>
@@ -3981,7 +3981,23 @@ window.showExperimentsTab = async function(decisionId) {
   const experiments = expRes.experiments || [];
   const strategies = stRes.strategies || [];
 
-  const statusColors = { draft: '#6E6E6E', running: '#4CAF50', completed: '#2196F3', stopped: '#9E9E9E' };
+  const TREATMENT_COLORS = ['#1473E6', '#E65C17', '#2D9D78', '#8E3FBF', '#CB7400'];
+  const TREATMENT_LABELS = ['A', 'B', 'C', 'D', 'E'];
+  const STAR_ICON = '<svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>';
+  const SCALE_ICON = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/></svg>';
+
+  function confidencePill(level) {
+    if (!level) return '';
+    const color = level >= 95 ? '#2D9D78' : level >= 80 ? '#CB7400' : '#6E6E6E';
+    return `<span style="background:${color}18;color:${color};border:1px solid ${color}40;padding:2px 8px;border-radius:12px;font-size:11px;font-weight:600">${level}% confidence</span>`;
+  }
+
+  function metricTile(label, value, color) {
+    return `<div style="background:#f4f4f4;border-radius:6px;padding:8px 10px">
+      <div style="font-size:10px;color:#888;text-transform:uppercase;letter-spacing:.4px;margin-bottom:2px">${label}</div>
+      <div style="font-size:17px;font-weight:700;color:${color || '#222'}">${value}</div>
+    </div>`;
+  }
 
   let html = `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
     <h4 style="margin:0">Content Experiments</h4>
@@ -3989,40 +4005,94 @@ window.showExperimentsTab = async function(decisionId) {
   </div>`;
 
   if (experiments.length === 0) {
-    html += '<div style="text-align:center;padding:24px;color:#999">No experiments yet. Create one to A/B test different selection strategies.</div>';
+    html += '<div style="text-align:center;padding:40px 24px;color:#999;border:1px dashed #ddd;border-radius:8px">No experiments yet. Create one to A/B test different selection strategies.</div>';
   } else {
     html += experiments.map(exp => {
       const treatments = exp.treatments || [];
-      return `<div style="border:1px solid #e0e0e0;border-radius:8px;padding:16px;margin-bottom:12px">
-        <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px">
+      const isCompleted = exp.status === 'completed';
+      const objLabel = exp.objective === 'conversions' ? 'Conversions' : 'Clicks';
+
+      const withRates = treatments.map((t, i) => {
+        const metric = exp.objective === 'conversions' ? (t.conversions || 0) : (t.clicks || 0);
+        const rate = t.impressions > 0 ? metric / t.impressions : 0;
+        return { ...t, metric, rate, idx: i };
+      });
+      const bestRate = withRates.reduce((best, t) => t.rate > best ? t.rate : best, 0);
+
+      const cardsHtml = withRates.map((t, i) => {
+        const color = TREATMENT_COLORS[i % TREATMENT_COLORS.length];
+        const label = TREATMENT_LABELS[i % TREATMENT_LABELS.length];
+        const isWinner = exp.winner_treatment_id === t.id;
+        const strat = strategies.find(s => s.id === t.selection_strategy_id);
+        const rateStr = (t.rate * 100).toFixed(2) + '%';
+        const isBaseline = bestRate > 0 && t.rate === bestRate;
+        const upliftVal = bestRate > 0 && !isBaseline ? ((t.rate - bestRate) / bestRate * 100) : null;
+        const upliftStr = upliftVal !== null
+          ? (upliftVal > 0 ? '+' : '') + upliftVal.toFixed(1) + '%'
+          : (isBaseline && bestRate > 0 ? 'Best' : '\u2014');
+        const upliftColor = upliftVal !== null ? (upliftVal >= 0 ? '#2D9D78' : '#D7373F') : (isBaseline && bestRate > 0 ? '#1473E6' : '#888');
+
+        return `<div style="
+            border:1px solid ${isWinner ? '#2D9D78' : '#e0e0e0'};
+            border-top:4px solid ${color};
+            border-radius:8px;
+            padding:14px;
+            background:${isWinner ? '#f0faf7' : '#fff'};
+            box-shadow:${isWinner ? '0 2px 10px rgba(45,157,120,0.12)' : '0 1px 3px rgba(0,0,0,0.05)'};
+            position:relative;
+            display:flex;flex-direction:column;gap:10px;
+          ">
+          ${isWinner ? `<div style="position:absolute;top:-1px;right:12px;background:#2D9D78;color:#fff;padding:3px 10px;border-radius:0 0 8px 8px;font-size:11px;font-weight:700;display:flex;align-items:center;gap:4px">${STAR_ICON} Winner</div>` : ''}
+
+          <div style="display:flex;align-items:center;gap:10px">
+            <div style="width:30px;height:30px;border-radius:50%;background:${color};color:#fff;font-weight:700;font-size:13px;display:flex;align-items:center;justify-content:center;flex-shrink:0">${label}</div>
+            <div style="min-width:0">
+              <div style="font-weight:600;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${t.name}</div>
+              <div style="font-size:11px;color:#888;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${strat ? strat.name : 'No strategy'}</div>
+            </div>
+          </div>
+
+          <div>
+            <div style="display:flex;justify-content:space-between;font-size:11px;color:#666;margin-bottom:3px">
+              <span>Traffic</span><span style="font-weight:600">${t.traffic_pct}%</span>
+            </div>
+            <div style="height:5px;background:#ebebeb;border-radius:3px;overflow:hidden">
+              <div style="height:100%;width:${t.traffic_pct}%;background:${color};border-radius:3px;transition:width .4s"></div>
+            </div>
+          </div>
+
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px">
+            ${metricTile('Impressions', (t.impressions || 0).toLocaleString(), null)}
+            ${metricTile(objLabel, (t.metric || 0).toLocaleString(), null)}
+            ${metricTile('Rate', rateStr, color)}
+            ${metricTile('Uplift', upliftStr, upliftColor)}
+          </div>
+
+          ${exp.confidence_level ? `<div style="text-align:center">${confidencePill(exp.confidence_level)}</div>` : ''}
+        </div>`;
+      }).join('');
+
+      return `<div style="border:1px solid #e8e8e8;border-radius:10px;padding:18px;margin-bottom:16px;background:#fafafa">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:14px">
           <div>
             <strong style="font-size:15px">${exp.name}</strong>
-            <div style="font-size:12px;color:#666;margin-top:2px">${exp.description || ''}</div>
-            <div style="margin-top:6px">${statusBadge(exp.status)} <span style="font-size:11px;color:#999;margin-left:8px">Objective: ${exp.objective || 'clicks'}</span></div>
+            ${exp.description ? `<div style="font-size:12px;color:#666;margin-top:2px">${exp.description}</div>` : ''}
+            <div style="margin-top:6px;display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+              ${statusBadge(exp.status)}
+              <span style="font-size:11px;color:#888">Objective: <strong>${objLabel}</strong></span>
+              ${exp.started_at ? `<span style="font-size:11px;color:#aaa">Started ${new Date(exp.started_at).toLocaleDateString()}</span>` : ''}
+            </div>
           </div>
-          <div style="display:flex;gap:6px">
-            ${exp.status === 'draft' ? `<button class="btn btn-sm btn-primary" onclick="startExperiment(${exp.id}, ${decisionId})">Start</button>` : ''}
-            ${exp.status === 'running' ? `<button class="btn btn-sm btn-secondary" onclick="stopExperiment(${exp.id}, ${decisionId})">Stop & Pick Winner</button>` : ''}
+          <div style="display:flex;gap:6px;flex-shrink:0;margin-left:12px">
+            ${exp.status === 'draft' ? `<button class="btn btn-sm btn-primary" onclick="startExperiment(${exp.id}, ${decisionId})">${OD_ICONS.play} Start</button>` : ''}
+            ${exp.status === 'running' ? `<button class="btn btn-sm btn-secondary" onclick="stopExperiment(${exp.id}, ${decisionId})">Stop &amp; Pick Winner</button>` : ''}
+            ${isCompleted && exp.winner_treatment_id ? `<button class="btn btn-sm btn-primary" onclick="scaleWinner(${exp.id}, ${decisionId})" style="background:#2D9D78;border-color:#267a60;display:inline-flex;align-items:center;gap:5px">${SCALE_ICON} Scale Winner</button>` : ''}
             <button class="btn btn-sm btn-danger" onclick="deleteExperiment(${exp.id}, ${decisionId})">${OD_ICONS.trash}</button>
           </div>
         </div>
-        <table class="data-table" style="width:100%;font-size:13px"><thead><tr><th>Treatment</th><th>Strategy</th><th>Traffic</th><th>Impressions</th><th>Clicks</th><th>Conversions</th><th>Rate</th><th></th></tr></thead>
-        <tbody>${treatments.map(t => {
-          const strat = strategies.find(s => s.id === t.selection_strategy_id);
-          const rate = t.impressions > 0 ? ((exp.objective === 'conversions' ? t.conversions : t.clicks) / t.impressions * 100).toFixed(2) : '0.00';
-          const isWinner = exp.winner_treatment_id === t.id;
-          return `<tr style="${isWinner ? 'background:#e8f5e9' : ''}">
-            <td><strong>${t.name}</strong></td>
-            <td>${strat ? strat.name : '\u2014'}</td>
-            <td>${t.traffic_pct}%</td>
-            <td>${t.impressions || 0}</td>
-            <td>${t.clicks || 0}</td>
-            <td>${t.conversions || 0}</td>
-            <td><strong>${rate}%</strong></td>
-            <td>${isWinner ? '<span style="color:#4CAF50;font-weight:600">Winner</span>' : ''}</td>
-          </tr>`;
-        }).join('')}</tbody></table>
-        ${exp.confidence_level ? `<div style="margin-top:8px;font-size:12px;color:#666">Statistical confidence: <strong>${exp.confidence_level}%</strong></div>` : ''}
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:12px">
+          ${cardsHtml}
+        </div>
       </div>`;
     }).join('');
   }
@@ -4096,5 +4166,16 @@ window.deleteExperiment = async function(expId, decisionId) {
   if (!confirm('Delete this experiment?')) return;
   await fetch(`/api/decisions/experiments/${expId}`, { method: 'DELETE' });
   showToast('Experiment deleted');
+  showExperimentsTab(decisionId);
+};
+
+window.scaleWinner = async function(expId, decisionId) {
+  if (!confirm('Scale the winning treatment to 100% traffic? This will update the experiment record.')) return;
+  const resp = await fetch(`/api/decisions/experiments/${expId}/scale-winner`, { method: 'POST' });
+  if (resp.ok) {
+    showToast('Winner scaled to 100% traffic');
+  } else {
+    showToast('Winner noted — apply the winning strategy to your decision policy manually.', 'info');
+  }
   showExperimentsTab(decisionId);
 };

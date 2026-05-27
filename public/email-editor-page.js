@@ -61,7 +61,15 @@ const editorState = {
   brandAlignmentResult: null,
   appliedThemeId: null,
   appliedThemeVariantIndex: 0,
-  canvasDarkMode: false
+  canvasDarkMode: false,
+  conditionalContent: {
+    enabled: false,
+    variants: [],
+    defaultVariantId: 'default',
+    defaultBlocks: []
+  },
+  editingConditionalVariantId: null,
+  previewForceVariantId: null
 };
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -162,10 +170,30 @@ function initRail() {
 }
 
 function setActiveMode(mode) {
+  if (editorState.activeMode === 'conditional' && mode !== 'conditional' && editorState.editingConditionalVariantId) {
+    commitConditionalVariantBlocks();
+  }
   editorState.activeMode = mode;
   document.querySelectorAll('.email-rail-btn').forEach(btn => {
     btn.classList.toggle('active', btn.dataset.mode === mode);
   });
+  // Expand left panel when switching to conditional so the UI is visible
+  if (mode === 'conditional') {
+    const body = document.getElementById('email-editor-body');
+    if (body && body.classList.contains('left-collapsed')) {
+      body.classList.remove('left-collapsed');
+      const w = parseInt(localStorage.getItem('emailEditorLeftWidth'), 10);
+      if (w && w >= LEFT_PANEL_MIN && w <= LEFT_PANEL_MAX) setLeftPanelWidth(w);
+      else body.style.removeProperty('--email-left-width');
+      try { localStorage.setItem('emailEditorLeftCollapsed', '0'); } catch (_) {}
+      const toggleBtn = document.getElementById('email-left-panel-toggle');
+      if (toggleBtn) toggleBtn.title = 'Collapse panel';
+    }
+  }
+  const body = document.getElementById('email-editor-body');
+  if (body) {
+    body.dataset.leftMode = mode || '';
+  }
   renderLeftPanel(mode);
   if (mode === 'components') {
     initEmailDesigner();
@@ -315,7 +343,22 @@ async function loadEditorData() {
       const delivery = await deliveryRes.json();
       if (!deliveryRes.ok) throw new Error(delivery.error || 'Failed to load delivery');
       editorState.delivery = delivery;
-      editorState.blocks = Array.isArray(delivery.content_blocks) ? delivery.content_blocks : [];
+      const draftState = delivery.draft_state || {};
+      const cc = draftState.conditional_content || delivery.conditional_content;
+      if (cc && cc.enabled) {
+        editorState.conditionalContent = {
+          enabled: true,
+          variants: Array.isArray(cc.variants) ? cc.variants : [],
+          defaultVariantId: cc.defaultVariantId || 'default',
+          defaultBlocks: Array.isArray(cc.defaultBlocks) && cc.defaultBlocks.length > 0
+            ? cc.defaultBlocks
+            : (delivery.content_blocks || [])
+        };
+        editorState.blocks = editorState.conditionalContent.defaultBlocks;
+      } else {
+        editorState.conditionalContent = { enabled: false, variants: [], defaultVariantId: 'default', defaultBlocks: [] };
+        editorState.blocks = Array.isArray(delivery.content_blocks) ? delivery.content_blocks : [];
+      }
       refreshFragmentReferences();
       hydrateFormFields(delivery);
       document.getElementById('email-editor-delivery-name').textContent = delivery.name || 'Untitled delivery';
@@ -389,7 +432,25 @@ function setValue(id, value) {
 function renderLeftPanel(mode) {
   const panel = document.getElementById('email-left-panel');
   if (!panel) return;
-  panel.innerHTML = getPanelContent(mode);
+  let content;
+  try {
+    content = getPanelContent(mode);
+  } catch (e) {
+    console.error('renderLeftPanel error:', e);
+    content = '<div class="editor-panel-header"><span>Error</span></div><div class="editor-panel-section"><p class="form-helper">Failed to load panel content.</p></div>';
+  }
+  panel.innerHTML = content || '';
+  if (mode === 'conditional') {
+    panel.style.display = '';
+    panel.style.visibility = '';
+    panel.style.minWidth = '';
+    const body = document.getElementById('email-editor-body');
+    if (body && body.classList.contains('left-collapsed')) {
+      body.classList.remove('left-collapsed');
+      body.style.setProperty('--email-left-width', (parseInt(localStorage.getItem('emailEditorLeftWidth'), 10) || 260) + 'px');
+      try { localStorage.setItem('emailEditorLeftCollapsed', '0'); } catch (_) {}
+    }
+  }
   if (mode === 'components') {
     panel.querySelectorAll('.email-block-item, .component-card').forEach(item => {
       item.addEventListener('dragstart', (e) => {
@@ -655,14 +716,371 @@ function copyAssetUrlToClipboard(url) {
 }
 
 function renderConditionalPanel() {
-  return `
-    <div class="editor-panel-header">
-      <span>Conditional content</span>
+  const cc = editorState.conditionalContent || {};
+  const variants = Array.isArray(cc.variants) ? cc.variants : [];
+  const exp = cc.experiment || {};
+  const activeTab = editorState.conditionalPanelTab || 'targeting';
+  const editingId = editorState.editingConditionalVariantId;
+
+  const targetingVariants = variants.filter(v => v.type !== 'experiment');
+  const experimentVariants = variants.filter(v => v.type === 'experiment');
+
+  const TARGET_ICON = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>';
+  const EXP_ICON = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3H5a2 2 0 0 0-2 2v4m6-6v8m0 0h6m-6 0a2 2 0 0 0 2 2h2a2 2 0 0 0 2-2m0 0V3m0 8v9"/></svg>';
+  const TRASH_ICON = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg>';
+  const COLORS = ['#1473E6', '#E65C17', '#2D9D78', '#8E3FBF', '#CB7400'];
+
+  let html = `<div class="conditional-panel-inner" style="padding:0;gap:0;color:#111;background:#fff">
+    <div class="editor-panel-header conditional-panel-header" style="padding:12px 14px;border-bottom:1px solid #f0f0f0">
+      <span style="font-weight:600;font-size:13px">Experimentation &amp; Targeting</span>
+      <label class="toggle-switch" style="flex-shrink:0">
+        <input type="checkbox" ${cc.enabled ? 'checked' : ''} onchange="toggleConditionalContent(this.checked)">
+        <span class="toggle-slider"></span>
+      </label>
+    </div>`;
+
+  if (!cc.enabled) {
+    html += `<div class="editor-panel-section" style="padding:14px">
+      <p class="form-helper" style="margin:0">Enable to show different email content to different audience segments, or run A/B experiments on content variations.</p>
+    </div></div>`;
+    return html;
+  }
+
+  html += `<div style="padding:10px 12px 6px">
+    <div class="conditional-sub-tabs">
+      <button class="conditional-sub-tab ${activeTab === 'targeting' ? 'active' : ''}" onclick="setConditionalPanelTab('targeting')" type="button">${TARGET_ICON} Targeting</button>
+      <button class="conditional-sub-tab ${activeTab === 'experiment' ? 'active' : ''}" onclick="setConditionalPanelTab('experiment')" type="button">${EXP_ICON} Experiment</button>
     </div>
-    <div class="editor-panel-section">
-      <div class="empty-state">Conditional content setup is coming soon.</div>
+  </div>`;
+
+  if (activeTab === 'targeting') {
+    const isEditingDefault = editingId === 'default';
+    html += `<div style="padding:4px 12px 12px">
+      <div class="variant-card default-card ${isEditingDefault ? 'active' : ''}" onclick="switchVariantTab('default')">
+        <div class="variant-card-header">
+          <strong style="font-size:13px">Default</strong>
+          <span class="variant-type-badge fallback">Fallback</span>
+        </div>
+        <div class="variant-card-meta">Shown when no rule matches &middot; ${(cc.defaultBlocks || []).length} blocks</div>
+        <div class="variant-card-actions" onclick="event.stopPropagation()">
+          <button class="btn btn-sm btn-primary" type="button" onclick="switchVariantTab('default')">Edit content</button>
+        </div>
+      </div>
+
+      <div style="display:flex;align-items:center;justify-content:space-between;margin:10px 0 6px">
+        <span style="font-size:12px;font-weight:600;color:#444">Targeting rules</span>
+        <button class="btn btn-sm btn-primary" type="button" onclick="addConditionalVariant()">+ Add rule</button>
+      </div>`;
+
+    if (targetingVariants.length === 0) {
+      html += `<div class="variant-empty-state">No targeting rules yet.<br>Rules are evaluated top-to-bottom — first match wins.</div>`;
+    } else {
+      targetingVariants.forEach(v => {
+        const isEditing = editingId === v.id;
+        const rules = v.conditions?.rules || [];
+        const logic = v.conditions?.logic || 'AND';
+        const ruleSummary = rules.length === 0
+          ? 'No conditions set'
+          : rules.slice(0, 2).map(r => `${r.attribute} ${r.operator} "${r.value}"`).join(` ${logic} `) + (rules.length > 2 ? ` +${rules.length - 2} more` : '');
+        html += `<div class="variant-card targeting ${isEditing ? 'active' : ''}" onclick="switchVariantTab('${v.id}')">
+          <div class="variant-card-header">
+            <strong style="font-size:13px">${escapeHtml(v.name)}</strong>
+            <span class="variant-type-badge targeting">Target</span>
+          </div>
+          <div class="variant-card-meta" title="${escapeHtml(ruleSummary)}">${escapeHtml(ruleSummary)}</div>
+          <div class="variant-card-footer">${(v.blocks || []).length} blocks</div>
+          <div class="variant-card-actions" onclick="event.stopPropagation()">
+            <button class="btn btn-sm btn-secondary" type="button" onclick="editConditionalVariantConditions('${v.id}')">Rules</button>
+            <button class="btn btn-sm btn-primary" type="button" onclick="switchVariantTab('${v.id}')">Edit</button>
+            <button class="btn btn-sm btn-danger" type="button" onclick="deleteConditionalVariant('${v.id}')">${TRASH_ICON}</button>
+          </div>
+        </div>`;
+      });
+    }
+    html += `</div>`;
+
+  } else {
+    html += `<div style="padding:4px 12px 12px">
+      <div class="experiment-config-header">
+        <strong style="font-size:13px">A/B Experiment</strong>
+        <label class="toggle-switch" style="transform:scale(0.85)">
+          <input type="checkbox" ${exp.enabled ? 'checked' : ''} onchange="toggleExperiment(this.checked)">
+          <span class="toggle-slider"></span>
+        </label>
+      </div>`;
+
+    if (!exp.enabled) {
+      html += `<p class="form-helper" style="margin:0 0 8px">Split your audience and send different email variants to measure which content performs best.</p>`;
+    } else {
+      let expIdx = 0;
+
+      html += `<div class="form-group" style="margin-bottom:10px">
+        <label class="form-label" style="font-size:11px">Success metric</label>
+        <select class="form-input" onchange="updateExperimentObjective(this.value)">
+          <option value="opens" ${(exp.objective || 'opens') === 'opens' ? 'selected' : ''}>Email Opens</option>
+          <option value="clicks" ${exp.objective === 'clicks' ? 'selected' : ''}>Click-through Rate</option>
+          <option value="conversions" ${exp.objective === 'conversions' ? 'selected' : ''}>Conversions</option>
+        </select>
+      </div>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+        <span style="font-size:12px;color:#555">Distribute evenly</span>
+        <label class="toggle-switch" style="transform:scale(0.85)">
+          <input type="checkbox" ${exp.distribute_evenly !== false ? 'checked' : ''} onchange="updateExperimentDistribution(this.checked)">
+          <span class="toggle-slider"></span>
+        </label>
+      </div>`;
+
+      if (experimentVariants.length === 0) {
+        html += `<div class="variant-empty-state" style="margin-bottom:10px">No treatments yet. Add treatments to start your experiment.</div>`;
+      } else {
+        experimentVariants.forEach(v => {
+          const isEditing = editingId === v.id;
+          const color = COLORS[expIdx % COLORS.length];
+          const pct = v.traffic_pct || 0;
+          const treatmentLabel = String.fromCharCode(65 + expIdx);
+          expIdx++;
+          html += `<div class="variant-card experiment ${isEditing ? 'active' : ''}" style="border-left-color:${color}" onclick="switchVariantTab('${v.id}')">
+            <div class="variant-card-header">
+              <div style="display:flex;align-items:center;gap:7px">
+                <div style="width:22px;height:22px;border-radius:50%;background:${color};color:#fff;font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0">T${treatmentLabel}</div>
+                <strong style="font-size:13px">${escapeHtml(v.name)}</strong>
+              </div>
+              <span class="variant-type-badge experiment">${pct}%</span>
+            </div>
+            <div style="margin:7px 0 4px">
+              <div style="height:4px;background:#f0f0f0;border-radius:2px;overflow:hidden">
+                <div style="height:100%;width:${pct}%;background:${color};border-radius:2px;transition:width .3s"></div>
+              </div>
+            </div>
+            <div class="variant-card-footer">${(v.blocks || []).length} blocks</div>
+            <div class="variant-card-actions" onclick="event.stopPropagation()">
+              ${exp.distribute_evenly === false ? `<input type="number" class="form-input form-input-sm" value="${pct}" min="0" max="100" style="width:55px" onchange="updateTreatmentTraffic('${v.id}',+this.value)" onclick="event.stopPropagation()">%` : ''}
+              <button class="btn btn-sm btn-primary" type="button" onclick="switchVariantTab('${v.id}')">Edit</button>
+              <button class="btn btn-sm btn-danger" type="button" onclick="deleteConditionalVariant('${v.id}')">${TRASH_ICON}</button>
+            </div>
+          </div>`;
+        });
+      }
+
+      html += `<button class="btn btn-sm btn-secondary" type="button" style="width:100%" onclick="addExperimentTreatment()">+ Add treatment</button>`;
+    }
+    html += `</div>`;
+  }
+
+  html += `</div>`;
+  return html;
+}
+
+function escapeHtml(s) {
+  if (typeof s !== 'string') return '';
+  const div = document.createElement('div');
+  div.textContent = s;
+  return div.innerHTML;
+}
+
+function toggleConditionalContent(enabled) {
+  editorState.conditionalContent.enabled = !!enabled;
+  if (enabled) {
+    if (!editorState.conditionalContent.defaultBlocks || editorState.conditionalContent.defaultBlocks.length === 0) {
+      editorState.conditionalContent.defaultBlocks = JSON.parse(JSON.stringify(editorState.blocks || []));
+    }
+    editorState.editingConditionalVariantId = 'default';
+  } else {
+    editorState.editingConditionalVariantId = null;
+    editorState.blocks = editorState.conditionalContent.defaultBlocks.length
+      ? editorState.conditionalContent.defaultBlocks
+      : editorState.delivery?.content_blocks || [];
+  }
+  renderLeftPanel('conditional');
+  renderEmailBlocks();
+  pushHistory();
+}
+
+function addConditionalVariant() {
+  const cc = editorState.conditionalContent;
+  const id = 'v' + Date.now();
+  cc.variants = cc.variants || [];
+  cc.variants.push({
+    id,
+    name: 'New variant',
+    type: 'targeting',
+    conditions: { logic: 'AND', rules: [], base_entity: 'customer' },
+    blocks: []
+  });
+  renderLeftPanel('conditional');
+  editConditionalVariantConditions(id);
+}
+
+function deleteConditionalVariant(variantId) {
+  if (!confirm('Delete this variant?')) return;
+  editorState.conditionalContent.variants = (editorState.conditionalContent.variants || []).filter(v => v.id !== variantId);
+  renderLeftPanel('conditional');
+}
+
+function editConditionalVariantBlocks(variantId) {
+  const cc = editorState.conditionalContent;
+  editorState.editingConditionalVariantId = variantId;
+
+  if (variantId === 'default') {
+    editorState.blocks = JSON.parse(JSON.stringify(cc.defaultBlocks || []));
+  } else {
+    const v = (cc.variants || []).find(x => x.id === variantId);
+    if (v) {
+      editorState.blocks = JSON.parse(JSON.stringify(v.blocks || []));
+    }
+  }
+  renderEmailBlocks();
+  renderLeftPanel('conditional');
+  showToast(`Editing ${variantId === 'default' ? 'default' : 'variant'} content`, 'info');
+}
+
+function commitConditionalVariantBlocks() {
+  const variantId = editorState.editingConditionalVariantId;
+  if (!variantId) return;
+  const cc = editorState.conditionalContent;
+  const blocks = JSON.parse(JSON.stringify(editorState.blocks || []));
+
+  if (variantId === 'default') {
+    cc.defaultBlocks = blocks;
+  } else {
+    const v = (cc.variants || []).find(x => x.id === variantId);
+    if (v) v.blocks = blocks;
+  }
+  renderLeftPanel('conditional');
+  showToast('Variant content saved', 'success');
+}
+
+function editConditionalVariantConditions(variantId) {
+  const v = (editorState.conditionalContent.variants || []).find(x => x.id === variantId);
+  if (!v) return;
+  openConditionalConditionsModal(variantId, v.name, v.conditions || { logic: 'AND', rules: [], base_entity: 'customer' });
+}
+
+function openConditionalConditionsModal(variantId, variantName, conditions) {
+  const modal = document.getElementById('conditional-conditions-modal');
+  if (!modal) return;
+  window._conditionalEditingVariantId = variantId;
+  window._conditionalEditingVariantName = variantName;
+  window._conditionalEditingConditions = JSON.parse(JSON.stringify(conditions));
+  document.getElementById('conditional-variant-name-input').value = variantName || '';
+  renderConditionalConditionsForm();
+  modal.classList.remove('hidden');
+}
+
+function closeConditionalConditionsModal() {
+  const modal = document.getElementById('conditional-conditions-modal');
+  if (modal) modal.classList.add('hidden');
+  window._conditionalEditingVariantId = null;
+}
+
+function renderConditionalConditionsForm() {
+  const container = document.getElementById('conditional-conditions-rules');
+  if (!container) return;
+  const conditions = window._conditionalEditingConditions || { logic: 'AND', rules: [] };
+  const rules = conditions.rules || [];
+
+  let html = `
+    <div class="form-group">
+      <label class="form-label">Logic</label>
+      <select class="form-input" id="conditional-logic-select" onchange="updateConditionalConditionsLogic(this.value)">
+        <option value="AND" ${(conditions.logic || 'AND') === 'AND' ? 'selected' : ''}>All rules (AND)</option>
+        <option value="OR" ${conditions.logic === 'OR' ? 'selected' : ''}>Any rule (OR)</option>
+      </select>
+    </div>
+    <div class="conditional-rules-list" id="conditional-rules-list">
+  `;
+
+  rules.forEach((r, i) => {
+    html += renderConditionalRuleRow(r, i);
+  });
+
+  html += `
+    </div>
+    <button class="btn btn-sm btn-secondary" type="button" onclick="addConditionalRule()">+ Add rule</button>
+  `;
+
+  container.innerHTML = html;
+}
+
+const CONDITIONAL_ATTRIBUTES = [
+  { name: 'loyalty_tier', label: 'Loyalty Tier', type: 'select' },
+  { name: 'engagement_score', label: 'Engagement Score', type: 'number' },
+  { name: 'lifetime_value', label: 'Lifetime Value', type: 'number' },
+  { name: 'status', label: 'Status', type: 'select' },
+  { name: 'subscription_status', label: 'Subscription Status', type: 'select' },
+  { name: 'first_name', label: 'First Name', type: 'text' },
+  { name: 'city', label: 'City', type: 'text' },
+  { name: 'country', label: 'Country', type: 'text' }
+];
+
+function renderConditionalRuleRow(rule, index) {
+  const attrName = rule.attribute || rule.entity || 'loyalty_tier';
+  const attr = CONDITIONAL_ATTRIBUTES.find(a => a.name === attrName) || CONDITIONAL_ATTRIBUTES[0];
+  const op = rule.operator || 'equals';
+  const val = rule.value != null ? String(rule.value) : '';
+  return `
+    <div class="conditional-rule-row" data-index="${index}">
+      <select class="form-input form-input-sm" onchange="updateConditionalRule(${index}, 'attribute', this.value)">
+        ${CONDITIONAL_ATTRIBUTES.map(a => `<option value="${a.name}" ${attrName === a.name ? 'selected' : ''}>${a.label}</option>`).join('')}
+      </select>
+      <select class="form-input form-input-sm" onchange="updateConditionalRule(${index}, 'operator', this.value)">
+        <option value="equals" ${op === 'equals' ? 'selected' : ''}>equals</option>
+        <option value="not_equals" ${op === 'not_equals' ? 'selected' : ''}>not equals</option>
+        <option value="greater_than" ${op === 'greater_than' ? 'selected' : ''}>greater than</option>
+        <option value="less_than" ${op === 'less_than' ? 'selected' : ''}>less than</option>
+        <option value="contains" ${op === 'contains' ? 'selected' : ''}>contains</option>
+      </select>
+      <input type="text" class="form-input form-input-sm" value="${escapeHtml(val)}" placeholder="Value" onchange="updateConditionalRule(${index}, 'value', this.value)">
+      <button class="btn btn-sm btn-ghost" type="button" onclick="removeConditionalRule(${index})">×</button>
     </div>
   `;
+}
+
+function updateConditionalRule(index, field, value) {
+  const conditions = window._conditionalEditingConditions || { logic: 'AND', rules: [], base_entity: 'customer' };
+  conditions.rules = conditions.rules || [];
+  if (!conditions.rules[index]) conditions.rules[index] = { entity: 'contact', attribute: 'loyalty_tier', operator: 'equals', value: '' };
+  if (field === 'attribute') {
+    conditions.rules[index].entity = 'contact';
+    conditions.rules[index].attribute = value;
+  } else if (field === 'operator') conditions.rules[index].operator = value;
+  else if (field === 'value') conditions.rules[index].value = value;
+  renderConditionalConditionsForm();
+}
+
+function addConditionalRule() {
+  const conditions = window._conditionalEditingConditions || { logic: 'AND', rules: [], base_entity: 'customer' };
+  conditions.rules = conditions.rules || [];
+  conditions.rules.push({ entity: 'contact', attribute: 'loyalty_tier', operator: 'equals', value: '' });
+  renderConditionalConditionsForm();
+}
+
+function removeConditionalRule(index) {
+  const conditions = window._conditionalEditingConditions || { logic: 'AND', rules: [] };
+  conditions.rules = conditions.rules || [];
+  conditions.rules.splice(index, 1);
+  renderConditionalConditionsForm();
+}
+
+function updateConditionalConditionsLogic(logic) {
+  const conditions = window._conditionalEditingConditions || { logic: 'AND', rules: [] };
+  conditions.logic = logic;
+}
+
+function saveConditionalConditions() {
+  const variantId = window._conditionalEditingVariantId;
+  const name = (document.getElementById('conditional-variant-name-input')?.value || '').trim();
+  const conditions = window._conditionalEditingConditions || {};
+  if (!variantId) { closeConditionalConditionsModal(); return; }
+
+  const v = (editorState.conditionalContent.variants || []).find(x => x.id === variantId);
+  if (v) {
+    v.name = name || 'Unnamed variant';
+    v.conditions = conditions;
+  }
+  closeConditionalConditionsModal();
+  renderLeftPanel('conditional');
+  showToast('Conditions saved', 'success');
 }
 
 function renderConditionalItem(title, status) {
@@ -672,6 +1090,130 @@ function renderConditionalItem(title, status) {
       <div class="email-fragment-meta">${String(status || 'draft').toUpperCase()}</div>
     </div>
   `;
+}
+
+function renderVariantTabsBar() {
+  const cc = editorState.conditionalContent;
+  if (!cc || !cc.enabled) return '';
+  const variants = cc.variants || [];
+  const editingId = editorState.editingConditionalVariantId || 'default';
+  const COLORS = ['#1473E6', '#E65C17', '#2D9D78', '#8E3FBF', '#CB7400'];
+  const HOME_ICON = '<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>';
+  let expIdx = 0;
+
+  let html = `<div class="variant-tabs-bar">
+    <button class="variant-tab ${editingId === 'default' ? 'active' : ''}" type="button" onclick="switchVariantTab('default')" title="Default content (fallback)">${HOME_ICON} Default</button>`;
+
+  variants.forEach(v => {
+    const isActive = editingId === v.id;
+    const isExp = v.type === 'experiment';
+    const color = isExp ? COLORS[expIdx++ % COLORS.length] : null;
+    const indicator = isExp
+      ? `<span class="variant-tab-traffic">${v.traffic_pct || 0}%</span>`
+      : `<span class="variant-tab-type-dot targeting"></span>`;
+    html += `<button class="variant-tab ${isActive ? 'active' : ''} ${isExp ? 'variant-type-experiment' : 'variant-type-targeting'}" type="button" onclick="switchVariantTab('${v.id}')" title="${escapeHtml(v.name)}">${indicator} ${escapeHtml(v.name)}</button>`;
+  });
+
+  html += `<button class="variant-tab-add" type="button" onclick="openConditionalPanelAndAdd()" title="Add variant">+</button></div>`;
+  return html;
+}
+
+function switchVariantTab(variantId) {
+  const cc = editorState.conditionalContent;
+  const currentId = editorState.editingConditionalVariantId;
+  if (currentId) {
+    const blocks = JSON.parse(JSON.stringify(editorState.blocks || []));
+    if (currentId === 'default') {
+      cc.defaultBlocks = blocks;
+    } else {
+      const v = (cc.variants || []).find(x => x.id === currentId);
+      if (v) v.blocks = blocks;
+    }
+  }
+  editorState.editingConditionalVariantId = variantId;
+  if (variantId === 'default') {
+    editorState.blocks = JSON.parse(JSON.stringify(cc.defaultBlocks || []));
+  } else {
+    const v = (cc.variants || []).find(x => x.id === variantId);
+    editorState.blocks = JSON.parse(JSON.stringify(v ? v.blocks || [] : []));
+  }
+  renderEmailBlocks();
+  renderLeftPanel('conditional');
+}
+
+function setConditionalPanelTab(tab) {
+  editorState.conditionalPanelTab = tab;
+  renderLeftPanel('conditional');
+}
+
+function openConditionalPanelAndAdd() {
+  setActiveMode('conditional');
+  setConditionalPanelTab('targeting');
+  setTimeout(() => addConditionalVariant(), 50);
+}
+
+function addExperimentTreatment() {
+  const cc = editorState.conditionalContent;
+  cc.variants = cc.variants || [];
+  const expVariants = cc.variants.filter(v => v.type === 'experiment');
+  const id = 'v' + Date.now();
+  const totalExisting = expVariants.reduce((s, v) => s + (v.traffic_pct || 0), 0);
+  const remaining = Math.max(0, 100 - totalExisting);
+  const pct = expVariants.length === 0 ? 50 : (remaining > 0 ? remaining : 0);
+  if (expVariants.length === 0 && cc.variants.filter(v => v.type !== 'experiment').length === 0) {
+    cc.variants.unshift({ id: 'v' + (Date.now() - 1), name: 'Treatment A', type: 'experiment', traffic_pct: 50, blocks: [] });
+    const newId = 'v' + Date.now();
+    cc.variants.push({ id: newId, name: 'Treatment B', type: 'experiment', traffic_pct: 50, blocks: [] });
+    renderLeftPanel('conditional');
+    renderEmailBlocks();
+    return;
+  }
+  const treatmentLabel = String.fromCharCode(65 + expVariants.length);
+  cc.variants.push({ id, name: `Treatment ${treatmentLabel}`, type: 'experiment', traffic_pct: pct, blocks: [] });
+  renderLeftPanel('conditional');
+  renderEmailBlocks();
+}
+
+function toggleExperiment(enabled) {
+  const cc = editorState.conditionalContent;
+  cc.experiment = cc.experiment || {};
+  cc.experiment.enabled = !!enabled;
+  if (enabled && !cc.experiment.objective) cc.experiment.objective = 'opens';
+  if (enabled && cc.experiment.distribute_evenly === undefined) cc.experiment.distribute_evenly = true;
+  if (enabled && cc.variants.filter(v => v.type === 'experiment').length === 0) {
+    cc.variants.push({ id: 'v' + Date.now(), name: 'Treatment A', type: 'experiment', traffic_pct: 50, blocks: [] });
+    cc.variants.push({ id: 'v' + (Date.now() + 1), name: 'Treatment B', type: 'experiment', traffic_pct: 50, blocks: [] });
+  }
+  renderLeftPanel('conditional');
+  renderEmailBlocks();
+}
+
+function updateExperimentObjective(objective) {
+  const cc = editorState.conditionalContent;
+  cc.experiment = cc.experiment || {};
+  cc.experiment.objective = objective;
+}
+
+function updateExperimentDistribution(even) {
+  const cc = editorState.conditionalContent;
+  cc.experiment = cc.experiment || {};
+  cc.experiment.distribute_evenly = !!even;
+  if (even) {
+    const expVariants = (cc.variants || []).filter(v => v.type === 'experiment');
+    if (expVariants.length > 0) {
+      const share = Math.floor(100 / expVariants.length);
+      expVariants.forEach((v, i) => { v.traffic_pct = i === expVariants.length - 1 ? 100 - share * (expVariants.length - 1) : share; });
+    }
+  }
+  renderLeftPanel('conditional');
+  renderEmailBlocks();
+}
+
+function updateTreatmentTraffic(variantId, pct) {
+  const v = (editorState.conditionalContent.variants || []).find(x => x.id === variantId);
+  if (v) v.traffic_pct = Math.max(0, Math.min(100, pct));
+  renderLeftPanel('conditional');
+  renderEmailBlocks();
 }
 
 function renderTrackedUrl(label, url, enabled) {
@@ -1136,7 +1678,7 @@ function renderEmailBlocks(options = {}) {
   if (canvasShell) canvasShell.classList.toggle('canvas-dark-mode', editorState.canvasDarkMode);
   if (!editorState.blocks.length) {
     if (canvasShell) canvasShell.classList.add('is-empty');
-    actualCanvas.innerHTML = `
+    actualCanvas.innerHTML = renderVariantTabsBar() + `
       <div class="email-canvas-empty-state">
         <div class="email-canvas-empty-icon" aria-hidden="true">
           <svg viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="2">
@@ -1150,7 +1692,7 @@ function renderEmailBlocks(options = {}) {
           </svg>
         </div>
         <div class="email-canvas-empty-title">There's nothing in there.</div>
-        <div class="email-canvas-empty-subtitle">Drag & drop your components and start building your email</div>
+        <div class="email-canvas-empty-subtitle">Drag &amp; drop your components and start building your email</div>
       </div>
     `;
     simulatedCanvas.innerHTML = `
@@ -1172,16 +1714,33 @@ function renderEmailBlocks(options = {}) {
       </div>
     </div>
   `;
-  actualCanvas.innerHTML = bodyWrapperStart + editorState.blocks.map(block => renderBlock(block)).join('') + bodyWrapperEnd;
-  const rawSimulatedHtml = generateEmailHtml(editorState.blocks);
+  actualCanvas.innerHTML = renderVariantTabsBar() + bodyWrapperStart + editorState.blocks.map(block => renderBlock(block)).join('') + bodyWrapperEnd;
+  const previewBlocks = getBlocksForPreview();
+  const rawSimulatedHtml = generateEmailHtml(previewBlocks);
   const personalizedHtml = _editorMergePersonalization(rawSimulatedHtml);
   const tp = editorState.previewTestProfile;
-  const previewLabel = tp
-    ? `Preview — ${tp.first_name || ''} ${tp.last_name || ''}`
-    : 'Preview (simulated)';
+  const cc = editorState.conditionalContent;
+  let previewLabel = tp ? `Preview — ${tp.first_name || ''} ${tp.last_name || ''}` : 'Preview (simulated)';
+  if (cc.enabled) {
+    const variantId = editorState.previewForceVariantId || (tp ? resolveVariantForContact(tp, cc) : 'default');
+    const v = variantId === 'default' ? null : (cc.variants || []).find(x => x.id === variantId);
+    previewLabel += ` · ${v ? v.name : 'Default'}`;
+  }
+  let variantSelectorHtml = '';
+  if (cc.enabled && (cc.variants || []).length > 0) {
+    const options = ['<option value="">Auto (from profile)</option>', '<option value="default">Default</option>'];
+    (cc.variants || []).forEach(v => {
+      const sel = editorState.previewForceVariantId === v.id ? ' selected' : '';
+      options.push(`<option value="${v.id}"${sel}>${escapeHtml(v.name)}</option>`);
+    });
+    variantSelectorHtml = `<div class="preview-variant-select"><label>Variant:</label><select class="form-input form-input-sm" onchange="setPreviewForceVariant(this.value)">${options.join('')}</select></div>`;
+  }
   simulatedCanvas.innerHTML = `
     <div class="email-live-preview">
-      <div class="email-live-preview-header">${previewLabel}</div>
+      <div class="email-live-preview-header">
+        <span>${previewLabel}</span>
+        ${variantSelectorHtml}
+      </div>
       <div class="email-live-preview-body">${personalizedHtml}</div>
     </div>
   `;
@@ -1850,15 +2409,35 @@ async function saveDeliveryContent() {
     return;
   }
   if (!editorState.delivery) return;
+  const cc = editorState.conditionalContent;
+  if (editorState.editingConditionalVariantId) commitConditionalVariantBlocks();
+  const blocksToSave = cc.enabled ? (cc.defaultBlocks || []) : editorState.blocks;
+  const htmlOutput = cc.enabled
+    ? (editorState.htmlOverride || generateEmailHtml(cc.defaultBlocks || []))
+    : (editorState.htmlOverride || generateEmailHtml(editorState.blocks));
+  const draftState = { ...(editorState.delivery.draft_state || {}) };
+  if (cc.enabled) {
+    const htmlByVariant = {
+      default: editorState.htmlOverride || generateEmailHtml(cc.defaultBlocks || []),
+      ...(cc.variants || []).reduce((acc, v) => {
+        acc[v.id] = generateEmailHtml(v.blocks || []);
+        return acc;
+      }, {})
+    };
+    draftState.conditional_content = { ...cc, html_by_variant: htmlByVariant };
+  } else {
+    delete draftState.conditional_content;
+  }
   const payload = {
     subject: getValue('delivery-subject-input'),
     preheader: getValue('delivery-preheader-input'),
     document_title: getValue('delivery-document-title-input'),
     document_language: getValue('delivery-document-language-input'),
-    content_blocks: editorState.blocks,
-    html_output: editorState.htmlOverride || generateEmailHtml(editorState.blocks),
+    content_blocks: blocksToSave,
+    html_output: htmlOutput,
     last_saved_step: 3,
-    wizard_step: 3
+    wizard_step: 3,
+    draft_state: draftState
   };
   try {
     showLoading();
@@ -3480,6 +4059,52 @@ function clearPreviewTestProfile() {
   editorState.previewTestProfileResults = [];
   renderPreviewTestProfilePanel();
   renderEmailBlocks(); // Re-render without personalization
+}
+
+function setPreviewForceVariant(variantId) {
+  editorState.previewForceVariantId = variantId || null;
+  renderEmailBlocks();
+}
+
+// Resolve which variant a contact matches (client-side condition evaluation)
+function resolveVariantForContact(contact, cc) {
+  if (!cc || !cc.enabled || !contact) return 'default';
+  const variants = cc.variants || [];
+  for (const v of variants) {
+    const rules = (v.conditions || {}).rules || [];
+    if (rules.length === 0) continue;
+    const logic = (v.conditions || {}).logic || 'AND';
+    const results = rules.map(r => evaluateConditionRule(contact, r));
+    const match = logic === 'OR' ? results.some(Boolean) : results.every(Boolean);
+    if (match) return v.id;
+  }
+  return 'default';
+}
+
+function evaluateConditionRule(contact, rule) {
+  const attr = rule.attribute || rule.entity;
+  const op = rule.operator || 'equals';
+  const val = rule.value;
+  const cv = contact[attr];
+  if (op === 'equals') return String(cv || '').toLowerCase() === String(val || '').toLowerCase();
+  if (op === 'not_equals') return String(cv || '').toLowerCase() !== String(val || '').toLowerCase();
+  if (op === 'contains') return String(cv || '').toLowerCase().includes(String(val || '').toLowerCase());
+  if (op === 'greater_than') return Number(cv) > Number(val);
+  if (op === 'less_than') return Number(cv) < Number(val);
+  return false;
+}
+
+function getBlocksForPreview() {
+  const cc = editorState.conditionalContent;
+  if (!cc.enabled) return editorState.blocks;
+  const forceVariant = editorState.previewForceVariantId;
+  const tp = editorState.previewTestProfile;
+  let variantId = forceVariant;
+  if (!variantId && tp) variantId = resolveVariantForContact(tp, cc);
+  if (!variantId) variantId = 'default';
+  if (variantId === 'default') return cc.defaultBlocks || editorState.blocks;
+  const v = (cc.variants || []).find(x => x.id === variantId);
+  return v ? (v.blocks || []) : (cc.defaultBlocks || editorState.blocks);
 }
 
 // Client-side merge of personalization tokens for the email editor preview

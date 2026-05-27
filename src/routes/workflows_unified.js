@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const { query } = require('../database');
+const { importAccWorkflowJsonFileObject } = require('../services/accWorkflowMdataImport');
 
 /**
  * UNIFIED WORKFLOWS API
@@ -11,6 +12,71 @@ const { query } = require('../database');
  * - automated: Event-triggered continuous automation
  * - recurring: Scheduled to run repeatedly (daily, weekly, etc.)
  */
+
+/**
+ * POST /api/workflows/preview-json
+ * Parse ACC export JSON (mdata) or pass through { orchestration: { nodes, connections } }.
+ * Does not write to the database.
+ */
+router.post('/preview-json', (req, res) => {
+  try {
+    const body = req.body;
+    if (!body || typeof body !== 'object') {
+      return res.status(400).json({ error: 'Expected a JSON object in the request body' });
+    }
+
+    let workflowName = body.name || body.slabel || 'Imported workflow';
+    let workflowDescription = body.description || body.sdesc || '';
+    let warnings = [];
+    let nodes = [];
+    let connections = [];
+    let accMeta = null;
+
+    const orch = body.orchestration;
+    if (orch && Array.isArray(orch.nodes)) {
+      nodes = orch.nodes;
+      connections = Array.isArray(orch.connections) ? orch.connections : [];
+      if (body.name) workflowName = body.name;
+    } else if (Array.isArray(body.nodes) && typeof body.mdata !== 'string') {
+      nodes = body.nodes;
+      connections = Array.isArray(body.connections) ? body.connections : [];
+    } else if (typeof body.mdata === 'string' && body.mdata.trim()) {
+      const r = importAccWorkflowJsonFileObject(body);
+      nodes = r.nodes || [];
+      connections = r.connections || [];
+      warnings = r.warnings || [];
+      workflowName = r.workflowName || workflowName;
+      workflowDescription = r.workflowDescription || workflowDescription;
+      accMeta = { activityCount: r.activityCount, meta: r.meta };
+    } else {
+      return res.status(400).json({
+        error:
+          'Unrecognized JSON. Use an ACC export with a string `mdata` field, or `{ "orchestration": { "nodes": [], "connections": [] } }`, or top-level `{ "nodes": [], "connections": [] }` without `mdata`.'
+      });
+    }
+
+    const orchestration = {
+      nodes,
+      connections,
+      canvas_state: orch?.canvas_state || body.canvas_state || { zoom: 1, pan: { x: 0, y: 0 } }
+    };
+    if (accMeta) {
+      orchestration.acc_import = { ...accMeta, warnings };
+    } else if (warnings.length) {
+      orchestration.acc_import = { warnings };
+    }
+
+    res.json({
+      workflowName,
+      workflowDescription,
+      warnings,
+      orchestration
+    });
+  } catch (e) {
+    console.error('POST /api/workflows/preview-json', e);
+    res.status(500).json({ error: e.message || 'Preview failed' });
+  }
+});
 
 // Get all workflows with optional filtering
 router.get('/', (req, res) => {
@@ -263,10 +329,18 @@ router.put('/:id/orchestration', (req, res) => {
       return res.status(404).json({ error: 'Workflow not found' });
     }
     
-    const { nodes = [], connections = [] } = req.body;
-    
+    const { nodes = [], connections = [], canvas_state } = req.body;
+    const prev = workflow.orchestration && typeof workflow.orchestration === 'object'
+      ? workflow.orchestration
+      : {};
+
     query.update('workflows', workflowId, {
-      orchestration: { nodes, connections }
+      orchestration: {
+        ...prev,
+        nodes,
+        connections,
+        ...(canvas_state != null ? { canvas_state } : {})
+      }
     });
     
     res.json({ 
@@ -447,7 +521,7 @@ router.get('/:id/report', (req, res) => {
         processed = baseCount;
         transitioned = baseCount;
         rejected = 0;
-      } else if (n.type === 'email' || n.type === 'sms' || n.type === 'push') {
+      } else if (n.type === 'email' || n.type === 'sms' || n.type === 'push' || n.type === 'recurring_delivery') {
         processed = Math.round(baseCount * (0.85 + Math.random() * 0.15));
         transitioned = Math.round(processed * 0.97);
         rejected = processed - transitioned;
@@ -479,7 +553,7 @@ router.get('/:id/report', (req, res) => {
     // Deliveries linked to this workflow (orchestration nodes with config.delivery_id)
     const linkedDeliveryIds = new Set();
     nodes.forEach(n => {
-      if (['email', 'sms', 'push'].includes(n.type) && n.config?.delivery_id) {
+      if (['email', 'sms', 'push', 'recurring_delivery'].includes(n.type) && n.config?.delivery_id) {
         linkedDeliveryIds.add(parseInt(n.config.delivery_id));
       }
     });
@@ -506,7 +580,7 @@ router.get('/:id/report', (req, res) => {
       }));
 
     // Delivery breakdown – from linked delivery records when available, else from nodes with synthetic metrics
-    const deliveryNodes = nodes.filter(n => ['email', 'sms', 'push'].includes(n.type));
+    const deliveryNodes = nodes.filter(n => ['email', 'sms', 'push', 'recurring_delivery'].includes(n.type));
     const deliveryBreakdown = deliveryNodes.map(n => {
       const deliveryId = n.config?.delivery_id ? parseInt(n.config.delivery_id) : null;
       const linkedDelivery = deliveryId ? workflowDeliveries.find(wd => wd.id === deliveryId) : null;

@@ -535,7 +535,7 @@ function applyFolderFilter(viewKey, items) {
 function getFolderToggleButtonHtml(viewKey) {
   const active = _listFolderEnabled[viewKey];
   const safeKey = (viewKey + '').replace(/'/g, "\\'");
-  return `<button class="folder-toggle-btn${active ? ' active' : ''}" onclick="var __k='${safeKey}';if(window['_folderToggle_'+__k])window['_folderToggle_'+__k]()" title="${active ? 'Hide' : 'Show'} folder tree" style="display:inline-flex;align-items:center;gap:5px;padding:5px 10px;border:1px solid ${active ? '#1473E6' : '#e5e7eb'};border-radius:5px;background:${active ? '#EFF6FF' : '#fff'};color:${active ? '#1473E6' : '#6b7280'};cursor:pointer;font-size:12px;transition:all 0.15s;">
+  return `<button type="button" class="folder-toggle-btn${active ? ' active' : ''}" onclick="var __k='${safeKey}';if(window['_folderToggle_'+__k])window['_folderToggle_'+__k]()" title="${active ? 'Hide' : 'Show'} folder tree">
     ${getFolderIcon('folder', 14)}
     <span>Folders</span>
   </button>`;

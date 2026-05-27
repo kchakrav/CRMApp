@@ -220,6 +220,16 @@ router.get('/:campaignId/preview/results', (req, res) => {
   }
 });
 
+/** Prefer explicit branch for script_condition; otherwise first non-timeout edge. */
+function pickOutgoingConnection(connections, fromNodeId, fromNode) {
+  if (fromNode?.type === 'script_condition') {
+    const branch = fromNode.config?.execution_branch === 'false' ? 'false' : 'true';
+    const match = connections.find(c => c.from === fromNodeId && c.transition_id === branch);
+    if (match) return match;
+  }
+  return connections.find(c => c.from === fromNodeId && c.transition_id !== 'timeout');
+}
+
 // Execute orchestration logic
 function executeOrchestration(campaignId, orchestration) {
   const { nodes, connections } = orchestration;
@@ -293,12 +303,12 @@ function executeOrchestration(campaignId, orchestration) {
       continue;
     }
     
-    if (currentNode.category === 'channels' && currentNode.type === 'email') {
+    if (currentNode.category === 'channels' && (currentNode.type === 'email' || currentNode.type === 'recurring_delivery')) {
       sentCount += nodeResult.sent || 0;
     }
     
-    // Find next node
-    const nextConnection = connections.find(c => c.from === currentNodeId && c.transition_id !== 'timeout');
+    // Find next node (script_condition uses transition_id true/false)
+    const nextConnection = pickOutgoingConnection(connections, currentNodeId, currentNode);
     currentNodeId = nextConnection ? nextConnection.to : null;
   }
   
@@ -397,6 +407,17 @@ function executeNode(node, audience, campaignId) {
           return t >= since;
         });
         log += `Incremental query to ${newAudience.length} contacts`;
+      } else if (type === 'read_group') {
+        const audienceId = config?.audience_id != null ? parseInt(String(config.audience_id), 10) : null;
+        if (audienceId && !Number.isNaN(audienceId)) {
+          const list = query.get('audiences', audienceId);
+          const rawIds = list?.include_contacts || [];
+          const idSet = new Set(rawIds.map(id => parseInt(String(id), 10)).filter(n => !Number.isNaN(n)));
+          newAudience = audience.filter(c => idSet.has(c.id));
+          log += `Read static list "${list?.name || audienceId}" → ${newAudience.length} contacts`;
+        } else {
+          log += 'Read static list: no audience_id configured';
+        }
       }
       break;
     case 'flow_control':
@@ -427,14 +448,11 @@ function executeNode(node, audience, campaignId) {
           payload_schema: config?.payload_schema || null
         };
       }
-      break;
-      
-    case 'flow_control':
       if (type === 'split') {
         const splitRatio = config?.split_ratio || 50;
         const splitIndex = Math.floor(audience.length * (splitRatio / 100));
         newAudience = audience.slice(0, splitIndex);
-          log += `Split ${splitRatio}% = ${newAudience.length} contacts`;
+        log += `Split ${splitRatio}% = ${newAudience.length} contacts`;
       } else if (type === 'wait') {
         const waitTime = config?.wait_time || 0;
         log += `Wait ${waitTime} ${config?.wait_unit || 'minutes'}`;
@@ -442,6 +460,10 @@ function executeNode(node, audience, campaignId) {
         log += 'Scheduled execution';
       } else if (type === 'alert') {
         log += `Alert sent to ${config?.recipients || 'team'}`;
+      } else if (type === 'script_condition') {
+        const branch = config?.execution_branch === 'false' ? 'false' : 'true';
+        const expr = (config?.expression || '').trim() || '(no expression)';
+        log += `Script condition (stub, branch=${branch}): ${expr.slice(0, 120)}${expr.length > 120 ? '…' : ''}`;
       }
       break;
       
@@ -456,9 +478,18 @@ function executeNode(node, audience, campaignId) {
         }
       }
       if (!nodeStatus) {
-        if (type === 'email') {
-          sent = newAudience.length;
-          log += `Sent email to ${sent} contacts`;
+        if (type === 'email' || type === 'recurring_delivery') {
+          const ch = type === 'recurring_delivery' ? (config?.channel || 'email') : 'email';
+          if (ch === 'email' || !ch) {
+            sent = newAudience.length;
+            log += type === 'recurring_delivery'
+              ? `Recurring delivery (email) to ${sent} contacts`
+              : `Sent email to ${sent} contacts`;
+          } else if (ch === 'sms') {
+            log += `Recurring delivery (SMS) to ${newAudience.length} contacts`;
+          } else if (ch === 'push') {
+            log += `Recurring delivery (push) to ${newAudience.length} contacts`;
+          }
         } else if (type === 'sms') {
           log += `Sent SMS to ${newAudience.length} contacts`;
         } else if (type === 'push') {
@@ -473,6 +504,10 @@ function executeNode(node, audience, campaignId) {
         log += `Updated tags for ${newAudience.length} contacts`;
       } else if (type === 'add_to_segment') {
         log += `Added ${newAudience.length} contacts to segment`;
+      } else if (type === 'data_writer') {
+        const entity = config?.entity_type || 'contacts';
+        const op = config?.operation || 'update';
+        log += `Data writer (${op} ${entity}): ${newAudience.length} rows (stub — connect to persistence as needed)`;
       }
       break;
       
@@ -518,7 +553,7 @@ function resumeOrchestrationFromSignal(campaignId, orchestration, signalNodeId, 
     const result = executeNode(node, audience, campaignId);
     audience = result.audience;
     logMessage(result.log, { node_id: node.id, type: node.type });
-    if (node.category === 'channels' && node.type === 'email') {
+    if (node.category === 'channels' && (node.type === 'email' || node.type === 'recurring_delivery')) {
       sentCount += result.sent || 0;
     }
     if (result.waiting) {
@@ -538,7 +573,7 @@ function resumeOrchestrationFromSignal(campaignId, orchestration, signalNodeId, 
       currentNodeId = result.jumpTo;
       continue;
     }
-    const next = connections.find(c => c.from === currentNodeId && c.transition_id !== 'timeout');
+    const next = pickOutgoingConnection(connections, currentNodeId, node);
     currentNodeId = next ? next.to : null;
   }
   return { resumed: true, sent_count: sentCount, execution_log: executionLog };
@@ -602,6 +637,13 @@ function applyNodePreviewFilter(node, contacts) {
       const t = new Date(contact.last_activity_at || contact.created_at || 0).getTime();
       return t >= since;
     });
+  }
+
+  if (node.type === 'read_group' && node.config?.audience_id) {
+    const list = query.get('audiences', parseInt(String(node.config.audience_id), 10));
+    const rawIds = list?.include_contacts || [];
+    const idSet = new Set(rawIds.map(id => parseInt(String(id), 10)).filter(n => !Number.isNaN(n)));
+    return contacts.filter(c => idSet.has(c.id));
   }
   
   return contacts;

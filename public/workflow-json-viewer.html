@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Workflow JSON preview</title>
+  <link rel="stylesheet" href="style.css">
+  <style>
+    .wjv-wrap { max-width: 720px; margin: 2rem auto; padding: 0 1.25rem; }
+    .wjv-card { background: var(--card-bg, #fff); border: 1px solid var(--border-color, #e5e7eb); border-radius: 10px; padding: 1.5rem; box-shadow: 0 1px 3px rgba(0,0,0,.06); }
+    .wjv-card h1 { font-size: 1.35rem; margin: 0 0 0.5rem; }
+    .wjv-lead { color: var(--text-muted, #64748b); font-size: 0.95rem; margin: 0 0 1.25rem; line-height: 1.5; }
+    .wjv-field { margin-bottom: 1rem; }
+    .wjv-field label { display: block; font-weight: 600; margin-bottom: 0.35rem; font-size: 0.9rem; }
+    .wjv-actions { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 1rem; align-items: center; }
+    .wjv-error { background: #fef2f2; color: #991b1b; padding: 0.75rem 1rem; border-radius: 8px; font-size: 0.9rem; margin-top: 1rem; display: none; }
+    .wjv-error.show { display: block; }
+    .wjv-hint { font-size: 0.8rem; color: var(--text-muted, #64748b); margin-top: 0.35rem; }
+    .wjv-links { margin-top: 1.5rem; font-size: 0.9rem; }
+    .wjv-links a { color: var(--link-color, #2563eb); }
+  </style>
+</head>
+<body>
+  <div class="wjv-wrap">
+    <div class="wjv-card">
+      <h1>Workflow from JSON</h1>
+      <p class="wjv-lead">
+        Upload an Adobe Campaign Classic–style export (with <code>mdata</code> XML) or a file that already contains
+        <code>orchestration.nodes</code> / <code>orchestration.connections</code>. The graph opens in the orchestration canvas in read-only preview mode.
+      </p>
+      <div class="wjv-field">
+        <label for="wjv-file">JSON file</label>
+        <input type="file" id="wjv-file" accept=".json,application/json" />
+        <p class="wjv-hint">Or paste JSON below and click the same button.</p>
+      </div>
+      <div class="wjv-field">
+        <label for="wjv-paste">Paste JSON (optional)</label>
+        <textarea id="wjv-paste" rows="8" style="width:100%;font-family:ui-monospace,monospace;font-size:12px;padding:8px;border-radius:6px;border:1px solid var(--border-color,#e5e7eb)" placeholder='{ "mdata": "<workflow>…</workflow>", "slabel": "…" }'></textarea>
+      </div>
+      <div class="wjv-actions">
+        <button type="button" class="btn btn-primary" id="wjv-open">Open in canvas</button>
+        <span id="wjv-status" style="font-size:0.85rem;color:var(--text-muted,#64748b)"></span>
+      </div>
+      <div id="wjv-error" class="wjv-error" role="alert"></div>
+      <div class="wjv-links">
+        <a href="/?view=workflows">← Workflows</a>
+        &nbsp;·&nbsp;
+        <a href="/">Home</a>
+      </div>
+    </div>
+  </div>
+  <script src="workflow-json-viewer.js"></script>
+</body>
+</html>

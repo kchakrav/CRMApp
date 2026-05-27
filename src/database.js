@@ -19,7 +19,9 @@ const TABLE_NAMES = [
   'placements', 'collection_qualifiers', 'offer_tags', 'collections', 'decision_rules',
   'offer_constraints', 'ranking_formulas', 'ranking_ai_models', 'selection_strategies',
   'decisions', 'offer_propositions', 'offer_events', 'catalog_schema', 'context_schema',
-  'experiments', 'folders', 'email_themes'
+  'experiments', 'folders', 'email_themes', 'delivery_variant_assignments',
+  'agent_skills', 'agents', 'agent_executions', 'agent_tools',
+  'ai_node_contexts', 'ai_hitl_approvals'
 ];
 
 const CUSTOM_OBJECT_DATA_TABLE = '_custom_object_data';

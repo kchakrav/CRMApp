@@ -221,7 +221,9 @@ async function sendBulk({ recipients, subject, html, text, preheader }) {
     const results = await Promise.allSettled(
       batch.map(async (r) => {
         const personalizedSubject = _personalizeText(r.subject || subject, r);
-        const personalizedHtml = _personalizeText(finalHtml, r);
+        const rawHtml = r.html !== undefined && r.html !== null ? r.html : html;
+        const withPreheader = _injectPreheader(rawHtml, preheader);
+        const personalizedHtml = _personalizeText(withPreheader, r);
         const toName = [r.first_name, r.last_name].filter(Boolean).join(' ');
         const toAddr = toName ? `"${toName}" <${r.email}>` : r.email;
 

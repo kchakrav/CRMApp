@@ -354,6 +354,15 @@ function sortTable(column) {
     case 'brands':
       if (typeof window.loadBrands === 'function') window.loadBrands();
       break;
+    case 'agent-skills':
+      if (typeof window.loadAgentSkills === 'function') window.loadAgentSkills();
+      break;
+    case 'agents':
+      if (typeof window.loadAgents === 'function') window.loadAgents();
+      break;
+    case 'agent-tools':
+      if (typeof window.loadAgentTools === 'function') window.loadAgentTools();
+      break;
   }
 }
 
@@ -447,6 +456,15 @@ function clearAllFilters() {
     case 'strategies':
       if (typeof clearOdStrategiesFilters === 'function') clearOdStrategiesFilters();
       break;
+    case 'agent-skills':
+      if (typeof clearAgentSkillFilters === 'function') clearAgentSkillFilters();
+      break;
+    case 'agents':
+      if (typeof clearAgentFilters === 'function') clearAgentFilters();
+      break;
+    case 'agent-tools':
+      if (typeof clearAgentToolFilters === 'function') clearAgentToolFilters();
+      break;
     default:
       showToast('No filters to clear', 'info');
   }
@@ -501,6 +519,15 @@ function refreshCurrentView() {
       break;
     case 'brands':
       if (typeof window.loadBrands === 'function') window.loadBrands();
+      break;
+    case 'agent-skills':
+      if (typeof window.loadAgentSkills === 'function') window.loadAgentSkills();
+      break;
+    case 'agents':
+      if (typeof window.loadAgents === 'function') window.loadAgents();
+      break;
+    case 'agent-tools':
+      if (typeof window.loadAgentTools === 'function') window.loadAgentTools();
       break;
     default:
       location.reload();

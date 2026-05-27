@@ -713,16 +713,21 @@ const VALID_NODE_TYPES = {
   deduplication: { category: 'targeting', desc: 'Remove duplicates' },
   enrichment: { category: 'targeting', desc: 'Add data fields' },
   save_audience: { category: 'targeting', desc: 'Save results' },
+  read_group: { category: 'targeting', desc: 'Static list audience (ACC readGroup)' },
   // Flow control
   wait: { category: 'flow_control', desc: 'Delay execution' },
   condition: { category: 'flow_control', desc: 'If/else branching' },
+  script_condition: { category: 'flow_control', desc: 'Script true/false (ACC jstest)' },
   scheduler: { category: 'flow_control', desc: 'Run on schedule' },
   fork: { category: 'flow_control', desc: 'Parallel branches' },
   // Channels
   email: { category: 'channels', desc: 'Send email' },
   sms: { category: 'channels', desc: 'Send SMS' },
   push: { category: 'channels', desc: 'Push notification' },
+  recurring_delivery: { category: 'channels', desc: 'Recurring delivery (ACC deliveryRecurring)' },
   webhook: { category: 'channels', desc: 'HTTP callback' },
+  // Actions / data
+  data_writer: { category: 'actions', desc: 'Update records (ACC writer)' },
   // Tracking
   goal: { category: 'tracking', desc: 'Track conversion goal' }
 };
@@ -1276,8 +1281,16 @@ ALL FEATURES (comprehensive):
     - Workflow Flow Suggestion: AI-generated workflow structures from description
     - Workflow Optimization: analyze and improve existing workflow flows with scoring and suggestions
     - AI Agent Chat: conversational assistant that answers questions about the platform, queries live data, provides navigation help
+    - Skill Extraction: AI analyzes a workflow and identifies reusable capability patterns (targeting, content, timing, channel, conversion)
+    - Agent Decomposition: AI decomposes a workflow into sub-agents by capability concern (orchestrator, timing, content, channel, targeting, conversion)
 
-21. HEATMAPS: Visual engagement heatmaps for deliveries and workflows. Shows click/open patterns overlaid on email content. AI-powered recommendations for improving engagement. Available from delivery and workflow reports. Aggregate heatmap across all deliveries.
+21. AGENTS & SKILLS: Create reusable agents and skills from workflow orchestrations.
+   - Skills: reusable capability blocks extracted from workflows (categories: targeting, content, timing, channel, conversion). Each skill has a prompt template, input/output schema, and references the source workflow nodes.
+   - Agents: goal-directed automation entities composed of sub-agents, each with a specific role (orchestrator, timing, content, channel, targeting, conversion). Agents reference a workflow snapshot as their playbook and define guardrails (message frequency, channel limits, approval requirements).
+   - Create from orchestration canvas: "Create Skills" extracts patterns, "Create Agent" decomposes into sub-agents. Both use AI suggestions that users review and adjust.
+   - API: /api/agent-skills (CRUD + /extract/:workflowId), /api/agents (CRUD + /decompose/:workflowId)
+
+22. HEATMAPS: Visual engagement heatmaps for deliveries and workflows. Shows click/open patterns overlaid on email content. AI-powered recommendations for improving engagement. Available from delivery and workflow reports. Aggregate heatmap across all deliveries.
 
 22. ER DIAGRAM: Entity-Relationship diagram viewer. Shows all database tables, fields, and relationships. Toggle layers: Core tables, Decisioning tables. Toggle attributes/relationships visibility. Crow's foot notation for relationship cardinality (1:N, N:1, N:N). Dynamic display of custom attributes from Item Catalog. Fullscreen mode with scrolling. Export: PNG image, PDF, SVG, print.
 
@@ -1448,7 +1461,9 @@ router.post('/agent-chat', async (req, res) => {
       context_schema:       { table: 'context_schema',       aliases: /\bcontext.?schema\b|\bcontext.?data\b/ },
       experiments:          { table: 'experiments',          aliases: /\bexperiments?\b/ },
       decisions:            { table: 'decisions',            aliases: /\bdecisions?\b/ },
-      folders:              { table: 'folders',              aliases: /\bfolders?\b/ }
+      folders:              { table: 'folders',              aliases: /\bfolders?\b/ },
+      agent_skills:         { table: 'agent_skills',         aliases: /\bagent.?skills?\b|\bskills?\b/ },
+      agents:               { table: 'agents',               aliases: /\bagents?\b/ }
     };
 
     // Use word-boundary regex for status detection (prevents "live" matching inside "deliveries")
@@ -1701,7 +1716,9 @@ function generateMockAgentResponse(message, lower, dbQuery) {
     catalog_schema:       { table: 'catalog_schema',       label: 'Catalog Schema',        aliases: /\bcatalog.?schema\b|\bitem.?catalog\b/ },
     context_schema:       { table: 'context_schema',       label: 'Context Schema',        aliases: /\bcontext.?schema\b|\bcontext.?data\b/ },
     experiments:          { table: 'experiments',          label: 'Experiments',           aliases: /\bexperiments?\b/ },
-    decisions:            { table: 'decisions',            label: 'Decisions',             aliases: /\bdecisions?\b/ }
+    decisions:            { table: 'decisions',            label: 'Decisions',             aliases: /\bdecisions?\b/ },
+    agent_skills:         { table: 'agent_skills',         label: 'Agent Skills',          aliases: /\bagent.?skills?\b|\bskills?\b/ },
+    agents:               { table: 'agents',               label: 'Agents',                aliases: /\bagents?\b/ }
   };
 
   const statusWords = ['draft','active','live','paused','stopped','completed','finished',
@@ -2036,5 +2053,844 @@ function generateMockAgentResponse(message, lower, dbQuery) {
   // Fallback
   return 'I can help with **every feature** in the Marketing Automation Platform. Try asking:\n\n**Campaigns & Deliveries:** "Where do I create a delivery?", "What is the orchestration canvas?", "How does STO work?"\n**Content:** "What is the email designer?", "How do fragments work?", "Where do I upload assets?"\n**Offer Decisioning:** "Explain the end-to-end offer decisioning flow", "What are ranking formulas?", "How does advanced capping work?"\n**Transactional:** "What is transactional messaging?", "How do event templates work?"\n**Data & Analytics:** "How many workflows are active?", "Show all offers", "What are the dashboard KPIs?"\n**Data Model:** "What are custom objects?", "What is the ER diagram?", "How do enumerations work?"\n**AI Features:** "What AI features are available?", "How does churn prediction work?"\n**Infrastructure:** "How does Brevo integration work?", "What is the query service?"\n\nFeel free to ask anything!';
 }
+
+// Prompt refiner — improves user-entered text for agent/skill fields
+router.post('/refine-prompt', async (req, res) => {
+  try {
+    const { text, fieldType, context } = req.body;
+    if (!text || !text.trim()) return res.status(400).json({ error: 'Text is required' });
+
+    const fieldGuide = {
+      'agent-goal':
+        'You are refining an AI agent\'s GOAL statement for a marketing automation platform. Make it specific, measurable, and outcome-oriented. Include target metrics where possible (e.g., "15% recovery rate"). Keep it to 1-2 sentences.',
+      'agent-description':
+        'You are refining an AI agent\'s DESCRIPTION for a marketing automation platform. Make it clear and concise — explain what the agent does, what makes it intelligent, and how it differs from a static workflow. Keep it to 2-3 sentences.',
+      'subagent-description':
+        'You are refining a SUB-AGENT\'s DESCRIPTION within a marketing automation agent. Make it clear what this sub-agent\'s specific responsibility is and how it fits into the larger agent\'s workflow. Keep it to 1-2 sentences.',
+      'subagent-instructions':
+        'You are refining SYSTEM INSTRUCTIONS for a sub-agent in a marketing automation platform. Make them actionable, specific, and structured. Use imperative tone. Include concrete steps, conditions, and decision criteria. Reference specific data points the sub-agent should use. Format as clear directives.',
+      'skill-description':
+        'You are refining a SKILL\'s DESCRIPTION for a marketing automation platform. A skill is a reusable capability block. Make the description explain the pattern, when to reuse it, and what it achieves. Keep it to 2-3 sentences.',
+      'skill-step':
+        'You are refining a single STEP INSTRUCTION within a skill. Make it precise and actionable. Use imperative tone. Include placeholders in {curly_braces} for configurable values. Keep it to 1 sentence.',
+      'skill-prompt':
+        'You are refining a PROMPT TEMPLATE for a skill. Make it a clear, complete instruction set with {placeholder} variables. Structure it so an AI agent can follow it step-by-step. Include conditions and expected outputs.',
+    };
+
+    const systemMsg = fieldGuide[fieldType] || 'You are a prompt engineering expert. Improve the following text to be clearer, more specific, and more effective. Preserve the original intent.';
+    const contextInfo = context ? `\n\nContext: ${context}` : '';
+    const userPrompt = `Improve this text. Return ONLY the improved text, no explanations or preamble:\n\n"${text}"${contextInfo}`;
+
+    const refined = await callOpenAI(userPrompt, systemMsg, 500);
+
+    if (!refined) {
+      return res.json({ refined: _mockRefine(text, fieldType) });
+    }
+
+    res.json({ refined: refined.replace(/^["']|["']$/g, '').trim() });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+function _mockRefine(text, fieldType) {
+  const t = text.trim();
+  if (fieldType === 'agent-goal') {
+    if (!t.match(/\d+%/)) return t.replace(/\.$/, '') + ' — targeting measurable engagement uplift within the first 30 days.';
+    return t;
+  }
+  if (fieldType === 'subagent-instructions') {
+    const sentences = t.split(/(?<=[.!])\s+/);
+    if (sentences.length < 3) return t + ' Evaluate success criteria after each step before proceeding. Log all decisions for audit and optimization.';
+    return t;
+  }
+  if (fieldType === 'skill-prompt') {
+    if (!t.includes('{')) return t + ' Use {channel} as the primary delivery channel. Personalize based on {customer_segment} data.';
+    return t;
+  }
+  const improvements = [
+    'Ensure personalization using customer profile data.',
+    'Adapt behavior based on real-time engagement signals.',
+    'Track all interactions for downstream optimization.',
+  ];
+  const extra = improvements[Math.floor(Math.random() * improvements.length)];
+  return t.endsWith('.') ? `${t} ${extra}` : `${t}. ${extra}`;
+}
+
+// ── Agent Composer: natural-language → structured workflow (sub-agents + logic nodes) ──
+const COMPOSER_LOGIC_TYPES = new Set([
+  'condition', 'loop', 'parallel', 'transform', 'gate', 'delay', 'ab_split', 'wait_event', 'invoke_agent'
+]);
+const COMPOSER_LOGIC_DEFAULTS = {
+  condition: { expression: '', then_label: 'Yes', else_label: 'No', then_target: null, else_target: null, description: '' },
+  loop: { loop_type: 'count', count: 3, iterator: '', max_iterations: 10, description: '' },
+  parallel: { branches: [], wait_mode: 'all', description: '' },
+  transform: { mappings: [{ from: '', to: '' }], description: '' },
+  gate: { expression: '', fallback: 'skip', fallback_target: null, description: '' },
+  delay: { duration: 1, unit: 'hours', description: '' },
+  ab_split: { variants: [{ name: 'A', weight: 50, target: null }, { name: 'B', weight: 50, target: null }], description: '' },
+  wait_event: { event_type: 'email_open', timeout_duration: 24, timeout_unit: 'hours', timeout_action: 'continue', description: '' },
+  invoke_agent: { target_agent_id: null, pass_context: true, wait_for_completion: true, description: '' }
+};
+
+async function callOpenAIJson(systemMessage, userContent, maxTokens = 3500) {
+  if (!OPENAI_API_KEY || OPENAI_API_KEY === 'sk-your-openai-api-key-here') return null;
+  try {
+    const response = await axios.post(
+      OPENAI_API_URL,
+      {
+        model: 'gpt-4o-mini',
+        messages: [
+          { role: 'system', content: systemMessage },
+          { role: 'user', content: userContent }
+        ],
+        temperature: 0.35,
+        max_tokens: maxTokens,
+        response_format: { type: 'json_object' }
+      },
+      { headers: { Authorization: `Bearer ${OPENAI_API_KEY}`, 'Content-Type': 'application/json' } }
+    );
+    const content = response.data.choices[0].message.content;
+    return JSON.parse(content);
+  } catch (error) {
+    console.error('[AI] callOpenAIJson error:', error.response?.data || error.message);
+    return null;
+  }
+}
+
+function mergeComposerLogicConfig(type, raw) {
+  const base = JSON.parse(JSON.stringify(COMPOSER_LOGIC_DEFAULTS[type] || {}));
+  const c = raw && typeof raw === 'object' ? raw : {};
+  Object.keys(c).forEach((k) => {
+    if (k === 'variants' && type === 'ab_split' && Array.isArray(c.variants)) {
+      base.variants = c.variants.map((v) => ({
+        name: String(v.name || 'Variant').slice(0, 24),
+        weight: Math.max(0, Math.min(100, Number(v.weight) || 0)),
+        target: v.target === null || v.target === undefined || v.target === '' ? null : Number(v.target)
+      }));
+      return;
+    }
+    if (k === 'branches' && type === 'parallel' && Array.isArray(c.branches)) {
+      base.branches = c.branches.map((b) => Number(b)).filter((n) => !Number.isNaN(n));
+      return;
+    }
+    if (k === 'mappings' && type === 'transform' && Array.isArray(c.mappings)) {
+      base.mappings = c.mappings.map((m) => ({ from: String(m.from || ''), to: String(m.to || '') }));
+      return;
+    }
+    base[k] = c[k];
+  });
+  return base;
+}
+
+function resolveComposerCatalogIds(proposal, context) {
+  const skills = context.skills || [];
+  const tools = context.tools || [];
+  const skillByName = new Map(skills.map((s) => [String(s.name || '').toLowerCase().trim(), s.id]));
+  const toolByName = new Map(tools.map((t) => [String(t.name || '').toLowerCase().trim(), t.id]));
+  const allowedAgentIds = new Set((context.orchestratorAgents || []).map((a) => a.id));
+
+  for (const sa of proposal.sub_agents) {
+    const skillIds = new Set();
+    const toolIds = new Set();
+    (sa.skill_ids || []).forEach((x) => {
+      const n = Number(x);
+      if (n > 0) skillIds.add(n);
+    });
+    (sa.tool_ids || []).forEach((x) => {
+      const n = Number(x);
+      if (n > 0) toolIds.add(n);
+    });
+    (sa.skill_names || []).forEach((nm) => {
+      const id = skillByName.get(String(nm || '').toLowerCase().trim());
+      if (id) skillIds.add(id);
+    });
+    (sa.tool_names || []).forEach((nm) => {
+      const id = toolByName.get(String(nm || '').toLowerCase().trim());
+      if (id) toolIds.add(id);
+    });
+    sa.skill_ids = [...skillIds];
+    sa.tool_ids = [...toolIds];
+    delete sa.skill_names;
+    delete sa.tool_names;
+  }
+
+  const prior = Math.max(0, parseInt(context.priorSubAgentCount, 10) || 0);
+  const isMerge = proposal.replace_flow === false;
+  const combinedSubCount = isMerge ? prior + proposal.sub_agents.length : proposal.sub_agents.length;
+  const maxSa = Math.max(0, combinedSubCount - 1);
+  for (const n of proposal.logic_nodes) {
+    const cfg = n.config || {};
+    if (n.type === 'condition') {
+      ['then_target', 'else_target'].forEach((f) => {
+        if (cfg[f] !== undefined && cfg[f] !== null && cfg[f] !== '') {
+          const v = Number(cfg[f]);
+          cfg[f] = Number.isNaN(v) ? null : Math.max(-1, Math.min(maxSa, v));
+        }
+      });
+    }
+    if (n.type === 'gate' && cfg.fallback_target !== undefined && cfg.fallback_target !== null && cfg.fallback_target !== '') {
+      const v = Number(cfg.fallback_target);
+      cfg.fallback_target = Number.isNaN(v) ? null : Math.max(0, Math.min(maxSa, v));
+    }
+    if (n.type === 'ab_split' && Array.isArray(cfg.variants)) {
+      cfg.variants.forEach((v) => {
+        if (v.target !== null && v.target !== undefined) {
+          const t = Number(v.target);
+          v.target = Number.isNaN(t) ? null : Math.max(0, Math.min(maxSa, t));
+        }
+      });
+    }
+    if (n.type === 'parallel' && Array.isArray(cfg.branches)) {
+      cfg.branches = cfg.branches
+        .map((b) => Number(b))
+        .filter((x) => !Number.isNaN(x) && x >= 0 && x <= maxSa);
+    }
+    if (n.type === 'invoke_agent' && cfg.target_agent_id != null) {
+      const aid = Number(cfg.target_agent_id);
+      if (Number.isNaN(aid) || (allowedAgentIds.size && !allowedAgentIds.has(aid))) {
+        cfg.target_agent_id = null;
+      } else {
+        cfg.target_agent_id = aid;
+      }
+    }
+  }
+}
+
+function sanitizeComposerProposal(raw, context) {
+  if (!raw || typeof raw !== 'object') return null;
+  const maxSa = 24;
+  const proposal = {
+    replace_flow: raw.replace_flow !== false,
+    name: typeof raw.name === 'string' ? raw.name.slice(0, 200) : undefined,
+    goal: typeof raw.goal === 'string' ? raw.goal.slice(0, 4000) : undefined,
+    description: typeof raw.description === 'string' ? raw.description.slice(0, 8000) : undefined,
+    sub_agents: [],
+    logic_nodes: []
+  };
+  const roles = new Set(['executor', 'reviewer', 'planner', 'orchestrator']);
+  const sas = Array.isArray(raw.sub_agents) ? raw.sub_agents : [];
+  let i = 0;
+  for (const sa of sas) {
+    if (i >= maxSa) break;
+    proposal.sub_agents.push({
+      id: sa.id != null ? sa.id : null,
+      name: String(sa.name || `Sub-agent ${i + 1}`).slice(0, 160),
+      role: roles.has(sa.role) ? sa.role : 'executor',
+      description: String(sa.description || '').slice(0, 4000),
+      system_instructions: String(sa.system_instructions || '').slice(0, 12000),
+      skill_ids: Array.isArray(sa.skill_ids) ? sa.skill_ids : [],
+      tool_ids: Array.isArray(sa.tool_ids) ? sa.tool_ids : [],
+      skill_names: Array.isArray(sa.skill_names) ? sa.skill_names.map((x) => String(x)) : [],
+      tool_names: Array.isArray(sa.tool_names) ? sa.tool_names.map((x) => String(x)) : [],
+      node_ids: Array.isArray(sa.node_ids) ? sa.node_ids : [],
+      output_schema: Array.isArray(sa.output_schema)
+        ? sa.output_schema.map((o) => ({
+          key: String(o.key || '').slice(0, 64),
+          type: ['string', 'number', 'boolean', 'array', 'object'].includes(o.type) ? o.type : 'string',
+          description: String(o.description || '').slice(0, 500)
+        })).filter((o) => o.key)
+        : []
+    });
+    i++;
+  }
+  const lns = Array.isArray(raw.logic_nodes) ? raw.logic_nodes : [];
+  const priorForSlots = Math.max(0, parseInt(context.priorSubAgentCount, 10) || 0);
+  const isMergeProposal = proposal.replace_flow === false;
+  const totalSubAgentsForSlots = isMergeProposal ? priorForSlots + proposal.sub_agents.length : proposal.sub_agents.length;
+  const maxSlotClamp = totalSubAgentsForSlots;
+  const maxSaIdx = Math.max(0, totalSubAgentsForSlots - 1);
+  let lid = 0;
+  for (const n of lns) {
+    if (!n || !COMPOSER_LOGIC_TYPES.has(n.type)) continue;
+    const id = typeof n.id === 'string' && n.id.length ? String(n.id).slice(0, 64) : `ln_${Date.now()}_${lid++}`;
+    let slot = parseInt(n.slot, 10);
+    if (Number.isNaN(slot)) slot = 0;
+    slot = Math.max(0, Math.min(slot, maxSlotClamp));
+    proposal.logic_nodes.push({
+      id,
+      type: n.type,
+      slot,
+      label: String(n.label || '').slice(0, 160),
+      config: mergeComposerLogicConfig(n.type, n.config)
+    });
+  }
+
+  resolveComposerCatalogIds(proposal, context);
+
+  for (const n of proposal.logic_nodes) {
+    if (n.type === 'ab_split') {
+      const v = n.config.variants || [];
+      if (v.length < 2) {
+        n.config.variants = [
+          { name: 'A', weight: 50, target: 0 },
+          { name: 'B', weight: 50, target: Math.min(1, maxSaIdx) }
+        ];
+      }
+      const sum = v.reduce((s, x) => s + (Number(x.weight) || 0), 0);
+      if (sum !== 100 && v.length >= 2) {
+        const each = Math.floor(100 / v.length);
+        v.forEach((x, j) => {
+          x.weight = j < v.length - 1 ? each : 100 - each * (v.length - 1);
+        });
+      }
+    }
+  }
+
+  return proposal;
+}
+
+function sanitizeComposerFollowUps(raw) {
+  if (!Array.isArray(raw)) return [];
+  return raw.map((x) => String(x || '').trim().slice(0, 180)).filter(Boolean).slice(0, 4);
+}
+
+/** Conversational / explanatory replies when the user is not asking for a new canvas (demo mode). */
+function mockComposerConversation(message) {
+  const lower = String(message || '').toLowerCase();
+  const explain = /\?|^\s*what\b|^\s*how\b|^\s*why\b|explain|meaning of|help me understand|walk me through|^define\b|\bassist\b|\btips?\b/.test(lower);
+  if (!explain && message.trim().length > 200) return null;
+
+  if (/\bslot\b|\bflow\b|\bcanvas\b|\blogic node\b|\bsub-?agent\b/.test(lower)) {
+    return {
+      reply:
+        '**Slots** number the gaps *between* sub-agents. Slot `0` is before sub-agent 1; slot `n` is after sub-agent **n** and before **n+1**. Logic nodes (conditions, A/B splits, delays, etc.) attach to a slot so the graph runs in order.\n\n' +
+        '**replace_flow: true** rebuilds the whole workflow from the suggestion. **replace_flow: false** (Merge) keeps your current sub-agents and **appends** the new ones, shifting new logic to the right place.\n\n' +
+        'Ask for concrete changes like *“Add a 24h delay before the review step”* or *“Merge in an extra executor for SMS fallback”*.',
+      proposal: null,
+      follow_ups: ['Add a 24-hour delay before compliance review', 'Merge a second executor for SMS fallback', 'Explain how A/B split targets work'],
+      source: 'mock'
+    };
+  }
+  if (/\ba\/?b\b|split|variant|experiment/.test(lower) && explain) {
+    return {
+      reply:
+        '**A/B split** sends traffic to different sub-agents by weight. Each **variant** points at a sub-agent index and percentages should sum to **100%**.\n\n' +
+        'Put the split at the slot **before** the first variant sub-agent. After branches finish, the flow continues with the next linear step.',
+      proposal: null,
+      follow_ups: ['Build an A/B workflow with compliance at the end', 'Suggest weights 70/30 for cautious rollout'],
+      source: 'mock'
+    };
+  }
+  if (/compliance|policy|audit|legal|gdpr/.test(lower) && explain) {
+    return {
+      reply:
+        '**Compliance** is usually modeled as a **reviewer** sub-agent plus a **gate** (or **condition**) so bad outputs do not publish. The reviewer should output something like `approved` in its schema; the gate expression can check that flag.\n\n' +
+        'Place the reviewer **after** content generation and **before** send/publish steps.',
+      proposal: null,
+      follow_ups: ['Add a compliance reviewer and gate before publish', 'Replace flow with planner → writer → compliance → executor'],
+      source: 'mock'
+    };
+  }
+  if (explain) {
+    return {
+      reply:
+        'I can **explain** your canvas, **suggest** a full orchestrator workflow, or **merge** small additions.\n\n' +
+        '- Describe the outcome (e.g. “optimize bids, then legal review”).\n' +
+        '- Mention channels, A/B tests, approvals, or wait times.\n' +
+        '- I only attach **skills/tools** that exist in your catalog (by id or exact name).\n\n' +
+        'When you are ready, ask for a workflow and tap **Apply** or **Merge** on the suggestion.',
+      proposal: null,
+      follow_ups: ['Design a welcome journey with email then SMS fallback', 'What logic node should I use after a wait for email open?'],
+      source: 'mock'
+    };
+  }
+  return null;
+}
+
+function mockComposerProposal(message) {
+  const lower = String(message || '').toLowerCase();
+  const subAgents = [];
+  const logicNodes = [];
+  let goal = 'Coordinate sub-agents to deliver the workflow end-to-end with measurable outcomes.';
+  const wantsAb = /a\/?b\b|split test|variant|experiment|challenger/i.test(lower);
+  const wantsCompliance = /compliance|audit|policy|legal|regulat|gdpr|consent|brand guardrail/i.test(lower);
+
+  if (wantsAb) {
+    subAgents.push(
+      {
+        name: 'Variant A — Control',
+        role: 'executor',
+        description: 'Runs the baseline optimization path for the control group.',
+        system_instructions: 'Execute the standard campaign optimization playbook. Log metrics for comparison.',
+        skill_ids: [],
+        tool_ids: [],
+        output_schema: [{ key: 'metrics', type: 'object', description: 'KPIs for variant A' }]
+      },
+      {
+        name: 'Variant B — Challenger',
+        role: 'executor',
+        description: 'Runs the experimental optimization path for the challenger group.',
+        system_instructions: 'Execute the alternative playbook with the proposed changes. Log metrics for comparison.',
+        skill_ids: [],
+        tool_ids: [],
+        output_schema: [{ key: 'metrics', type: 'object', description: 'KPIs for variant B' }]
+      }
+    );
+    logicNodes.push({
+      id: `ln_mock_ab_${Date.now()}`,
+      type: 'ab_split',
+      slot: 0,
+      label: 'A/B traffic split',
+      config: {
+        variants: [
+          { name: 'A', weight: 50, target: 0 },
+          { name: 'B', weight: 50, target: 1 }
+        ],
+        description: 'Random split for the experiment'
+      }
+    });
+  }
+
+  if (wantsCompliance) {
+    subAgents.push({
+      name: 'Compliance & QA',
+      role: 'reviewer',
+      description: 'Checks content and decisions against policy before publish.',
+      system_instructions: 'Review upstream outputs for regulatory, privacy, and brand requirements. Produce approve/reject with short rationale.',
+      skill_ids: [],
+      tool_ids: [],
+      output_schema: [
+        { key: 'approved', type: 'boolean', description: 'Pass/fail' },
+        { key: 'findings', type: 'string', description: 'Notes' }
+      ]
+    });
+    const gateSlot = wantsAb ? Math.min(2, Math.max(0, subAgents.length - 1)) : 0;
+    logicNodes.push({
+      id: `ln_mock_gate_${Date.now()}`,
+      type: 'gate',
+      slot: gateSlot,
+      label: 'Pre-publish compliance',
+      config: {
+        expression: 'review.approved == true',
+        fallback: 'skip',
+        description: 'Block if compliance fails'
+      }
+    });
+  }
+
+  const wantsParallel = /\bparallel\b|simultaneous|at the same time|fan-?out|multi-?track/i.test(lower) && !wantsAb;
+  const wantsDelay = /\bdelay\b|cooling-?off|pause for|\bwait \d+/i.test(lower);
+  const wantsWaitEvent = /wait for (open|click)|\bemail_?open\b|no response/i.test(lower);
+
+  if (wantsParallel && subAgents.length === 0) {
+    subAgents.push(
+      {
+        name: 'Coordinator',
+        role: 'planner',
+        description: 'Aligns parallel workstreams.',
+        system_instructions: 'Break work into parallel tracks and merge results.',
+        skill_ids: [],
+        tool_ids: [],
+        output_schema: [{ key: 'brief', type: 'string', description: 'Combined brief' }]
+      },
+      {
+        name: 'Workstream A',
+        role: 'executor',
+        description: 'First concurrent track.',
+        system_instructions: 'Execute track A; produce structured output.',
+        skill_ids: [],
+        tool_ids: [],
+        output_schema: [{ key: 'out_a', type: 'string', description: 'Track A result' }]
+      },
+      {
+        name: 'Workstream B',
+        role: 'executor',
+        description: 'Second concurrent track.',
+        system_instructions: 'Execute track B; produce structured output.',
+        skill_ids: [],
+        tool_ids: [],
+        output_schema: [{ key: 'out_b', type: 'string', description: 'Track B result' }]
+      }
+    );
+    logicNodes.push({
+      id: `ln_mock_par_${Date.now()}`,
+      type: 'parallel',
+      slot: 1,
+      label: 'Parallel execution',
+      config: { branches: [1, 2], wait_mode: 'all', description: 'Run both tracks before continuing' }
+    });
+  }
+
+  if (subAgents.length === 0) {
+    subAgents.push(
+      {
+        name: 'Planner',
+        role: 'planner',
+        description: 'Decomposes the task and assigns work.',
+        system_instructions: 'Plan steps, hand off to executors, and consolidate results.',
+        skill_ids: [],
+        tool_ids: [],
+        output_schema: []
+      },
+      {
+        name: 'Executor',
+        role: 'executor',
+        description: 'Runs the main work using skills and tools.',
+        system_instructions: 'Carry out the plan. Record outputs in the agreed schema.',
+        skill_ids: [],
+        tool_ids: [],
+        output_schema: [{ key: 'result', type: 'string', description: 'Primary output' }]
+      }
+    );
+    goal = 'Fulfill the user request via planner-led execution.';
+  }
+
+  if (wantsDelay && !logicNodes.some((n) => n.type === 'delay')) {
+    const slotD = Math.min(Math.max(0, subAgents.length - 1), 1);
+    logicNodes.push({
+      id: `ln_mock_del_${Date.now()}`,
+      type: 'delay',
+      slot: slotD,
+      label: 'Cooldown',
+      config: { duration: 24, unit: 'hours', description: 'Wait before next step' }
+    });
+  }
+  if (wantsWaitEvent && !logicNodes.some((n) => n.type === 'wait_event')) {
+    const slotW = Math.min(subAgents.length, Math.max(1, subAgents.length - 1));
+    logicNodes.push({
+      id: `ln_mock_we_${Date.now()}`,
+      type: 'wait_event',
+      slot: slotW,
+      label: 'Wait for engagement',
+      config: {
+        event_type: 'email_open',
+        timeout_duration: 48,
+        timeout_unit: 'hours',
+        timeout_action: 'continue',
+        description: 'Proceed after open or timeout'
+      }
+    });
+  }
+
+  const nameHint = message.trim().slice(0, 80) || 'Suggested workflow';
+  return {
+    reply:
+      'Here is a structured draft you can **Apply** (replace canvas) or refine with follow-up messages. Attach matching **skills** and **tools** from the palette.',
+    proposal: sanitizeComposerProposal(
+      {
+        replace_flow: true,
+        name: nameHint,
+        goal,
+        description: `Generated from: ${message.trim().slice(0, 500)}`,
+        sub_agents: subAgents,
+        logic_nodes: logicNodes
+      },
+      { skills: [], tools: [], orchestratorAgents: [], priorSubAgentCount: 0 }
+    ),
+    follow_ups: [
+      'Merge a delay before the compliance step',
+      'Explain how slots map to my current canvas',
+      'Add skill assignments using catalog names only'
+    ],
+    source: 'mock'
+  };
+}
+
+const SA_PATCH_ROLES = new Set([
+  'orchestrator', 'executor', 'reviewer', 'planner', 'analyst', 'timing', 'content', 'channel', 'targeting', 'conversion'
+]);
+
+function resolveAgentPatchCatalogIds(patch, context) {
+  const skills = context.skills || [];
+  const tools = context.tools || [];
+  const skillByName = new Map(skills.map((s) => [String(s.name || '').toLowerCase().trim(), s.id]));
+  const toolByName = new Map(tools.map((t) => [String(t.name || '').toLowerCase().trim(), t.id]));
+  const skillIds = new Set();
+  const toolIds = new Set();
+  (patch.skill_ids || []).forEach((x) => {
+    const n = Number(x);
+    if (n > 0) skillIds.add(n);
+  });
+  (patch.tool_ids || []).forEach((x) => {
+    const n = Number(x);
+    if (n > 0) toolIds.add(n);
+  });
+  (patch.skill_names || []).forEach((nm) => {
+    const id = skillByName.get(String(nm || '').toLowerCase().trim());
+    if (id) skillIds.add(id);
+  });
+  (patch.tool_names || []).forEach((nm) => {
+    const id = toolByName.get(String(nm || '').toLowerCase().trim());
+    if (id) toolIds.add(id);
+  });
+  patch.skill_ids = [...skillIds];
+  patch.tool_ids = [...toolIds];
+  delete patch.skill_names;
+  delete patch.tool_names;
+}
+
+function sanitizeComposerAgentPatch(raw, context) {
+  if (!raw || typeof raw !== 'object') return null;
+  const patch = {};
+  if (typeof raw.name === 'string' && raw.name.trim()) patch.name = raw.name.trim().slice(0, 160);
+  if (typeof raw.role === 'string' && SA_PATCH_ROLES.has(raw.role)) patch.role = raw.role;
+  if (typeof raw.description === 'string') patch.description = raw.description.slice(0, 4000);
+  if (typeof raw.system_instructions === 'string') patch.system_instructions = raw.system_instructions.slice(0, 12000);
+  if (Array.isArray(raw.skill_ids)) patch.skill_ids = raw.skill_ids;
+  if (Array.isArray(raw.tool_ids)) patch.tool_ids = raw.tool_ids;
+  if (Array.isArray(raw.skill_names)) patch.skill_names = raw.skill_names.map((x) => String(x));
+  if (Array.isArray(raw.tool_names)) patch.tool_names = raw.tool_names.map((x) => String(x));
+  if (Array.isArray(raw.output_schema)) {
+    patch.output_schema = raw.output_schema
+      .map((o) => ({
+        key: String(o.key || '').slice(0, 64),
+        type: ['string', 'number', 'boolean', 'array', 'object'].includes(o.type) ? o.type : 'string',
+        description: String(o.description || '').slice(0, 500)
+      }))
+      .filter((o) => o.key);
+  }
+  resolveAgentPatchCatalogIds(patch, context);
+  return Object.keys(patch).length ? patch : null;
+}
+
+function buildSubAgentComposerSystemMessage() {
+  return `You are an **Agent-level** assistant inside an orchestrator composer (like per-slide AI in a deck editor).
+
+## Scope
+- You ONLY help refine **one sub-agent** (the **focused** step). Do NOT redesign the whole workflow unless the user explicitly asks "how would you change the flow" — then explain in **reply** only; leave **agent_patch** null unless they want field updates.
+- Use **skill_ids** / **tool_ids** from the catalog (or **skill_names** / **tool_names** exact match). Never invent numeric ids.
+
+## agent_patch
+- Include only fields the user asked to change or that clearly need improvement. Omit unchanged fields.
+- **output_schema** replaces the list entirely when provided (be careful — prefer additive suggestions in **reply** unless they asked to replace).
+
+## Response JSON only
+{
+  "reply": string (markdown ok),
+  "follow_ups": string[] (0–4, optional),
+  "agent_patch": null | {
+    "name"?: string,
+    "role"?: string,
+    "description"?: string,
+    "system_instructions"?: string,
+    "skill_ids"?: number[],
+    "tool_ids"?: number[],
+    "skill_names"?: string[],
+    "tool_names"?: string[],
+    "output_schema"?: [{ "key", "type", "description" }]
+  }
+}
+
+If purely Q&A, **agent_patch** may be null.`;
+}
+
+function mockComposerSubAgent(message, focus) {
+  const lower = String(message || '').toLowerCase();
+  const label = focus?.name || 'This agent';
+  const explain = /\?|^\s*what\b|^\s*how\b|explain|tips|improve|tone|shorter|longer|audit/.test(lower);
+  if (explain && !/apply|patch|set |replace instructions/.test(lower)) {
+    return {
+      reply: `**${label}** (step **${(focus.index ?? 0) + 1}** in the flow) uses **system instructions** to steer the model, **outputs** for downstream steps, and **skills/tools** from the catalog.\n\n`
+        + 'Ask me to rewrite instructions, suggest outputs for your downstream agent, or pick skills by name.',
+      agent_patch: null,
+      follow_ups: ['Tighten system instructions for brand-safe tone', 'Suggest output_schema keys for the next step', 'List which skills fit this role'],
+      source: 'mock'
+    };
+  }
+  const extra = '\n\n- Be concise.\n- Prefer structured outputs when the next step consumes data.';
+  return {
+    reply: 'Updated **system instructions** with general best practices. Tweak further or tap **Apply to this agent**.',
+    agent_patch: {
+      system_instructions:
+        String(focus?.system_instructions || '').slice(0, 11000) + extra,
+      description: focus?.description || undefined
+    },
+    follow_ups: ['Add an output key for approval_status', 'Make instructions more formal'],
+    source: 'mock'
+  };
+}
+
+function buildComposerSystemMessage(typeList) {
+  return `You are the **Agent Composer** assistant — a senior product+AI architect for marketing/CRM orchestration.
+
+## Your job
+- Answer questions about the **current canvas**, control flow, and best practices (clear, actionable; use markdown in "reply": **bold**, lists, code for field names).
+- When the user wants changes, emit a **proposal** they can apply in one click.
+- If they only need an explanation, set **proposal** to null and still give a rich **reply**.
+
+## Data model
+- **sub_agents[]** — ordered steps. Roles: executor | reviewer | planner | orchestrator. Include realistic system_instructions, description, optional output_schema (keys help downstream transforms).
+- **logic_nodes[]** — types: ${typeList}. Each has **slot** (integer):
+  - Slot 0 = before first sub-agent.
+  - Slot k (k < N) = after sub-agent k-1, before sub-agent k.
+  - Slot N = after last sub-agent when there are N sub-agents (N = sub_agents.length).
+- **replace_flow**: **true** (default) = proposal describes the **full** orchestrator; **false** = **merge**: only **new** sub_agents to append after the current list, and **new** logic_nodes. Use **global slot indices** as they will exist *after* append (see **prior_sub_agent_count** in the user JSON). Targets (then_target, variant.target, branches, etc.) use **zero-based sub-agent indices** in that **combined** future canvas.
+
+## Design guidance
+- Prefer 3–6 sub-agents unless asked otherwise.
+- **A/B**: ab_split with variants summing to 100; targets point at variant sub-agents.
+- **Compliance**: reviewer + gate or condition on approval flags in schema.
+- **Re-engagement**: wait_event after sends; delays for cooldowns.
+- **Hand-off**: invoke_agent only with ids from orchestratorAgents.
+- Reference **skills/tools by id or exact name** from the catalog; never invent ids.
+
+## Response format (JSON only)
+{
+  "reply": string (markdown allowed),
+  "follow_ups": string[] (0–4 short suggested next user messages; optional),
+  "proposal": null | {
+    "replace_flow": boolean,
+    "name"?: string, "goal"?: string, "description"?: string,
+    "sub_agents": [...],
+    "logic_nodes": [...]
+  }
+}
+
+If the user asks purely conceptual questions, **proposal** may be null. If you suggest a workflow, **sub_agents** must be non-empty unless you are only adding logic (merge with empty sub_agents array is allowed for timing-only patches).`;
+}
+
+router.post('/composer-suggest', async (req, res) => {
+  try {
+    const { message, history = [], context = {}, scope: scopeRaw, sub_agent_index: subIxRaw } = req.body || {};
+    if (!message || typeof message !== 'string') {
+      return res.status(400).json({ error: 'message is required' });
+    }
+
+    const typeList = [...COMPOSER_LOGIC_TYPES].join(', ');
+    const catalogSkills = (context.skills || [])
+      .map((s) => ({
+        id: s.id,
+        name: s.name,
+        description: typeof s.description === 'string' ? s.description.slice(0, 220) : undefined
+      }))
+      .slice(0, 220);
+    const catalogTools = (context.tools || [])
+      .map((t) => ({
+        id: t.id,
+        name: t.name,
+        description: typeof t.description === 'string' ? t.description.slice(0, 220) : undefined
+      }))
+      .slice(0, 220);
+    const orchAgents = (context.orchestratorAgents || []).map((a) => ({ id: a.id, name: a.name })).slice(0, 120);
+    const scope = String(scopeRaw || 'workflow').toLowerCase().trim();
+
+    if (scope === 'sub_agent') {
+      const subAgentIndex = parseInt(subIxRaw, 10);
+      if (Number.isNaN(subAgentIndex) || subAgentIndex < 0) {
+        return res.status(400).json({ error: 'sub_agent_index is required for sub_agent scope' });
+      }
+      const focus = context.sub_agent_focus;
+      if (!focus || typeof focus !== 'object') {
+        return res.status(400).json({ error: 'context.sub_agent_focus is required' });
+      }
+      const patchCtx = { skills: catalogSkills, tools: catalogTools };
+      const systemMsg = buildSubAgentComposerSystemMessage();
+      const userPayload = JSON.stringify({
+        message: message.slice(0, 10000),
+        sub_agent_index: subAgentIndex,
+        history: (Array.isArray(history) ? history : []).slice(-18).map((h) => ({
+          role: h.role === 'assistant' ? 'assistant' : 'user',
+          content: String(h.content || '').slice(0, 6000)
+        })),
+        catalogSkills,
+        catalogTools,
+        sub_agent_focus: focus,
+        canvas_summary: context.canvas_summary || null
+      });
+
+      let parsed = await callOpenAIJson(systemMsg, userPayload, 4200);
+
+      if (!parsed || typeof parsed !== 'object') {
+        const mock = mockComposerSubAgent(message, { ...focus, index: subAgentIndex });
+        const agent_patch = mock.agent_patch ? sanitizeComposerAgentPatch(mock.agent_patch, patchCtx) : null;
+        return res.json({
+          reply: mock.reply,
+          agent_patch,
+          follow_ups: sanitizeComposerFollowUps(mock.follow_ups),
+          proposal: null,
+          source: 'mock'
+        });
+      }
+
+      let reply = typeof parsed.reply === 'string' ? parsed.reply : '';
+      if (!reply.trim()) reply = 'Here are suggestions for this agent.';
+      const followUps = sanitizeComposerFollowUps(parsed.follow_ups);
+      const rawPatch =
+        parsed.agent_patch === null ? null : parsed.agent_patch && typeof parsed.agent_patch === 'object' ? parsed.agent_patch : null;
+      const agent_patch = rawPatch ? sanitizeComposerAgentPatch(rawPatch, patchCtx) : null;
+      return res.json({ reply, agent_patch, follow_ups: followUps, proposal: null, source: 'openai' });
+    }
+
+    const priorSubAgentCount = Math.max(0, parseInt(context.priorSubAgentCount, 10) || 0);
+    const sanitizeCtx = {
+      skills: catalogSkills,
+      tools: catalogTools,
+      orchestratorAgents: orchAgents,
+      priorSubAgentCount
+    };
+
+    const systemMsg = buildComposerSystemMessage(typeList);
+
+    const userPayload = JSON.stringify({
+      message: message.slice(0, 10000),
+      prior_sub_agent_count: priorSubAgentCount,
+      history: (Array.isArray(history) ? history : []).slice(-18).map((h) => ({
+        role: h.role === 'assistant' ? 'assistant' : 'user',
+        content: String(h.content || '').slice(0, 6000)
+      })),
+      catalogSkills,
+      catalogTools,
+      orchestratorAgents: orchAgents,
+      currentAgent: context.currentAgent || null,
+      canvas: context.canvas || null
+    });
+
+    let parsed = await callOpenAIJson(systemMsg, userPayload, 5000);
+
+    const fallbackFromMock = () => {
+      const conv = mockComposerConversation(message);
+      if (conv) return conv;
+      return mockComposerProposal(message);
+    };
+
+    if (!parsed || typeof parsed !== 'object') {
+      const mock = fallbackFromMock();
+      return res.json({
+        reply: mock.reply,
+        proposal: mock.proposal,
+        follow_ups: sanitizeComposerFollowUps(mock.follow_ups),
+        source: 'mock'
+      });
+    }
+
+    let reply = typeof parsed.reply === 'string' ? parsed.reply : '';
+    if (!reply.trim()) reply = 'Here is an updated workflow suggestion.';
+    const followUps = sanitizeComposerFollowUps(parsed.follow_ups);
+    const proposalRaw = parsed.proposal === null ? null : parsed.proposal && typeof parsed.proposal === 'object' ? parsed.proposal : null;
+
+    if (!proposalRaw) {
+      return res.json({ reply, proposal: null, follow_ups: followUps, source: 'openai' });
+    }
+
+    if (!Array.isArray(proposalRaw.sub_agents)) {
+      return res.json({ reply, proposal: null, follow_ups: followUps, source: 'openai' });
+    }
+
+    if (proposalRaw.replace_flow !== false && proposalRaw.sub_agents.length === 0) {
+      return res.json({ reply, proposal: null, follow_ups: followUps, source: 'openai' });
+    }
+
+    const proposal = sanitizeComposerProposal(proposalRaw, sanitizeCtx);
+
+    if (!proposal) {
+      return res.json({ reply, proposal: null, follow_ups: followUps, source: 'openai' });
+    }
+
+    const isMerge = proposal.replace_flow === false;
+    const emptyNewSas = proposal.sub_agents.length === 0;
+    if (!isMerge && emptyNewSas) {
+      return res.json({ reply, proposal: null, follow_ups: followUps, source: 'openai' });
+    }
+    if (isMerge && emptyNewSas && (!proposal.logic_nodes || proposal.logic_nodes.length === 0)) {
+      return res.json({ reply, proposal: null, follow_ups: followUps, source: 'openai' });
+    }
+
+    res.json({ reply, proposal, follow_ups: followUps, source: 'openai' });
+  } catch (e) {
+    console.error('[AI] composer-suggest', e);
+    res.status(500).json({ error: 'composer-suggest failed' });
+  }
+});
 
 module.exports = router;
